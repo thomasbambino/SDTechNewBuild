@@ -116,6 +116,9 @@ export const settings = pgTable("settings", {
   siteTitle: text("site_title").default("SD Tech Pros Client Portal"),
   siteDescription: text("site_description"),
   favicon: text("favicon"),
+  contactEmail: text("contact_email"),
+  contactPhone: text("contact_phone"),
+  contactAddress: text("contact_address"),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
@@ -160,6 +163,8 @@ export const apiConnections = pgTable("api_connections", {
   refreshToken: text("refresh_token"),
   expiresAt: timestamp("expires_at"),
   isActive: boolean("is_active").default(true),
+  accountId: text("account_id"),
+  businessId: text("business_id"),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 

@@ -133,11 +133,10 @@ export default function PublicHome() {
     { name: "Contact", href: "#contact" }
   ];
 
-  // Company info
   const companyInfo = {
-    email: "contact@sdtechpros.com",
-    phone: "(555) 123-4567",
-    address: "123 Tech Street, San Diego, CA 92101"
+    email: settings?.contactEmail || "contact@sdtechpros.com",
+    phone: settings?.contactPhone || "(555) 123-4567",
+    address: settings?.contactAddress || "123 Tech Street, San Diego, CA 92101",
   };
 
   // Handle scroll to section
@@ -158,8 +157,18 @@ export default function PublicHome() {
             {/* Logo */}
             <div className="flex items-center">
               <a href="#home" className="flex items-center">
-                <span className="bg-primary text-primary-foreground font-bold text-xl px-2 py-1 rounded mr-2">SD</span>
-                <span className="text-primary font-semibold text-lg hidden md:block">Tech Pros</span>
+                {settings?.logoPath ? (
+                  <img
+                    src={settings.logoPath}
+                    alt={settings.companyName || "Logo"}
+                    className="h-8 max-w-[160px] object-contain mr-2"
+                  />
+                ) : (
+                  <>
+                    <span className="bg-primary text-primary-foreground font-bold text-xl px-2 py-1 rounded mr-2">SD</span>
+                    <span className="text-primary font-semibold text-lg hidden md:block">Tech Pros</span>
+                  </>
+                )}
               </a>
             </div>
             

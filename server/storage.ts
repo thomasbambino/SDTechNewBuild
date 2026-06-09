@@ -876,22 +876,29 @@ export class DatabaseStorage implements IStorage {
   
   async updateApiConnection(provider: string, connectionUpdate: Partial<ApiConnection>): Promise<ApiConnection | undefined> {
     const existingConnection = await this.getApiConnection(provider);
-    
+
+    // Ensure expiresAt is a Date object (frontend may send an ISO string)
+    const expiresAt = connectionUpdate.expiresAt
+      ? (connectionUpdate.expiresAt instanceof Date
+          ? connectionUpdate.expiresAt
+          : new Date(connectionUpdate.expiresAt as unknown as string))
+      : null;
+
     if (existingConnection) {
       const [updatedConnection] = await this.db
         .update(apiConnections)
-        .set({ ...connectionUpdate, updatedAt: new Date() })
+        .set({ ...connectionUpdate, expiresAt, updatedAt: new Date() })
         .where(eq(apiConnections.id, existingConnection.id))
         .returning();
       return updatedConnection;
     } else if (connectionUpdate.provider) {
       const [newConnection] = await this.db
         .insert(apiConnections)
-        .values({ 
-          provider: connectionUpdate.provider, 
+        .values({
+          provider: connectionUpdate.provider,
           accessToken: connectionUpdate.accessToken || null,
           refreshToken: connectionUpdate.refreshToken || null,
-          expiresAt: connectionUpdate.expiresAt || null,
+          expiresAt,
           isActive: connectionUpdate.isActive !== undefined ? connectionUpdate.isActive : true,
         })
         .returning();

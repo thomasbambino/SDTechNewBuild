@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import Header from "./Header";
-import Sidebar from "./Sidebar";
+import Header from "./header";
+import Sidebar from "./sidebar";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 

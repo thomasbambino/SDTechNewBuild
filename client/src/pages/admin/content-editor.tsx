@@ -65,12 +65,11 @@ export default function ContentEditorPage() {
     },
     onSuccess: (newContent) => {
       queryClient.invalidateQueries({ queryKey: ['/api/contents'] });
+      queryClient.invalidateQueries({ queryKey: [`/api/content/${newContent.type}`] });
       toast({
         title: "Content created",
         description: "New content has been added successfully.",
       });
-      
-      // Close the editing panel
       setEditingContent(null);
     },
     onError: (error) => {
@@ -90,12 +89,11 @@ export default function ContentEditorPage() {
     },
     onSuccess: (updatedContent) => {
       queryClient.invalidateQueries({ queryKey: ['/api/contents'] });
+      queryClient.invalidateQueries({ queryKey: [`/api/content/${updatedContent.type}`] });
       toast({
         title: "Content updated",
         description: "Content has been updated successfully.",
       });
-      
-      // Close the editing panel
       setEditingContent(null);
     },
     onError: (error) => {
@@ -115,6 +113,10 @@ export default function ContentEditorPage() {
     },
     onSuccess: (id) => {
       queryClient.invalidateQueries({ queryKey: ['/api/contents'] });
+      // Invalidate all type-specific queries since we may not know the type at this point
+      ['hero', 'service', 'about', 'testimonial', 'content'].forEach(type => {
+        queryClient.invalidateQueries({ queryKey: [`/api/content/${type}`] });
+      });
       toast({
         title: "Content deleted",
         description: "Content has been removed successfully.",

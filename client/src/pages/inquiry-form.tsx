@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -58,6 +58,9 @@ export default function InquiryForm() {
   const [_, navigate] = useLocation();
   const { toast } = useToast();
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const { data: settings } = useQuery<{ logoPath?: string; companyName?: string }>({
+    queryKey: ["/api/settings/public"],
+  });
   
   // Available services
   const serviceOptions = [
@@ -142,8 +145,18 @@ export default function InquiryForm() {
               Back to Home
             </Button>
             <div className="mx-auto flex items-center">
-              <span className="bg-primary text-primary-foreground font-bold text-xl px-2 py-1 rounded mr-2">SD</span>
-              <span className="text-primary font-semibold text-lg">Tech Pros</span>
+              {settings?.logoPath ? (
+                <img
+                  src={settings.logoPath}
+                  alt={settings.companyName || "Logo"}
+                  className="h-8 max-w-[160px] object-contain"
+                />
+              ) : (
+                <>
+                  <span className="bg-primary text-primary-foreground font-bold text-xl px-2 py-1 rounded mr-2">SD</span>
+                  <span className="text-primary font-semibold text-lg">Tech Pros</span>
+                </>
+              )}
             </div>
             <div className="w-20"></div> {/* Spacer for centering */}
           </div>

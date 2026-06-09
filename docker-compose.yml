@@ -1,0 +1,35 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: sdtech
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    ports:
+      - "5001:5000"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/sdtech
+      FRESHBOOKS_CLIENT_ID: d356f58d0eeebfd86d27f5841c95277772c7126002cdd2218b2f3da40dd1fdc6
+      FRESHBOOKS_CLIENT_SECRET: 1df49c6582775d01d406b34c42c3449d2b62816622f044eea3fe83ba1db8256a
+      FRESHBOOKS_REDIRECT_URI: https://localhost:5001/auth/callback
+    volumes:
+      - uploads:/app/client/public/uploads
+      - uploads:/app/server/public/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  uploads:

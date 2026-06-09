@@ -165,13 +165,41 @@ const createTables = async () => {
       );
     `);
     
+    // Add account_id and business_id to api_connections if they don't exist
+    await client.query(`ALTER TABLE api_connections ADD COLUMN IF NOT EXISTS account_id TEXT;`);
+    await client.query(`ALTER TABLE api_connections ADD COLUMN IF NOT EXISTS business_id TEXT;`);
+
+    // Add contact columns to settings if they don't exist
+    await client.query(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS contact_email TEXT;`);
+    await client.query(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS contact_phone TEXT;`);
+    await client.query(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS contact_address TEXT;`);
+
     // Add a default admin user
     await client.query(`
       INSERT INTO users (username, password, name, email, role)
       VALUES ('admin', '407eb6692bd8b03aa6bd939eea0f7f2b9579a06119499c89030f48480318e345b0efb442af7beef6c9e63f3c3ef79f93cdaa1a2c236866c1fefbe58d672ac821.9c05feca69b307af2084b6bdf6722c1a', 'Admin User', 'admin@sdtechpros.com', 'admin')
       ON CONFLICT (username) DO NOTHING;
     `);
-    
+
+    // Seed default content (only if no content exists)
+    const existing = await client.query('SELECT COUNT(*) FROM contents');
+    if (parseInt(existing.rows[0].count) === 0) {
+      await client.query(`
+        INSERT INTO contents (type, title, subtitle, content, image_path, "order", is_active) VALUES
+        ('hero', 'SD Tech Pros', 'Your Trusted Technology Partner', 'Get Started', NULL, 0, TRUE),
+        ('service', 'Our Services', 'We offer a range of technology solutions to help your business grow and succeed.', NULL, NULL, 0, TRUE),
+        ('service', 'Web Development', NULL, 'We build responsive, modern websites and web applications tailored to your business needs.', NULL, 1, TRUE),
+        ('service', 'Custom Software', NULL, 'Tailored solutions that automate processes and solve your unique business challenges.', NULL, 2, TRUE),
+        ('service', 'IT Consulting', NULL, 'Strategic technology guidance to help your business grow, scale and transform.', NULL, 3, TRUE),
+        ('service', 'Data Analytics', NULL, 'Turn your data into actionable insights with our analytics and reporting solutions.', NULL, 4, TRUE),
+        ('about', 'About SD Tech Pros', 'We''re a team of passionate technology experts dedicated to helping businesses succeed.', 'Founded in 2015, SD Tech Pros has been providing cutting-edge technology solutions to businesses of all sizes. Our mission is to empower organizations with the tools and expertise they need to thrive in today''s digital landscape.', NULL, 0, TRUE),
+        ('testimonial', 'Jane Smith', 'CEO, Acme Corp', 'SD Tech Pros transformed our business with their custom software solution. Their team was professional, responsive, and delivered exactly what we needed.', NULL, 0, TRUE),
+        ('testimonial', 'Mike Johnson', 'CTO, TechStart Inc', 'Working with SD Tech Pros was a game-changer for our company. Their web development expertise helped us increase our online presence and grow our customer base.', NULL, 1, TRUE),
+        ('testimonial', 'Sarah Williams', 'Operations Director, DataCo', 'The analytics dashboard SD Tech Pros built has given us invaluable insights into our business operations. I highly recommend their services.', NULL, 2, TRUE);
+      `);
+      console.log('Default content seeded successfully!');
+    }
+
     console.log('Database schema initialized successfully!');
   } catch (error) {
     console.error('Error initializing database schema:', error);

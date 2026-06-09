@@ -1,5 +1,5 @@
 import { storage } from './storage';
-import type { FreshbooksIntegration, InsertFreshbooksIntegration } from '@shared/schema';
+import type { ApiConnection } from '@shared/schema';
 
 interface FreshbooksTokenResponse {
   access_token: string;
@@ -9,45 +9,44 @@ interface FreshbooksTokenResponse {
 }
 
 interface FreshbooksClient {
-  id: string;
-  name: string;
+  id: number;
+  fname: string;
+  lname: string;
   email: string;
-  phone: string;
+  bus_phone: string;
+  mob_phone: string;
   organization: string;
-  address: {
-    street: string;
-    city: string;
-    province: string;
-    country: string;
-    postal_code: string;
-  };
+  p_street: string;
+  p_city: string;
+  p_province: string;
+  p_country: string;
+  p_code: string;
 }
 
 interface FreshbooksProject {
-  id: string;
+  id: number;
   title: string;
   description: string;
-  client_id: string;
-  due_date: string;
+  client_id: number;
+  due_date: string | null;
   budget: {
     amount: string;
     currency_code: string;
-  };
+  } | null;
 }
 
 interface FreshbooksInvoice {
-  id: string;
+  invoiceid: number;
   invoice_number: string;
-  client_id: string;
-  project_id?: string;
+  customerid: number;
   amount: {
     amount: string;
-    currency_code: string;
+    code: string;
   };
-  status: string;
+  v3_status: string;
+  payment_status: string;
   create_date: string;
-  due_date: string;
-  payment_date?: string;
+  due_offset_days: number;
 }
 
 export class FreshbooksService {
@@ -67,17 +66,14 @@ export class FreshbooksService {
   }
 
   public getAuthUrl(): string {
-    const scopes = encodeURIComponent('user:profile:read project:clients:read project:projects:read invoice:read');
-    return `${this.baseUrl}/auth/oauth/authorize?client_id=${this.clientId}&response_type=code&redirect_uri=${encodeURIComponent(this.redirectUri)}&scope=${scopes}`;
+    return `https://my.freshbooks.com/service/auth/oauth/authorize?client_id=${this.clientId}&response_type=code&redirect_uri=${encodeURIComponent(this.redirectUri)}`;
   }
 
-  public async exchangeCodeForToken(code: string): Promise<FreshbooksIntegration> {
+  public async exchangeCodeForToken(code: string): Promise<ApiConnection> {
     try {
       const response = await fetch(`${this.baseUrl}/auth/oauth/token`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           grant_type: 'authorization_code',
           client_id: this.clientId,
@@ -92,23 +88,15 @@ export class FreshbooksService {
       }
 
       const data: FreshbooksTokenResponse = await response.json();
-      
-      // Calculate expiration date
-      const expiresAt = new Date();
-      expiresAt.setSeconds(expiresAt.getSeconds() + data.expires_in);
-      
-      // Get account ID from user profile
-      const accountId = await this.getCurrentAccountId(data.access_token);
-      
-      const integrationData: InsertFreshbooksIntegration = {
+      const expiresAt = new Date(Date.now() + data.expires_in * 1000);
+
+      return await storage.updateApiConnection('freshbooks', {
+        provider: 'freshbooks',
         accessToken: data.access_token,
         refreshToken: data.refresh_token,
-        accountId,
         expiresAt,
-      };
-
-      // Store the integration data
-      return await storage.saveFreshbooksIntegration(integrationData);
+        isActive: true,
+      });
     } catch (error) {
       console.error('Error exchanging code for token:', error);
       throw error;
@@ -136,18 +124,16 @@ export class FreshbooksService {
     }
   }
 
-  private async refreshAccessToken(): Promise<FreshbooksIntegration> {
+  private async refreshAccessToken(): Promise<ApiConnection> {
     try {
-      const integration = await storage.getFreshbooksIntegration();
+      const integration = await storage.getApiConnection('freshbooks');
       if (!integration) {
-        throw new Error('No Freshbooks integration found');
+        throw new Error('No FreshBooks integration found');
       }
 
       const response = await fetch(`${this.baseUrl}/auth/oauth/token`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           grant_type: 'refresh_token',
           client_id: this.clientId,
@@ -161,20 +147,15 @@ export class FreshbooksService {
       }
 
       const data: FreshbooksTokenResponse = await response.json();
-      
-      // Calculate expiration date
-      const expiresAt = new Date();
-      expiresAt.setSeconds(expiresAt.getSeconds() + data.expires_in);
-      
-      const updatedIntegration: InsertFreshbooksIntegration = {
+      const expiresAt = new Date(Date.now() + data.expires_in * 1000);
+
+      return await storage.updateApiConnection('freshbooks', {
+        provider: 'freshbooks',
         accessToken: data.access_token,
         refreshToken: data.refresh_token,
-        accountId: integration.accountId,
         expiresAt,
-      };
-
-      // Store the updated integration data
-      return await storage.saveFreshbooksIntegration(updatedIntegration);
+        isActive: true,
+      });
     } catch (error) {
       console.error('Error refreshing access token:', error);
       throw error;
@@ -183,16 +164,14 @@ export class FreshbooksService {
 
   private async getAccessToken(): Promise<string> {
     try {
-      const integration = await storage.getFreshbooksIntegration();
-      if (!integration) {
-        throw new Error('No Freshbooks integration found');
+      const integration = await storage.getApiConnection('freshbooks');
+      if (!integration?.accessToken) {
+        throw new Error('No FreshBooks integration found');
       }
 
-      // Check if token is expired
-      if (new Date() >= integration.expiresAt) {
-        // Token is expired, refresh it
-        const refreshedIntegration = await this.refreshAccessToken();
-        return refreshedIntegration.accessToken;
+      if (integration.expiresAt && new Date() >= new Date(integration.expiresAt)) {
+        const refreshed = await this.refreshAccessToken();
+        return refreshed.accessToken!;
       }
 
       return integration.accessToken;
@@ -206,13 +185,13 @@ export class FreshbooksService {
   public async getClients(): Promise<FreshbooksClient[]> {
     try {
       const accessToken = await this.getAccessToken();
-      const integration = await storage.getFreshbooksIntegration();
-      
-      if (!integration) {
-        throw new Error('No Freshbooks integration found');
+      const integration = await storage.getApiConnection('freshbooks');
+
+      if (!integration?.accountId) {
+        throw new Error('FreshBooks account ID not found. Please reconnect.');
       }
 
-      const response = await fetch(`${this.baseUrl}/accounting/account/${integration.accountId}/clients/clients`, {
+      const response = await fetch(`${this.baseUrl}/accounting/account/${integration.accountId}/users/clients`, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
@@ -235,13 +214,13 @@ export class FreshbooksService {
   public async getProjects(): Promise<FreshbooksProject[]> {
     try {
       const accessToken = await this.getAccessToken();
-      const integration = await storage.getFreshbooksIntegration();
-      
-      if (!integration) {
-        throw new Error('No Freshbooks integration found');
+      const integration = await storage.getApiConnection('freshbooks');
+
+      if (!integration?.businessId) {
+        throw new Error('FreshBooks business ID not found. Please reconnect.');
       }
 
-      const response = await fetch(`${this.baseUrl}/projects/api/v1/projects?account_id=${integration.accountId}`, {
+      const response = await fetch(`${this.baseUrl}/projects/business/${integration.businessId}/projects`, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
@@ -264,10 +243,10 @@ export class FreshbooksService {
   public async getInvoices(): Promise<FreshbooksInvoice[]> {
     try {
       const accessToken = await this.getAccessToken();
-      const integration = await storage.getFreshbooksIntegration();
-      
-      if (!integration) {
-        throw new Error('No Freshbooks integration found');
+      const integration = await storage.getApiConnection('freshbooks');
+
+      if (!integration?.accountId) {
+        throw new Error('FreshBooks account ID not found. Please reconnect.');
       }
 
       const response = await fetch(`${this.baseUrl}/accounting/account/${integration.accountId}/invoices/invoices`, {
@@ -289,46 +268,44 @@ export class FreshbooksService {
     }
   }
 
-  // Check if Freshbooks integration is set up
   public async isConnected(): Promise<boolean> {
     try {
-      const integration = await storage.getFreshbooksIntegration();
-      return !!integration;
+      const integration = await storage.getApiConnection('freshbooks');
+      return !!(integration?.accessToken);
     } catch (error) {
       console.error('Error checking if connected:', error);
       return false;
     }
   }
 
+  private async getClientByFreshbooksId(freshbooksId: string) {
+    const clients = await storage.getAllClients();
+    return clients.find(c => c.freshbooksId === freshbooksId);
+  }
+
   // Sync clients from Freshbooks to local storage
   public async syncClients(): Promise<void> {
     try {
       const clients = await this.getClients();
-      
+
       for (const client of clients) {
-        // Check if client already exists
-        const existingClient = await storage.getClientByFreshbooksId(client.id);
-        
+        const freshbooksId = String(client.id);
+        const name = [client.fname, client.lname].filter(Boolean).join(' ') || client.organization || 'Unknown';
+        const phone = client.bus_phone || client.mob_phone || '';
+        const address = [client.p_street, client.p_city, client.p_province, client.p_country, client.p_code]
+          .filter(Boolean).join(', ');
+
+        const existingClient = await this.getClientByFreshbooksId(freshbooksId);
+
         if (existingClient) {
-          // Update existing client
-          await storage.updateClient(existingClient.id, {
-            name: client.name,
-            email: client.email,
-            phone: client.phone,
-            address: client.address ? 
-              `${client.address.street}, ${client.address.city}, ${client.address.province}, ${client.address.country}, ${client.address.postal_code}` : 
-              undefined,
-          });
+          await storage.updateClient(existingClient.id, { name, email: client.email, phone, address });
         } else {
-          // Create new client
           await storage.createClient({
-            freshbooksId: client.id,
-            name: client.name,
+            freshbooksId,
+            name,
             email: client.email,
-            phone: client.phone,
-            address: client.address ? 
-              `${client.address.street}, ${client.address.city}, ${client.address.province}, ${client.address.country}, ${client.address.postal_code}` : 
-              undefined,
+            phone,
+            address,
             notes: '',
             userId: null,
           });
@@ -346,33 +323,27 @@ export class FreshbooksService {
       const projects = await this.getProjects();
       
       for (const project of projects) {
-        // Check if client exists
-        const client = await storage.getClientByFreshbooksId(project.client_id);
-        
-        if (!client) {
-          // Skip if client doesn't exist
-          continue;
-        }
-        
-        // Check if project already exists
-        const existingProject = await this.getProjectByFreshbooksId(project.id);
-        
+        const client = await this.getClientByFreshbooksId(String(project.client_id));
+
+        if (!client) continue;
+
+        const freshbooksId = String(project.id);
+        const existingProject = await this.getProjectByFreshbooksId(freshbooksId);
+
         if (existingProject) {
-          // Update existing project
           await storage.updateProject(existingProject.id, {
             name: project.title,
             description: project.description,
-            budget: project.budget?.amount ? `${project.budget.amount} ${project.budget.currency_code}` : undefined,
+            budget: project.budget?.amount ? parseFloat(project.budget.amount) : undefined,
             dueDate: project.due_date ? new Date(project.due_date) : undefined,
           });
         } else {
-          // Create new project
           await storage.createProject({
-            freshbooksId: project.id,
+            freshbooksId,
             clientId: client.id,
             name: project.title,
             description: project.description,
-            budget: project.budget?.amount ? `${project.budget.amount} ${project.budget.currency_code}` : undefined,
+            budget: project.budget?.amount ? parseFloat(project.budget.amount) : undefined,
             status: 'in_progress',
             progress: 0,
             startDate: new Date(),
@@ -392,45 +363,31 @@ export class FreshbooksService {
       const invoices = await this.getInvoices();
       
       for (const invoice of invoices) {
-        // Check if client exists
-        const client = await storage.getClientByFreshbooksId(invoice.client_id);
-        
-        if (!client) {
-          // Skip if client doesn't exist
-          continue;
-        }
-        
-        // Check if project exists if invoice has project_id
-        let projectId = null;
-        if (invoice.project_id) {
-          const project = await this.getProjectByFreshbooksId(invoice.project_id);
-          if (project) {
-            projectId = project.id;
-          }
-        }
-        
-        // Check if invoice already exists
-        const existingInvoice = await this.getInvoiceByFreshbooksId(invoice.id);
-        
+        const client = await this.getClientByFreshbooksId(String(invoice.customerid));
+
+        if (!client) continue;
+
+        const freshbooksId = String(invoice.invoiceid);
+        const existingInvoice = await this.getInvoiceByFreshbooksId(freshbooksId);
+        const status = this.mapInvoiceStatus(invoice.payment_status || invoice.v3_status);
+        const amount = parseFloat(invoice.amount.amount);
+        const issueDate = new Date(invoice.create_date);
+        const dueDate = new Date(issueDate);
+        dueDate.setDate(dueDate.getDate() + (invoice.due_offset_days || 30));
+
         if (existingInvoice) {
-          // Update existing invoice
-          await storage.updateInvoice(existingInvoice.id, {
-            amount: `${invoice.amount.amount} ${invoice.amount.currency_code}`,
-            status: this.mapInvoiceStatus(invoice.status),
-            paidDate: invoice.payment_date ? new Date(invoice.payment_date) : null,
-          });
+          await storage.updateInvoice(existingInvoice.id, { amount, status });
         } else {
-          // Create new invoice
           await storage.createInvoice({
-            freshbooksId: invoice.id,
+            freshbooksId,
             clientId: client.id,
-            projectId,
+            projectId: null,
             invoiceNumber: invoice.invoice_number,
-            amount: `${invoice.amount.amount} ${invoice.amount.currency_code}`,
-            status: this.mapInvoiceStatus(invoice.status),
-            issueDate: new Date(invoice.create_date),
-            dueDate: new Date(invoice.due_date),
-            paidDate: invoice.payment_date ? new Date(invoice.payment_date) : null,
+            amount,
+            status,
+            issueDate,
+            dueDate,
+            paidDate: status === 'paid' ? issueDate : null,
           });
         }
       }

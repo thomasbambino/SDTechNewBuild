@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
+import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -47,6 +48,9 @@ type RegisterFormValues = z.infer<typeof registerSchema>;
 export default function AuthPage() {
   const [activeTab, setActiveTab] = useState<string>("login");
   const { user, loginMutation, registerMutation } = useAuth();
+  const { data: publicSettings } = useQuery<{ logoPath?: string; companyName?: string }>({
+    queryKey: ["/api/settings/public"],
+  });
   const [_, navigate] = useLocation();
 
   // Login form
@@ -102,8 +106,18 @@ export default function AuthPage() {
         <div className="max-w-md w-full space-y-8">
           <div className="text-center">
             <div className="flex items-center justify-center">
-              <span className="bg-primary text-primary-foreground font-bold text-3xl px-3 py-2 rounded mr-2">SD</span>
-              <span className="text-primary font-semibold text-2xl">Tech Pros</span>
+              {publicSettings?.logoPath ? (
+                <img
+                  src={publicSettings.logoPath}
+                  alt={publicSettings.companyName || "Logo"}
+                  className="h-12 max-w-[200px] object-contain"
+                />
+              ) : (
+                <>
+                  <span className="bg-primary text-primary-foreground font-bold text-3xl px-3 py-2 rounded mr-2">SD</span>
+                  <span className="text-primary font-semibold text-2xl">Tech Pros</span>
+                </>
+              )}
             </div>
             <h2 className="mt-6 text-3xl font-extrabold text-gray-900">Client Portal</h2>
           </div>

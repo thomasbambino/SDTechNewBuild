@@ -292,9 +292,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         radius: settings.radius,
         siteTitle: settings.siteTitle,
         siteDescription: settings.siteDescription,
-        favicon: settings.favicon
-      } : null;
-      
+        favicon: settings.favicon,
+        contactEmail: settings.contactEmail,
+        contactPhone: settings.contactPhone,
+        contactAddress: settings.contactAddress,
+      } : {};
+
       res.json(publicSettings);
     } catch (error) {
       next(error);
@@ -846,13 +849,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Continue even if copy fails, as we still have the file in client/public
       }
       
-      // Update settings with the new logo path
-      const settings = await storage.getSettings();
-      
-      if (!settings) {
-        return res.status(404).json({ message: "Settings not found" });
-      }
-      
       console.log("Updating logo path in settings to:", relativePath);
       
       const updatedSettings = await storage.updateSettings({
@@ -908,13 +904,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Continue even if copy fails, as we still have the file in client/public
       }
       
-      // Update settings with the new favicon path
-      const settings = await storage.getSettings();
-      
-      if (!settings) {
-        return res.status(404).json({ message: "Settings not found" });
-      }
-      
       console.log("Updating favicon path in settings to:", relativePath);
       
       const updatedSettings = await storage.updateSettings({
@@ -955,30 +944,173 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/api-connections/freshbooks", isAuthenticated, hasRole("admin"), async (req, res, next) => {
     try {
       const connection = await storage.getApiConnection("freshbooks");
-      res.json(connection);
+      res.json(connection || null);
     } catch (error) {
       next(error);
     }
   });
-  
-  app.put("/api/api-connections/freshbooks", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+
+  // Initiate FreshBooks OAuth — redirects browser to FreshBooks authorization page
+  app.get("/api/api-connections/freshbooks/auth", isAuthenticated, hasRole("admin"), (req, res) => {
+    const clientId = process.env.FRESHBOOKS_CLIENT_ID;
+    const redirectUri = process.env.FRESHBOOKS_REDIRECT_URI;
+    if (!clientId || !redirectUri) {
+      return res.status(400).json({ message: "FRESHBOOKS_CLIENT_ID and FRESHBOOKS_REDIRECT_URI environment variables are not set." });
+    }
+    const url = `https://my.freshbooks.com/service/auth/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}`;
+    res.redirect(url);
+  });
+
+  const handleFreshbooksCallback = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const updatedConnection = await storage.updateApiConnection("freshbooks", {
-        provider: "freshbooks",
-        ...req.body
-      });
-      
-      if (updatedConnection) {
-        await storage.createActivity({
-          userId: req.user?.id,
-          action: "API Connection Updated",
-          details: "Freshbooks API connection was updated",
-          entityType: "api_connection",
-          entityId: updatedConnection.id
-        });
+      const { code, error } = req.query;
+      if (error || !code) {
+        return res.redirect("/admin/api-connections?error=freshbooks_denied");
       }
-      
-      res.json(updatedConnection);
+
+      const clientId = process.env.FRESHBOOKS_CLIENT_ID;
+      const clientSecret = process.env.FRESHBOOKS_CLIENT_SECRET;
+      const redirectUri = process.env.FRESHBOOKS_REDIRECT_URI;
+      if (!clientId || !clientSecret || !redirectUri) {
+        return res.redirect("/admin/api-connections?error=missing_env");
+      }
+
+      const tokenRes = await fetch("https://api.freshbooks.com/auth/oauth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          grant_type: "authorization_code",
+          client_id: clientId,
+          client_secret: clientSecret,
+          code,
+          redirect_uri: redirectUri,
+        }),
+      });
+
+      if (!tokenRes.ok) {
+        const body = await tokenRes.text();
+        console.error("FreshBooks token exchange failed:", body);
+        return res.redirect("/admin/api-connections?error=token_exchange");
+      }
+
+      const tokenData = await tokenRes.json();
+      const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000);
+
+      // Fetch account ID and business ID from the user profile
+      let accountId: string | null = null;
+      let businessId: string | null = null;
+      try {
+        const meRes = await fetch("https://api.freshbooks.com/auth/api/v1/users/me", {
+          headers: { Authorization: `Bearer ${tokenData.access_token}` },
+        });
+        if (meRes.ok) {
+          const me = await meRes.json();
+          const bm = me.response?.business_memberships?.[0]?.business;
+          accountId = bm?.account_id ?? null;
+          businessId = bm?.id ? String(bm.id) : null;
+        }
+      } catch (e) {
+        console.error("Failed to fetch FreshBooks account/business ID:", e);
+      }
+
+      await storage.updateApiConnection("freshbooks", {
+        provider: "freshbooks",
+        accessToken: tokenData.access_token,
+        refreshToken: tokenData.refresh_token,
+        expiresAt,
+        isActive: true,
+        accountId,
+        businessId,
+      });
+
+      await storage.createActivity({
+        userId: (req.user as any)?.id,
+        action: "FreshBooks Connected",
+        details: "FreshBooks OAuth connection established",
+        entityType: "api_connection",
+        entityId: 0,
+      });
+
+      res.redirect("/admin/api-connections?connected=freshbooks");
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  // FreshBooks OAuth callback — registered redirect URI
+  app.get("/auth/callback", isAuthenticated, hasRole("admin"), handleFreshbooksCallback);
+
+  // FreshBooks OAuth callback — alternate path
+  app.get("/api/api-connections/freshbooks/callback", isAuthenticated, hasRole("admin"), handleFreshbooksCallback);
+
+  // Refresh FreshBooks token using stored refresh_token
+  app.post("/api/api-connections/freshbooks/refresh", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+    try {
+      const connection = await storage.getApiConnection("freshbooks");
+      if (!connection?.refreshToken) {
+        return res.status(400).json({ message: "No refresh token stored. Please reconnect." });
+      }
+
+      const clientId = process.env.FRESHBOOKS_CLIENT_ID;
+      const clientSecret = process.env.FRESHBOOKS_CLIENT_SECRET;
+      if (!clientId || !clientSecret) {
+        return res.status(400).json({ message: "FRESHBOOKS_CLIENT_ID and FRESHBOOKS_CLIENT_SECRET environment variables are not set." });
+      }
+
+      const tokenRes = await fetch("https://api.freshbooks.com/auth/oauth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          grant_type: "refresh_token",
+          client_id: clientId,
+          client_secret: clientSecret,
+          refresh_token: connection.refreshToken,
+        }),
+      });
+
+      if (!tokenRes.ok) {
+        return res.status(502).json({ message: "Failed to refresh token. Please reconnect." });
+      }
+
+      const tokenData = await tokenRes.json();
+      const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000);
+
+      const updated = await storage.updateApiConnection("freshbooks", {
+        provider: "freshbooks",
+        accessToken: tokenData.access_token,
+        refreshToken: tokenData.refresh_token,
+        expiresAt,
+        isActive: true,
+      });
+
+      res.json(updated);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Disconnect FreshBooks
+  app.delete("/api/api-connections/freshbooks", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+    try {
+      const updated = await storage.updateApiConnection("freshbooks", {
+        provider: "freshbooks",
+        accessToken: null,
+        refreshToken: null,
+        expiresAt: null,
+        isActive: false,
+      });
+      res.json(updated);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Sync FreshBooks data
+  app.post("/api/api-connections/freshbooks/sync", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+    try {
+      const { freshbooksService } = await import("./freshbooks");
+      await freshbooksService.syncAll();
+      res.json({ message: "Sync completed successfully." });
     } catch (error) {
       next(error);
     }

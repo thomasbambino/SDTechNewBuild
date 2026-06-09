@@ -67,7 +67,10 @@ export default function BrandingPage() {
     siteTitle: '',
     siteDescription: '',
     logoPath: '',
-    favicon: ''
+    favicon: '',
+    contactEmail: '',
+    contactPhone: '',
+    contactAddress: '',
   });
   
   // Update form when settings are loaded
@@ -81,7 +84,10 @@ export default function BrandingPage() {
         siteTitle: settings.siteTitle || 'SD Tech Pros Client Portal',
         siteDescription: settings.siteDescription || '',
         logoPath: settings.logoPath || '',
-        favicon: settings.favicon || ''
+        favicon: settings.favicon || '',
+        contactEmail: settings.contactEmail || '',
+        contactPhone: settings.contactPhone || '',
+        contactAddress: settings.contactAddress || '',
       });
       
       if (settings.logoPath) {
@@ -290,8 +296,8 @@ export default function BrandingPage() {
                     
                     <div className="space-y-2">
                       <Label htmlFor="siteDescription">Site Description</Label>
-                      <Textarea 
-                        id="siteDescription" 
+                      <Textarea
+                        id="siteDescription"
                         name="siteDescription"
                         value={formData.siteDescription}
                         onChange={handleChange}
@@ -301,6 +307,44 @@ export default function BrandingPage() {
                       <p className="text-xs text-gray-500">
                         Used for SEO and meta descriptions
                       </p>
+                    </div>
+
+                    <div className="border-t pt-4 mt-2">
+                      <h3 className="text-sm font-semibold text-gray-700 mb-3">Contact Information</h3>
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="contactEmail">Contact Email</Label>
+                          <Input
+                            id="contactEmail"
+                            name="contactEmail"
+                            type="email"
+                            value={formData.contactEmail}
+                            onChange={handleChange}
+                            placeholder="contact@yourcompany.com"
+                          />
+                          <p className="text-xs text-gray-500">Shown in the Contact section and footer</p>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="contactPhone">Contact Phone</Label>
+                          <Input
+                            id="contactPhone"
+                            name="contactPhone"
+                            value={formData.contactPhone}
+                            onChange={handleChange}
+                            placeholder="(555) 123-4567"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="contactAddress">Address</Label>
+                          <Input
+                            id="contactAddress"
+                            name="contactAddress"
+                            value={formData.contactAddress}
+                            onChange={handleChange}
+                            placeholder="123 Main St, City, State ZIP"
+                          />
+                        </div>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
