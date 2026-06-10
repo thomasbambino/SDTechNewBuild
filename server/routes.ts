@@ -1141,9 +1141,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         if (meRes.ok) {
           const me = await meRes.json();
+          console.log("[FreshBooks debug] /users/me response:", JSON.stringify(me?.response?.business_memberships?.slice(0,1)));
           const bm = me.response?.business_memberships?.[0]?.business;
           accountId = bm?.account_id ?? null;
           businessId = bm?.id ? String(bm.id) : null;
+          console.log("[FreshBooks debug] accountId:", accountId, "businessId:", businessId);
+        } else {
+          const body = await meRes.text();
+          console.error("[FreshBooks debug] /users/me failed:", meRes.status, body);
         }
       } catch (e) {
         console.error("Failed to fetch FreshBooks account/business ID:", e);
