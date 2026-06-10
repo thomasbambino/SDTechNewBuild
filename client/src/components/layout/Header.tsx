@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -9,27 +10,51 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { 
-  Sun, 
-  Moon, 
-  Menu, 
+import {
+  Sun,
+  Moon,
+  Menu,
+  Bell,
   BellDot,
-  ChevronDown 
+  ChevronDown
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+function AdminBellButton() {
+  const [_, navigate] = useLocation();
+  const { data } = useQuery<{ count: number }>({
+    queryKey: ['/api/messages/unread-count'],
+    refetchInterval: 30000,
+  });
+  const count = data?.count ?? 0;
+  return (
+    <Button variant="ghost" size="icon" className="rounded-full relative" aria-label="Messages" onClick={() => navigate('/admin/messages')}>
+      {count > 0 ? <BellDot className="h-5 w-5" /> : <Bell className="h-5 w-5" />}
+      {count > 0 && (
+        <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-medium">
+          {count > 9 ? '9+' : count}
+        </span>
+      )}
+    </Button>
+  );
+}
 
 interface HeaderProps {
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
   themeMode: string;
   setThemeMode: (mode: string) => void;
+  offsetTop?: boolean;
 }
 
-export default function Header({ sidebarOpen, setSidebarOpen, themeMode, setThemeMode }: HeaderProps) {
+export default function Header({ sidebarOpen, setSidebarOpen, themeMode, setThemeMode, offsetTop }: HeaderProps) {
   const { user, logoutMutation } = useAuth();
   const [_, navigate] = useLocation();
   const { toast } = useToast();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const { data: publicSettings } = useQuery<{ logoPath?: string; companyName?: string }>({
+    queryKey: ["/api/settings/public"],
+  });
 
   const toggleTheme = () => {
     const newTheme = themeMode === "light" ? "dark" : "light";
@@ -68,7 +93,7 @@ export default function Header({ sidebarOpen, setSidebarOpen, themeMode, setThem
   const redirectPath = user?.role === "admin" ? "/admin" : "/client";
 
   return (
-    <header className="bg-card border-b border-border z-30 fixed top-0 left-0 right-0">
+    <header className={`bg-card border-b border-border z-30 fixed left-0 right-0 ${offsetTop ? "top-10" : "top-0"}`}>
       <div className="px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Left: Logo & Menu Toggle */}
@@ -82,14 +107,24 @@ export default function Header({ sidebarOpen, setSidebarOpen, themeMode, setThem
             >
               <Menu className="h-6 w-6" />
             </Button>
-            
+
             {/* Logo */}
             <Link href={redirectPath} className="flex items-center">
-              <span className="bg-primary text-primary-foreground font-bold text-xl px-2 py-1 rounded mr-2">SD</span>
-              <span className="text-primary font-semibold text-lg hidden md:block">Tech Pros</span>
+              {publicSettings?.logoPath ? (
+                <img
+                  src={publicSettings.logoPath}
+                  alt={publicSettings.companyName || "Logo"}
+                  className="h-8 max-w-[160px] object-contain mr-2 dark:brightness-0 dark:invert"
+                />
+              ) : (
+                <>
+                  <span className="bg-primary text-primary-foreground font-bold text-xl px-2 py-1 rounded mr-2">SD</span>
+                  <span className="text-primary font-semibold text-lg hidden md:block">Tech Pros</span>
+                </>
+              )}
             </Link>
           </div>
-          
+
           {/* Right: User Menu & Actions */}
           <div className="flex items-center space-x-3">
             {/* Theme toggle */}
@@ -106,18 +141,12 @@ export default function Header({ sidebarOpen, setSidebarOpen, themeMode, setThem
                 <Moon className="h-5 w-5" />
               )}
             </Button>
-            
-            {/* Notifications */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="rounded-full relative"
-              aria-label="Notifications"
-            >
-              <BellDot className="h-5 w-5" />
-              <span className="absolute top-0 right-0 block h-2 w-2 rounded-full bg-red-500"></span>
-            </Button>
-            
+
+            {/* Notifications — links to messages if admin has unread */}
+            {user?.role === 'admin' && (
+              <AdminBellButton />
+            )}
+
             {/* User Menu */}
             <DropdownMenu open={userMenuOpen} onOpenChange={setUserMenuOpen}>
               <DropdownMenuTrigger asChild>

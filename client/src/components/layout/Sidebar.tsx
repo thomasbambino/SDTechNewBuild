@@ -1,5 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
+import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -18,29 +19,43 @@ import {
 interface SidebarProps {
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
+  offsetTop?: boolean;
 }
 
-export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
+export default function Sidebar({ sidebarOpen, setSidebarOpen, offsetTop }: SidebarProps) {
   const { user } = useAuth();
   const [location] = useLocation();
-  
+
+  const { data: inquiries = [] } = useQuery<{ status: string }[]>({
+    queryKey: ['/api/inquiries'],
+    enabled: user?.role === 'admin',
+  });
+  const pendingInquiryCount = inquiries.filter(i => i.status === 'pending').length;
+
+  const { data: unreadData } = useQuery<{ count: number }>({
+    queryKey: ['/api/messages/unread-count'],
+    enabled: user?.role === 'admin',
+    refetchInterval: 10000,
+  });
+  const unreadMessageCount = unreadData?.count ?? 0;
+
   // Close sidebar on mobile when clicking a link
   const handleLinkClick = () => {
     if (window.innerWidth < 1024) {
       setSidebarOpen(false);
     }
   };
-  
+
   const isActive = (path: string) => {
     return location === path;
   };
-  
+
   return (
     <>
       {/* Sidebar */}
-      <aside 
+      <aside
         className={cn(
-          "bg-card border-r border-border w-64 fixed inset-y-0 pt-16 transition-transform duration-300 z-20 lg:transform-none",
+          `bg-card border-r border-border w-64 fixed inset-y-0 ${offsetTop ? "pt-[6.5rem]" : "pt-16"} transition-transform duration-300 z-20 lg:transform-none`,
           sidebarOpen ? "transform-none" : "-translate-x-full lg:translate-x-0",
           "lg:block"
         )}
@@ -52,10 +67,10 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
               <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 Dashboard
               </p>
-              
+
               <nav className="mt-3 space-y-1">
                 <Link href="/admin">
-                  <a 
+                  <a
                     className={cn(
                       "flex items-center px-3 py-2 text-sm font-medium rounded-md",
                       isActive("/admin")
@@ -68,9 +83,9 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
                     <span>Overview</span>
                   </a>
                 </Link>
-                
+
                 <Link href="/admin/clients">
-                  <a 
+                  <a
                     className={cn(
                       "flex items-center px-3 py-2 text-sm font-medium rounded-md",
                       isActive("/admin/clients")
@@ -83,9 +98,9 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
                     <span>Clients</span>
                   </a>
                 </Link>
-                
+
                 <Link href="/admin/projects">
-                  <a 
+                  <a
                     className={cn(
                       "flex items-center px-3 py-2 text-sm font-medium rounded-md",
                       isActive("/admin/projects")
@@ -98,9 +113,9 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
                     <span>Projects</span>
                   </a>
                 </Link>
-                
+
                 <Link href="/admin/invoices">
-                  <a 
+                  <a
                     className={cn(
                       "flex items-center px-3 py-2 text-sm font-medium rounded-md",
                       isActive("/admin/invoices")
@@ -113,9 +128,27 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
                     <span>Invoices</span>
                   </a>
                 </Link>
-                
+
+                <Link href="/admin/messages">
+                  <a
+                    className={cn(
+                      "flex items-center px-3 py-2 text-sm font-medium rounded-md",
+                      isActive("/admin/messages")
+                        ? "bg-primary/10 text-primary"
+                        : "text-foreground hover:bg-muted"
+                    )}
+                    onClick={handleLinkClick}
+                  >
+                    <MessageSquare className="h-5 w-5 mr-3" />
+                    <span>Messages</span>
+                    {unreadMessageCount > 0 && (
+                      <span className="ml-auto bg-primary text-primary-foreground py-0.5 px-2 rounded-full text-xs">{unreadMessageCount}</span>
+                    )}
+                  </a>
+                </Link>
+
                 <Link href="/admin/inquiries">
-                  <a 
+                  <a
                     className={cn(
                       "flex items-center px-3 py-2 text-sm font-medium rounded-md",
                       isActive("/admin/inquiries")
@@ -126,18 +159,20 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
                   >
                     <Inbox className="h-5 w-5 mr-3" />
                     <span>Inquiries</span>
-                    <span className="ml-auto bg-primary/20 text-primary py-0.5 px-2 rounded-full text-xs">5</span>
+                    {pendingInquiryCount > 0 && (
+                      <span className="ml-auto bg-primary/20 text-primary py-0.5 px-2 rounded-full text-xs">{pendingInquiryCount}</span>
+                    )}
                   </a>
                 </Link>
               </nav>
-              
+
               <p className="mt-8 px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 Content Management
               </p>
-              
+
               <nav className="mt-3 space-y-1">
                 <Link href="/admin/content-editor">
-                  <a 
+                  <a
                     className={cn(
                       "flex items-center px-3 py-2 text-sm font-medium rounded-md",
                       isActive("/admin/content-editor")
@@ -150,9 +185,9 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
                     <span>Website Editor</span>
                   </a>
                 </Link>
-                
+
                 <Link href="/admin/branding">
-                  <a 
+                  <a
                     className={cn(
                       "flex items-center px-3 py-2 text-sm font-medium rounded-md",
                       isActive("/admin/branding")
@@ -165,9 +200,9 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
                     <span>Branding</span>
                   </a>
                 </Link>
-                
+
                 <Link href="/admin/users">
-                  <a 
+                  <a
                     className={cn(
                       "flex items-center px-3 py-2 text-sm font-medium rounded-md",
                       isActive("/admin/users")
@@ -180,9 +215,9 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
                     <span>User Management</span>
                   </a>
                 </Link>
-                
+
                 <Link href="/admin/api-connections">
-                  <a 
+                  <a
                     className={cn(
                       "flex items-center px-3 py-2 text-sm font-medium rounded-md",
                       isActive("/admin/api-connections")
@@ -198,12 +233,12 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
               </nav>
             </>
           )}
-          
+
           {/* Client Navigation */}
           {user?.role === "client" && (
             <nav className="space-y-1">
               <Link href="/client">
-                <a 
+                <a
                   className={cn(
                     "flex items-center px-3 py-2 text-sm font-medium rounded-md",
                     isActive("/client")
@@ -216,9 +251,9 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
                   <span>Dashboard</span>
                 </a>
               </Link>
-              
+
               <Link href="/client/projects">
-                <a 
+                <a
                   className={cn(
                     "flex items-center px-3 py-2 text-sm font-medium rounded-md",
                     isActive("/client/projects")
@@ -231,9 +266,9 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
                   <span>My Projects</span>
                 </a>
               </Link>
-              
+
               <Link href="/client/invoices">
-                <a 
+                <a
                   className={cn(
                     "flex items-center px-3 py-2 text-sm font-medium rounded-md",
                     isActive("/client/invoices")
@@ -246,9 +281,9 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
                   <span>Invoices</span>
                 </a>
               </Link>
-              
+
               <Link href="/client/messages">
-                <a 
+                <a
                   className={cn(
                     "flex items-center px-3 py-2 text-sm font-medium rounded-md",
                     isActive("/client/messages")
@@ -261,9 +296,9 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
                   <span>Messages</span>
                 </a>
               </Link>
-              
+
               <Link href="/client/profile">
-                <a 
+                <a
                   className={cn(
                     "flex items-center px-3 py-2 text-sm font-medium rounded-md",
                     isActive("/client/profile")
@@ -280,10 +315,10 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
           )}
         </ScrollArea>
       </aside>
-      
+
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-10 bg-background/80 backdrop-blur-sm lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
