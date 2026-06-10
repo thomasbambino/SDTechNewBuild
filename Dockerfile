@@ -11,13 +11,16 @@ RUN npx vite build && \
 
 FROM node:20-alpine
 
+ENV NODE_ENV=production
+
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/init-db.js ./init-db.js
 
 EXPOSE 5000
 
-CMD ["node", "dist/index.js"]
+CMD ["sh", "-c", "node init-db.js && node dist/index.js"]

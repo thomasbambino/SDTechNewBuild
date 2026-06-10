@@ -165,17 +165,6 @@ const createTables = async () => {
       );
     `);
     
-    // Message reads table (per-admin read tracking)
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS message_reads (
-        id SERIAL PRIMARY KEY,
-        message_id INTEGER NOT NULL REFERENCES messages(id),
-        user_id INTEGER NOT NULL REFERENCES users(id),
-        read_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(message_id, user_id)
-      );
-    `);
-
     // Messages table
     await client.query(`
       CREATE TABLE IF NOT EXISTS messages (
@@ -185,6 +174,17 @@ const createTables = async () => {
         content TEXT NOT NULL,
         is_read BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Message reads table (per-admin read tracking)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS message_reads (
+        id SERIAL PRIMARY KEY,
+        message_id INTEGER NOT NULL REFERENCES messages(id),
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        read_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(message_id, user_id)
       );
     `);
 
