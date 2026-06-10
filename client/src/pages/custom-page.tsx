@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
-import DynamicFavicon from "@/components/layout/DynamicFavicon";
 
 interface CustomPage {
   id: number;
@@ -50,7 +49,6 @@ export default function CustomPageView() {
 
   return (
     <div className="min-h-screen bg-background">
-      <DynamicFavicon />
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-12">
         <Button variant="ghost" onClick={() => navigate("/")} className="mb-8 -ml-2 text-muted-foreground">
           <ArrowLeft className="h-4 w-4 mr-2" />

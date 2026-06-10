@@ -82,7 +82,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <SettingsProvider>
-          <DynamicFavicon defaultFavicon="/favicon.ico" />
+          <DynamicFavicon defaultFavicon="/favicon.svg" />
           <Router />
           <Toaster />
         </SettingsProvider>
