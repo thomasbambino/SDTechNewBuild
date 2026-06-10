@@ -1088,8 +1088,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/api-connections/freshbooks/auth", isAuthenticated, hasRole("admin"), (req, res) => {
     const clientId = process.env.FRESHBOOKS_CLIENT_ID;
     const redirectUri = process.env.FRESHBOOKS_REDIRECT_URI;
-    console.log("[FreshBooks debug] CLIENT_ID:", clientId ? `set (${clientId.length} chars)` : "NOT SET");
-    console.log("[FreshBooks debug] REDIRECT_URI:", redirectUri ? `set: ${redirectUri}` : "NOT SET");
     if (!clientId || !redirectUri) {
       return res.status(400).json({ message: "FRESHBOOKS_CLIENT_ID and FRESHBOOKS_REDIRECT_URI environment variables are not set." });
     }
@@ -1141,14 +1139,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         if (meRes.ok) {
           const me = await meRes.json();
-          console.log("[FreshBooks debug] /users/me response:", JSON.stringify(me?.response?.business_memberships?.slice(0,1)));
           const bm = me.response?.business_memberships?.[0]?.business;
           accountId = bm?.account_id ?? null;
           businessId = bm?.id ? String(bm.id) : null;
-          console.log("[FreshBooks debug] accountId:", accountId, "businessId:", businessId);
-        } else {
-          const body = await meRes.text();
-          console.error("[FreshBooks debug] /users/me failed:", meRes.status, body);
         }
       } catch (e) {
         console.error("Failed to fetch FreshBooks account/business ID:", e);
