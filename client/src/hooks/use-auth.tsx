@@ -9,12 +9,14 @@ import { getQueryFn, apiRequest, queryClient } from "../lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
 type AuthContextType = {
-  user: SelectUser | null;
+  user: (SelectUser & { isImpersonating?: boolean }) | null;
   isLoading: boolean;
   error: Error | null;
   loginMutation: UseMutationResult<SelectUser, Error, LoginData>;
   logoutMutation: UseMutationResult<void, Error, void>;
   registerMutation: UseMutationResult<SelectUser, Error, InsertUser>;
+  impersonateMutation: UseMutationResult<SelectUser, Error, number>;
+  stopImpersonatingMutation: UseMutationResult<SelectUser, Error, void>;
 };
 
 type LoginData = Pick<InsertUser, "username" | "password">;
@@ -73,6 +75,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
+  const impersonateMutation = useMutation({
+    mutationFn: async (userId: number) => {
+      const res = await apiRequest("POST", `/api/admin/impersonate/${userId}`);
+      return await res.json();
+    },
+    onSuccess: (user: SelectUser) => {
+      queryClient.setQueryData(["/api/user"], user);
+      queryClient.clear();
+      window.location.href = "/client";
+    },
+    onError: (error: Error) => {
+      toast({ title: "Impersonation failed", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const stopImpersonatingMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/admin/stop-impersonating");
+      return await res.json();
+    },
+    onSuccess: (user: SelectUser) => {
+      queryClient.setQueryData(["/api/user"], user);
+      queryClient.clear();
+      window.location.href = "/admin";
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to stop impersonating", description: error.message, variant: "destructive" });
+    },
+  });
+
   const logoutMutation = useMutation({
     mutationFn: async () => {
       await apiRequest("POST", "/api/logout");
@@ -99,6 +131,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loginMutation,
         logoutMutation,
         registerMutation,
+        impersonateMutation,
+        stopImpersonatingMutation,
       }}
     >
       {children}

@@ -26,6 +26,13 @@ export default function DynamicFavicon({ defaultFavicon = '/favicon.ico' }: Dyna
   // Use state to keep track of current favicon
   const [currentFavicon, setCurrentFavicon] = useState<string | null>(null);
 
+  // Keep document.title in sync with siteTitle setting
+  useEffect(() => {
+    if (settings.siteTitle) {
+      document.title = settings.siteTitle;
+    }
+  }, [settings.siteTitle]);
+
   useEffect(() => {
     // Function to update favicon
     const updateFavicon = (faviconPath: string) => {

@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,6 +41,86 @@ interface ContentSection {
   imagePath: string | null;
   order: number;
   isActive: boolean;
+}
+
+function QuickInquiryForm() {
+  const { toast } = useToast();
+  const [form, setForm] = useState({ name: "", email: "", phone: "", message: "" });
+  const [submitted, setSubmitted] = useState(false);
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/inquiries", {
+        name: form.name,
+        email: form.email,
+        phone: form.phone,
+        message: form.message,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      setSubmitted(true);
+      setForm({ name: "", email: "", phone: "", message: "" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Submission failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.name || !form.email || !form.message) return;
+    mutation.mutate();
+  };
+
+  if (submitted) {
+    return (
+      <div className="bg-white rounded-lg shadow-md p-6 flex flex-col items-center justify-center text-center h-full min-h-[280px]">
+        <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mb-4">
+          <Check className="h-6 w-6 text-green-600" />
+        </div>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Message Received!</h3>
+        <p className="text-gray-600 text-sm">We'll be in touch within 1–2 business days.</p>
+        <Button variant="outline" size="sm" className="mt-4" onClick={() => setSubmitted(false)}>Send Another</Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-lg shadow-md p-6">
+      <h3 className="text-xl font-semibold text-gray-900 mb-4">Quick Inquiry</h3>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="qi-name">Name <span className="text-red-500">*</span></Label>
+            <Input id="qi-name" placeholder="Your name" className="mt-1" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required />
+          </div>
+          <div>
+            <Label htmlFor="qi-phone">Phone</Label>
+            <Input id="qi-phone" type="tel" placeholder="(555) 123-4567" className="mt-1" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
+          </div>
+        </div>
+        <div>
+          <Label htmlFor="qi-email">Email <span className="text-red-500">*</span></Label>
+          <Input id="qi-email" type="email" placeholder="you@example.com" className="mt-1" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required />
+        </div>
+        <div>
+          <Label htmlFor="qi-message">Message <span className="text-red-500">*</span></Label>
+          <textarea
+            id="qi-message"
+            placeholder="How can we help you?"
+            className="w-full min-h-[100px] mt-1 px-3 py-2 text-base rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+            value={form.message}
+            onChange={e => setForm(f => ({ ...f, message: e.target.value }))}
+            required
+          />
+        </div>
+        <Button type="submit" className="w-full" disabled={mutation.isPending}>
+          {mutation.isPending ? "Sending…" : "Send Message"}
+        </Button>
+      </form>
+    </div>
+  );
 }
 
 export default function PublicHome() {
@@ -552,35 +634,7 @@ export default function PublicHome() {
                 </div>
               </div>
               
-              <div className="bg-white rounded-lg shadow-md p-6">
-                <h3 className="text-xl font-semibold text-gray-900 mb-4">Quick Inquiry</h3>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="name">Name</Label>
-                    <Input id="name" placeholder="Your name" className="mt-1" />
-                  </div>
-                  <div>
-                    <Label htmlFor="email">Email</Label>
-                    <Input id="email" type="email" placeholder="Your email" className="mt-1" />
-                  </div>
-                  <div>
-                    <Label htmlFor="message">Message</Label>
-                    <textarea 
-                      id="message" 
-                      placeholder="How can we help you?" 
-                      className="w-full min-h-[100px] px-3 py-2 text-base rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                    ></textarea>
-                  </div>
-                  <Button 
-                    onClick={() => {
-                      navigate("/inquiry");
-                    }}
-                    className="w-full"
-                  >
-                    Submit
-                  </Button>
-                </div>
-              </div>
+              <QuickInquiryForm />
             </div>
           </div>
         </section>
@@ -592,8 +646,18 @@ export default function PublicHome() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div className="md:col-span-2">
               <div className="flex items-center mb-4">
-                <span className="bg-white text-primary font-bold text-xl px-2 py-1 rounded mr-2">SD</span>
-                <span className="font-semibold text-lg">Tech Pros</span>
+                {settings?.logoPath ? (
+                  <img
+                    src={settings.logoPath}
+                    alt={settings.companyName || "Logo"}
+                    className="h-8 max-w-[160px] object-contain brightness-0 invert"
+                  />
+                ) : (
+                  <>
+                    <span className="bg-white text-primary font-bold text-xl px-2 py-1 rounded mr-2">SD</span>
+                    <span className="font-semibold text-lg">Tech Pros</span>
+                  </>
+                )}
               </div>
               <p className="text-gray-400 max-w-md">
                 Professional technology solutions for businesses of all sizes. We help you transform through innovative software and strategic IT consulting.
@@ -647,16 +711,6 @@ export default function PublicHome() {
             <p className="text-gray-500 text-sm">
               &copy; {new Date().getFullYear()} SD Tech Pros. All rights reserved.
             </p>
-            <div className="mt-4 md:mt-0">
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => navigate("/auth")}
-                className="border-gray-700 text-gray-400 hover:text-white hover:bg-gray-800"
-              >
-                Client Login
-              </Button>
-            </div>
           </div>
         </div>
       </footer>

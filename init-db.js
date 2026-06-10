@@ -165,6 +165,63 @@ const createTables = async () => {
       );
     `);
     
+    // Message reads table (per-admin read tracking)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS message_reads (
+        id SERIAL PRIMARY KEY,
+        message_id INTEGER NOT NULL REFERENCES messages(id),
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        read_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(message_id, user_id)
+      );
+    `);
+
+    // Messages table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS messages (
+        id SERIAL PRIMARY KEY,
+        client_id INTEGER NOT NULL REFERENCES clients(id),
+        sender_user_id INTEGER NOT NULL REFERENCES users(id),
+        content TEXT NOT NULL,
+        is_read BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Milestones table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS milestones (
+        id SERIAL PRIMARY KEY,
+        project_id INTEGER NOT NULL REFERENCES projects(id),
+        title TEXT NOT NULL,
+        notes TEXT,
+        image_paths TEXT,
+        created_by INTEGER REFERENCES users(id),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Client notes table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS client_notes (
+        id SERIAL PRIMARY KEY,
+        client_id INTEGER NOT NULL REFERENCES clients(id),
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        is_pinned BOOLEAN DEFAULT FALSE,
+        created_by INTEGER REFERENCES users(id),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Add status to users if it doesn't exist
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';`);
+
+    // Add freshbooks_url to invoices if it doesn't exist
+    await client.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS freshbooks_url TEXT;`);
+
     // Add account_id and business_id to api_connections if they don't exist
     await client.query(`ALTER TABLE api_connections ADD COLUMN IF NOT EXISTS account_id TEXT;`);
     await client.query(`ALTER TABLE api_connections ADD COLUMN IF NOT EXISTS business_id TEXT;`);

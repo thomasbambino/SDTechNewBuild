@@ -1,5 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
+import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -18,11 +19,25 @@ import {
 interface SidebarProps {
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
+  offsetTop?: boolean;
 }
 
-export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
+export default function Sidebar({ sidebarOpen, setSidebarOpen, offsetTop }: SidebarProps) {
   const { user } = useAuth();
   const [location] = useLocation();
+
+  const { data: inquiries = [] } = useQuery<{ status: string }[]>({
+    queryKey: ['/api/inquiries'],
+    enabled: user?.role === 'admin',
+  });
+  const pendingInquiryCount = inquiries.filter(i => i.status === 'pending').length;
+
+  const { data: unreadData } = useQuery<{ count: number }>({
+    queryKey: ['/api/messages/unread-count'],
+    enabled: user?.role === 'admin',
+    refetchInterval: 10000,
+  });
+  const unreadMessageCount = unreadData?.count ?? 0;
 
   // Close sidebar on mobile when clicking a link
   const handleLinkClick = () => {
@@ -40,7 +55,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
       {/* Sidebar */}
       <aside
         className={cn(
-          "bg-card border-r border-border w-64 fixed inset-y-0 pt-16 transition-transform duration-300 z-20 lg:transform-none",
+          `bg-card border-r border-border w-64 fixed inset-y-0 ${offsetTop ? "pt-[6.5rem]" : "pt-16"} transition-transform duration-300 z-20 lg:transform-none`,
           sidebarOpen ? "transform-none" : "-translate-x-full lg:translate-x-0",
           "lg:block"
         )}
@@ -114,6 +129,24 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
                   </a>
                 </Link>
 
+                <Link href="/admin/messages">
+                  <a
+                    className={cn(
+                      "flex items-center px-3 py-2 text-sm font-medium rounded-md",
+                      isActive("/admin/messages")
+                        ? "bg-primary/10 text-primary"
+                        : "text-foreground hover:bg-muted"
+                    )}
+                    onClick={handleLinkClick}
+                  >
+                    <MessageSquare className="h-5 w-5 mr-3" />
+                    <span>Messages</span>
+                    {unreadMessageCount > 0 && (
+                      <span className="ml-auto bg-primary text-primary-foreground py-0.5 px-2 rounded-full text-xs">{unreadMessageCount}</span>
+                    )}
+                  </a>
+                </Link>
+
                 <Link href="/admin/inquiries">
                   <a
                     className={cn(
@@ -126,7 +159,9 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
                   >
                     <Inbox className="h-5 w-5 mr-3" />
                     <span>Inquiries</span>
-                    <span className="ml-auto bg-primary/20 text-primary py-0.5 px-2 rounded-full text-xs">5</span>
+                    {pendingInquiryCount > 0 && (
+                      <span className="ml-auto bg-primary/20 text-primary py-0.5 px-2 rounded-full text-xs">{pendingInquiryCount}</span>
+                    )}
                   </a>
                 </Link>
               </nav>

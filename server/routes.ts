@@ -251,18 +251,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   // Public routes
-  app.post("/api/inquiries", validateRequest(insertInquirySchema), async (req, res, next) => {
+  app.post("/api/inquiries", async (req, res, next) => {
     try {
-      const inquiry = await storage.createInquiry(req.body as InsertInquiry);
-      
+      const { name, email, phone, message, address, city, state, zip } = req.body;
+
+      if (!name || !email || !message) {
+        return res.status(400).json({ message: "name, email, and message are required" });
+      }
+
+      // Build full message including address details
+      const fullMessage = [
+        message,
+        address || city || state || zip ? `\nAddress: ${[address, city, state, zip].filter(Boolean).join(', ')}` : '',
+      ].join('');
+
+      const inquiry = await storage.createInquiry({
+        name,
+        email,
+        phone: phone || '',
+        message: fullMessage,
+        status: 'pending',
+      });
+
       await storage.createActivity({
-        userId: req.user?.id,
+        userId: undefined,
         action: "Inquiry Submitted",
         details: `New inquiry from ${inquiry.name}`,
         entityType: "inquiry",
         entityId: inquiry.id
       });
-      
+
+      // Also create in local clients table
+      try {
+        const nameParts = name.trim().split(' ');
+        const firstName = nameParts[0] || name;
+        const lastName = nameParts.slice(1).join(' ') || '';
+        const fullAddress = [address, city, state, zip].filter(Boolean).join(', ');
+
+        await storage.createClient({
+          name,
+          email,
+          phone: phone || '',
+          address: fullAddress || '',
+          notes: `Inquiry: ${message}`,
+          userId: null,
+          contactPerson: null,
+          freshbooksId: null,
+        });
+      } catch (clientErr) {
+        console.error('Failed to create local client from inquiry:', clientErr);
+      }
+
+      // Fire-and-forget: create in FreshBooks if connected
+      (async () => {
+        try {
+          const { freshbooksService } = await import("./freshbooks");
+          const connected = await freshbooksService.isConnected();
+          if (!connected) return;
+
+          const nameParts = name.trim().split(' ');
+          await freshbooksService.createClient({
+            firstName: nameParts[0] || name,
+            lastName: nameParts.slice(1).join(' ') || '',
+            email,
+            phone: phone || '',
+            address: address || '',
+            city: city || '',
+            state: state || '',
+            zip: zip || '',
+          });
+        } catch (fbErr) {
+          console.error('FreshBooks client creation failed (non-blocking):', fbErr);
+        }
+      })();
+
       res.status(201).json(inquiry);
     } catch (error) {
       next(error);
@@ -573,8 +635,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Document routes
   app.get("/api/documents", isAuthenticated, async (req, res, next) => {
     try {
-      // If admin, return all documents, else return only client's documents
+      // If admin, return all documents (optionally filtered by projectId)
       if (req.user?.role === "admin") {
+        if (req.query.projectId) {
+          const projectId = parseInt(req.query.projectId as string);
+          const documents = await storage.getDocumentsByProjectId(projectId);
+          return res.json(documents);
+        }
         const documents = await storage.getAllDocuments();
         return res.json(documents);
       }
@@ -924,6 +991,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
         url: relativePath,
         message: "Favicon uploaded successfully" 
       });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Content image upload endpoint
+  app.post("/api/content/image", isAuthenticated, hasRole("admin"), upload.single('image'), async (req, res, next) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+      const relativePath = `/uploads/${req.file.filename}`;
+      try {
+        const destFile = path.join(serverUploadDir, req.file.filename);
+        if (!fs.existsSync(serverUploadDir)) fs.mkdirSync(serverUploadDir, { recursive: true });
+        fs.copyFileSync(path.join(clientUploadDir, req.file.filename), destFile);
+      } catch (copyErr) {
+        console.error('Error copying content image:', copyErr);
+      }
+      res.json({ url: relativePath });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Document file upload endpoint
+  app.post("/api/documents/upload", isAuthenticated, upload.single('file'), async (req, res, next) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const relativePath = `/uploads/${req.file.filename}`;
+
+      // Copy to server public directory
+      try {
+        const destFile = path.join(serverUploadDir, req.file.filename);
+        if (!fs.existsSync(serverUploadDir)) {
+          fs.mkdirSync(serverUploadDir, { recursive: true });
+        }
+        fs.copyFileSync(path.join(clientUploadDir, req.file.filename), destFile);
+      } catch (copyErr) {
+        console.error('Error copying document file:', copyErr);
+      }
+
+      const projectId = req.body.projectId ? parseInt(req.body.projectId) : null;
+      const clientId = req.body.clientId ? parseInt(req.body.clientId) : null;
+
+      const document = await storage.createDocument({
+        name: req.body.name || req.file.originalname,
+        path: relativePath,
+        type: req.file.mimetype,
+        size: req.file.size,
+        projectId,
+        clientId,
+        uploadedBy: req.user?.id,
+      });
+
+      await storage.createActivity({
+        userId: req.user?.id,
+        action: "Document Uploaded",
+        details: `Document uploaded: ${document.name}`,
+        entityType: "document",
+        entityId: document.id,
+      });
+
+      res.status(201).json(document);
     } catch (error) {
       next(error);
     }
@@ -1353,6 +1487,268 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: "Password has been reset",
         tempPassword: tempPassword
       });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // ── Custom Pages ──────────────────────────────────────────────────────────
+
+  // Public: get a published page by slug
+  app.get("/api/pages/:slug", async (req, res, next) => {
+    try {
+      const page = await storage.getCustomPageBySlug(req.params.slug);
+      if (!page || !page.isPublished) return res.status(404).json({ message: "Page not found" });
+      res.json(page);
+    } catch (err) { next(err); }
+  });
+
+  // Admin: list all pages
+  app.get("/api/pages", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+    try {
+      res.json(await storage.getAllCustomPages());
+    } catch (err) { next(err); }
+  });
+
+  // Admin: create page
+  app.post("/api/pages", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+    try {
+      const { title, slug, content, isPublished } = req.body;
+      if (!title || !slug) return res.status(400).json({ message: "title and slug are required" });
+      const cleanSlug = slug.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+      const page = await storage.createCustomPage({ title, slug: cleanSlug, content: content || "", isPublished: isPublished !== false });
+      res.status(201).json(page);
+    } catch (err) { next(err); }
+  });
+
+  // Admin: update page
+  app.put("/api/pages/:id", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+    try {
+      const { title, slug, content, isPublished } = req.body;
+      const cleanSlug = slug ? slug.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") : undefined;
+      const updated = await storage.updateCustomPage(parseInt(req.params.id), { title, slug: cleanSlug, content, isPublished });
+      if (!updated) return res.status(404).json({ message: "Page not found" });
+      res.json(updated);
+    } catch (err) { next(err); }
+  });
+
+  // Admin: delete page
+  app.delete("/api/pages/:id", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+    try {
+      await storage.deleteCustomPage(parseInt(req.params.id));
+      res.sendStatus(204);
+    } catch (err) { next(err); }
+  });
+
+  // ── Messages ──────────────────────────────────────────────────────────────
+
+  // Admin: unread message count for current admin
+  app.get("/api/messages/unread-count", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+    try {
+      const count = await storage.getUnreadCountForAdmin(req.user!.id);
+      res.json({ count });
+    } catch (err) { next(err); }
+  });
+
+  // Admin: list all clients that have messages + unread counts
+  app.get("/api/messages/clients", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+    try {
+      const counts = await storage.getAllClientsWithMessageCounts(req.user!.id);
+      const allClients = await storage.getAllClients();
+      const result = counts.map(c => ({
+        ...c,
+        client: allClients.find(cl => cl.id === c.clientId) || null,
+      }));
+      res.json(result);
+    } catch (err) { next(err); }
+  });
+
+  // Get messages for current client (or for clientId if admin)
+  app.get("/api/messages", isAuthenticated, async (req, res, next) => {
+    try {
+      let clientId: number;
+      if (req.user?.role === "admin") {
+        if (!req.query.clientId) return res.status(400).json({ message: "clientId required" });
+        clientId = parseInt(req.query.clientId as string);
+        // Mark admin-received messages (from client) as read
+        await storage.markMessagesReadForClient(clientId, req.user.id);
+      } else {
+        const client = await storage.getClientByUserId(req.user!.id);
+        if (!client) return res.status(404).json({ message: "Client profile not found" });
+        clientId = client.id;
+        await storage.markMessagesReadForClient(clientId, req.user!.id);
+      }
+      const msgs = await storage.getMessagesByClientId(clientId);
+      res.json(msgs);
+    } catch (err) { next(err); }
+  });
+
+  // Send a message
+  app.post("/api/messages", isAuthenticated, async (req, res, next) => {
+    try {
+      const { content, clientId: bodyClientId } = req.body;
+      if (!content?.trim()) return res.status(400).json({ message: "Content is required" });
+
+      let clientId: number;
+      if (req.user?.role === "admin") {
+        if (!bodyClientId) return res.status(400).json({ message: "clientId required" });
+        clientId = parseInt(bodyClientId);
+      } else {
+        const client = await storage.getClientByUserId(req.user!.id);
+        if (!client) return res.status(404).json({ message: "Client profile not found" });
+        clientId = client.id;
+      }
+
+      const msg = await storage.createMessage({ clientId, senderUserId: req.user!.id, content: content.trim(), isRead: false });
+      res.status(201).json(msg);
+    } catch (err) { next(err); }
+  });
+
+  // ── Milestones ────────────────────────────────────────────────────────────
+
+  app.get("/api/projects/:projectId/milestones", isAuthenticated, async (req, res, next) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      if (req.user?.role !== "admin") {
+        // Verify client owns this project
+        const client = await storage.getClientByUserId(req.user!.id);
+        if (!client) return res.status(403).json({ message: "Forbidden" });
+        const project = await storage.getProject(projectId);
+        if (!project || project.clientId !== client.id) return res.status(403).json({ message: "Forbidden" });
+      }
+      const items = await storage.getMilestonesByProjectId(projectId);
+      res.json(items);
+    } catch (err) { next(err); }
+  });
+
+  app.post("/api/milestones", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+    try {
+      const { projectId, title, notes, imagePaths } = req.body;
+      if (!projectId || !title) return res.status(400).json({ message: "projectId and title required" });
+      const milestone = await storage.createMilestone({
+        projectId: parseInt(projectId),
+        title,
+        notes: notes || null,
+        imagePaths: imagePaths ? JSON.stringify(imagePaths) : null,
+        createdBy: req.user!.id,
+      });
+      res.status(201).json(milestone);
+    } catch (err) { next(err); }
+  });
+
+  app.put("/api/milestones/:id", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+    try {
+      const { title, notes, imagePaths } = req.body;
+      const updated = await storage.updateMilestone(parseInt(req.params.id), {
+        title,
+        notes: notes || null,
+        imagePaths: imagePaths ? JSON.stringify(imagePaths) : null,
+      });
+      if (!updated) return res.status(404).json({ message: "Milestone not found" });
+      res.json(updated);
+    } catch (err) { next(err); }
+  });
+
+  app.delete("/api/milestones/:id", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+    try {
+      await storage.deleteMilestone(parseInt(req.params.id));
+      res.sendStatus(204);
+    } catch (err) { next(err); }
+  });
+
+  // Milestone image upload
+  app.post("/api/milestones/image", isAuthenticated, hasRole("admin"), upload.single("image"), async (req, res, next) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+      const relativePath = `/uploads/${req.file.filename}`;
+      try {
+        const destFile = path.join(serverUploadDir, req.file.filename);
+        if (!fs.existsSync(serverUploadDir)) fs.mkdirSync(serverUploadDir, { recursive: true });
+        fs.copyFileSync(path.join(clientUploadDir, req.file.filename), destFile);
+      } catch (e) { console.error("copy error", e); }
+      res.json({ url: relativePath });
+    } catch (err) { next(err); }
+  });
+
+  // ── Client Notes ──────────────────────────────────────────────────────────
+
+  app.get("/api/client-notes", isAuthenticated, async (req, res, next) => {
+    try {
+      let clientId: number;
+      if (req.user?.role === "admin") {
+        if (!req.query.clientId) return res.status(400).json({ message: "clientId required" });
+        clientId = parseInt(req.query.clientId as string);
+      } else {
+        const client = await storage.getClientByUserId(req.user!.id);
+        if (!client) return res.status(404).json({ message: "Client profile not found" });
+        clientId = client.id;
+      }
+      const notes = await storage.getClientNotesByClientId(clientId);
+      res.json(notes);
+    } catch (err) { next(err); }
+  });
+
+  app.post("/api/client-notes", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+    try {
+      const { clientId, title, content, isPinned } = req.body;
+      if (!clientId || !title || !content) return res.status(400).json({ message: "clientId, title, content required" });
+      const note = await storage.createClientNote({ clientId: parseInt(clientId), title, content, isPinned: !!isPinned, createdBy: req.user!.id });
+      res.status(201).json(note);
+    } catch (err) { next(err); }
+  });
+
+  app.put("/api/client-notes/:id", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+    try {
+      const { title, content, isPinned } = req.body;
+      const updated = await storage.updateClientNote(parseInt(req.params.id), { title, content, isPinned: !!isPinned });
+      if (!updated) return res.status(404).json({ message: "Note not found" });
+      res.json(updated);
+    } catch (err) { next(err); }
+  });
+
+  app.delete("/api/client-notes/:id", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+    try {
+      await storage.deleteClientNote(parseInt(req.params.id));
+      res.sendStatus(204);
+    } catch (err) { next(err); }
+  });
+
+  // Create a login account for an existing client
+  app.post("/api/clients/:id/create-login", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+    try {
+      const clientId = parseInt(req.params.id);
+      const client = await storage.getClient(clientId);
+      if (!client) return res.status(404).json({ message: "Client not found" });
+      if (client.userId) return res.status(400).json({ message: "Client already has a login" });
+      if (!client.email) return res.status(400).json({ message: "Client has no email address" });
+
+      // Generate username from name or email
+      const baseUsername = client.name
+        .toLowerCase().replace(/[^a-z0-9]/g, ".")
+        .replace(/\.+/g, ".").replace(/^\.|\.$/, "")
+        || client.email.split("@")[0];
+
+      // Ensure username is unique
+      let username = baseUsername;
+      let suffix = 1;
+      while (await storage.getUserByUsername(username)) {
+        username = `${baseUsername}${suffix++}`;
+      }
+
+      const tempPassword = Math.random().toString(36).slice(2, 8) + Math.random().toString(36).toUpperCase().slice(2, 5);
+      const hashedPassword = await hashPassword(tempPassword);
+
+      const newUser = await storage.createUser({
+        username,
+        password: hashedPassword,
+        name: client.name,
+        email: client.email,
+        role: "client",
+      });
+
+      await storage.updateClient(clientId, { userId: newUser.id });
+
+      res.json({ username, tempPassword, userId: newUser.id });
     } catch (error) {
       next(error);
     }

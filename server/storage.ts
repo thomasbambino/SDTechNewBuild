@@ -1,5 +1,5 @@
-import { 
-  users, User, InsertUser, 
+import {
+  users, User, InsertUser,
   clients, Client, InsertClient,
   projects, Project, InsertProject,
   invoices, Invoice, InsertInvoice,
@@ -8,12 +8,17 @@ import {
   settings, Setting, InsertSetting,
   contents, Content, InsertContent,
   activities, Activity, InsertActivity,
-  apiConnections, ApiConnection, InsertApiConnection
+  apiConnections, ApiConnection, InsertApiConnection,
+  messages, Message, InsertMessage,
+  messageReads,
+  milestones, Milestone, InsertMilestone,
+  clientNotes, ClientNote, InsertClientNote,
+  customPages, CustomPage, InsertCustomPage,
 } from "@shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
 import { drizzle } from 'drizzle-orm/postgres-js';
-import { eq, and, desc, asc, SQL } from 'drizzle-orm';
+import { eq, and, desc, asc, sql, SQL } from 'drizzle-orm';
 import postgres from 'postgres';
 import connectPg from "connect-pg-simple";
 
@@ -85,7 +90,33 @@ export interface IStorage {
   // API Connection operations
   getApiConnection(provider: string): Promise<ApiConnection | undefined>;
   updateApiConnection(provider: string, connection: Partial<ApiConnection>): Promise<ApiConnection | undefined>;
-  
+
+  // Message operations
+  getMessagesByClientId(clientId: number): Promise<Message[]>;
+  createMessage(message: InsertMessage): Promise<Message>;
+  markMessagesReadForClient(clientId: number, readerUserId: number): Promise<void>;
+  getUnreadCountForAdmin(adminUserId: number): Promise<number>;
+  getAllClientsWithMessageCounts(adminUserId?: number): Promise<{ clientId: number; unreadCount: number; latestMessage: Message | null }[]>;
+
+  // Milestone operations
+  getMilestonesByProjectId(projectId: number): Promise<Milestone[]>;
+  createMilestone(milestone: InsertMilestone): Promise<Milestone>;
+  updateMilestone(id: number, milestone: Partial<Milestone>): Promise<Milestone | undefined>;
+  deleteMilestone(id: number): Promise<boolean>;
+
+  // Client note operations
+  getClientNotesByClientId(clientId: number): Promise<ClientNote[]>;
+  createClientNote(note: InsertClientNote): Promise<ClientNote>;
+  updateClientNote(id: number, note: Partial<ClientNote>): Promise<ClientNote | undefined>;
+  deleteClientNote(id: number): Promise<boolean>;
+
+  // Custom page operations
+  getAllCustomPages(): Promise<CustomPage[]>;
+  getCustomPageBySlug(slug: string): Promise<CustomPage | undefined>;
+  createCustomPage(page: InsertCustomPage): Promise<CustomPage>;
+  updateCustomPage(id: number, page: Partial<CustomPage>): Promise<CustomPage | undefined>;
+  deleteCustomPage(id: number): Promise<boolean>;
+
   // Session store
   sessionStore: any;
 }
@@ -593,12 +624,12 @@ export class DatabaseStorage implements IStorage {
   
   // Client operations
   async getClient(id: number): Promise<Client | undefined> {
-    const [client] = await this.db.select().from(clients).where(({ id: clientId }) => clientId.equals(id));
+    const [client] = await this.db.select().from(clients).where(eq(clients.id, id));
     return client;
   }
-  
+
   async getClientByUserId(userId: number): Promise<Client | undefined> {
-    const [client] = await this.db.select().from(clients).where(({ userId: clientUserId }) => clientUserId.equals(userId));
+    const [client] = await this.db.select().from(clients).where(eq(clients.userId, userId));
     return client;
   }
   
@@ -611,7 +642,7 @@ export class DatabaseStorage implements IStorage {
     const [updatedClient] = await this.db
       .update(clients)
       .set({ ...clientUpdate, updatedAt: new Date() })
-      .where(({ id: clientId }) => clientId.equals(id))
+      .where(eq(clients.id, id))
       .returning();
     return updatedClient;
   }
@@ -622,108 +653,108 @@ export class DatabaseStorage implements IStorage {
   
   // Project operations
   async getProject(id: number): Promise<Project | undefined> {
-    const [project] = await this.db.select().from(projects).where(({ id: projectId }) => projectId.equals(id));
+    const [project] = await this.db.select().from(projects).where(eq(projects.id, id));
     return project;
   }
-  
+
   async getProjectsByClientId(clientId: number): Promise<Project[]> {
-    return await this.db.select().from(projects).where(({ clientId: projClientId }) => projClientId.equals(clientId));
+    return await this.db.select().from(projects).where(eq(projects.clientId, clientId));
   }
-  
+
   async createProject(project: InsertProject): Promise<Project> {
     const [newProject] = await this.db.insert(projects).values(project).returning();
     return newProject;
   }
-  
+
   async updateProject(id: number, projectUpdate: Partial<Project>): Promise<Project | undefined> {
     const [updatedProject] = await this.db
       .update(projects)
       .set({ ...projectUpdate, updatedAt: new Date() })
-      .where(({ id: projectId }) => projectId.equals(id))
+      .where(eq(projects.id, id))
       .returning();
     return updatedProject;
   }
-  
+
   async getAllProjects(): Promise<Project[]> {
     return await this.db.select().from(projects);
   }
-  
+
   // Invoice operations
   async getInvoice(id: number): Promise<Invoice | undefined> {
-    const [invoice] = await this.db.select().from(invoices).where(({ id: invoiceId }) => invoiceId.equals(id));
+    const [invoice] = await this.db.select().from(invoices).where(eq(invoices.id, id));
     return invoice;
   }
-  
+
   async getInvoicesByClientId(clientId: number): Promise<Invoice[]> {
-    return await this.db.select().from(invoices).where(({ clientId: invClientId }) => invClientId.equals(clientId));
+    return await this.db.select().from(invoices).where(eq(invoices.clientId, clientId));
   }
-  
+
   async getInvoicesByProjectId(projectId: number): Promise<Invoice[]> {
-    return await this.db.select().from(invoices).where(({ projectId: invProjectId }) => invProjectId.equals(projectId));
+    return await this.db.select().from(invoices).where(eq(invoices.projectId, projectId));
   }
-  
+
   async createInvoice(invoice: InsertInvoice): Promise<Invoice> {
     const [newInvoice] = await this.db.insert(invoices).values(invoice).returning();
     return newInvoice;
   }
-  
+
   async updateInvoice(id: number, invoiceUpdate: Partial<Invoice>): Promise<Invoice | undefined> {
     const [updatedInvoice] = await this.db
       .update(invoices)
       .set({ ...invoiceUpdate, updatedAt: new Date() })
-      .where(({ id: invoiceId }) => invoiceId.equals(id))
+      .where(eq(invoices.id, id))
       .returning();
     return updatedInvoice;
   }
-  
+
   async getAllInvoices(): Promise<Invoice[]> {
     return await this.db.select().from(invoices);
   }
-  
+
   // Document operations
   async getDocument(id: number): Promise<Document | undefined> {
-    const [document] = await this.db.select().from(documents).where(({ id: docId }) => docId.equals(id));
+    const [document] = await this.db.select().from(documents).where(eq(documents.id, id));
     return document;
   }
-  
+
   async getDocumentsByProjectId(projectId: number): Promise<Document[]> {
-    return await this.db.select().from(documents).where(({ projectId: docProjectId }) => docProjectId.equals(projectId));
+    return await this.db.select().from(documents).where(eq(documents.projectId, projectId));
   }
-  
+
   async getDocumentsByClientId(clientId: number): Promise<Document[]> {
-    return await this.db.select().from(documents).where(({ clientId: docClientId }) => docClientId.equals(clientId));
+    return await this.db.select().from(documents).where(eq(documents.clientId, clientId));
   }
-  
+
   async createDocument(document: InsertDocument): Promise<Document> {
     const [newDocument] = await this.db.insert(documents).values(document).returning();
     return newDocument;
   }
-  
+
   async deleteDocument(id: number): Promise<boolean> {
-    const result = await this.db.delete(documents).where(({ id: docId }) => docId.equals(id));
-    return true; // Assuming operation was successful
+    await this.db.delete(documents).where(eq(documents.id, id));
+    return true;
   }
-  
+
   async getAllDocuments(): Promise<Document[]> {
     return await this.db.select().from(documents);
   }
-  
+
   // Inquiry operations
   async getInquiry(id: number): Promise<Inquiry | undefined> {
-    const [inquiry] = await this.db.select().from(inquiries).where(({ id: inquiryId }) => inquiryId.equals(id));
+    const [inquiry] = await this.db.select().from(inquiries).where(eq(inquiries.id, id));
     return inquiry;
   }
-  
+
   async createInquiry(inquiry: InsertInquiry): Promise<Inquiry> {
     const [newInquiry] = await this.db.insert(inquiries).values(inquiry).returning();
     return newInquiry;
   }
-  
+
   async updateInquiry(id: number, inquiryUpdate: Partial<Inquiry>): Promise<Inquiry | undefined> {
     const [updatedInquiry] = await this.db
       .update(inquiries)
       .set({ ...inquiryUpdate, updatedAt: new Date() })
-      .where(({ id: inquiryId }) => inquiryId.equals(id))
+      .where(eq(inquiries.id, id))
       .returning();
     return updatedInquiry;
   }
@@ -906,6 +937,126 @@ export class DatabaseStorage implements IStorage {
     }
     
     return undefined;
+  }
+
+  // Message operations
+  async getMessagesByClientId(clientId: number): Promise<Message[]> {
+    return await this.db.select().from(messages).where(eq(messages.clientId, clientId)).orderBy(asc(messages.createdAt));
+  }
+
+  async createMessage(message: InsertMessage): Promise<Message> {
+    const [newMessage] = await this.db.insert(messages).values(message).returning();
+    return newMessage;
+  }
+
+  async markMessagesReadForClient(clientId: number, readerUserId: number): Promise<void> {
+    // For client readers: mark is_read on messages not sent by them
+    const clientMsgs = await this.db.select().from(messages).where(eq(messages.clientId, clientId));
+    for (const msg of clientMsgs) {
+      if (msg.senderUserId !== readerUserId && !msg.isRead) {
+        await this.db.update(messages).set({ isRead: true }).where(eq(messages.id, msg.id));
+      }
+      // For admin readers: insert into message_reads
+      if (msg.senderUserId !== readerUserId) {
+        await this.db.insert(messageReads).values({ messageId: msg.id, userId: readerUserId }).onConflictDoNothing();
+      }
+    }
+  }
+
+  async getUnreadCountForAdmin(adminUserId: number): Promise<number> {
+    const allClientMessages = await this.db.select().from(messages).where(eq(messages.senderUserId, adminUserId));
+    // Get all messages NOT sent by this admin
+    const allMsgs = await this.db.select().from(messages);
+    const clientSentMsgs = allMsgs.filter(m => m.senderUserId !== adminUserId);
+    if (!clientSentMsgs.length) return 0;
+    const reads = await this.db.select().from(messageReads).where(eq(messageReads.userId, adminUserId));
+    const readIds = new Set(reads.map(r => r.messageId));
+    return clientSentMsgs.filter(m => !readIds.has(m.id)).length;
+  }
+
+  async getAllClientsWithMessageCounts(adminUserId?: number): Promise<{ clientId: number; unreadCount: number; latestMessage: Message | null }[]> {
+    const allMessages = await this.db.select().from(messages).orderBy(desc(messages.createdAt));
+    const reads = adminUserId
+      ? await this.db.select().from(messageReads).where(eq(messageReads.userId, adminUserId))
+      : [];
+    const readIds = new Set(reads.map(r => r.messageId));
+
+    const byClient = new Map<number, { unreadCount: number; latestMessage: Message | null }>();
+    for (const msg of allMessages) {
+      if (!byClient.has(msg.clientId)) {
+        byClient.set(msg.clientId, { unreadCount: 0, latestMessage: msg });
+      }
+      // Count unread: messages not sent by this admin and not in their reads
+      const isFromClient = adminUserId ? msg.senderUserId !== adminUserId : !msg.isRead;
+      if (isFromClient && !readIds.has(msg.id)) {
+        byClient.get(msg.clientId)!.unreadCount++;
+      }
+    }
+    return Array.from(byClient.entries()).map(([clientId, data]) => ({ clientId, ...data }));
+  }
+
+  // Milestone operations
+  async getMilestonesByProjectId(projectId: number): Promise<Milestone[]> {
+    return await this.db.select().from(milestones).where(eq(milestones.projectId, projectId)).orderBy(asc(milestones.createdAt));
+  }
+
+  async createMilestone(milestone: InsertMilestone): Promise<Milestone> {
+    const [newMilestone] = await this.db.insert(milestones).values(milestone).returning();
+    return newMilestone;
+  }
+
+  async updateMilestone(id: number, milestoneUpdate: Partial<Milestone>): Promise<Milestone | undefined> {
+    const [updated] = await this.db.update(milestones).set({ ...milestoneUpdate, updatedAt: new Date() }).where(eq(milestones.id, id)).returning();
+    return updated;
+  }
+
+  async deleteMilestone(id: number): Promise<boolean> {
+    await this.db.delete(milestones).where(eq(milestones.id, id));
+    return true;
+  }
+
+  // Client note operations
+  async getClientNotesByClientId(clientId: number): Promise<ClientNote[]> {
+    return await this.db.select().from(clientNotes).where(eq(clientNotes.clientId, clientId)).orderBy(desc(clientNotes.isPinned), desc(clientNotes.createdAt));
+  }
+
+  async createClientNote(note: InsertClientNote): Promise<ClientNote> {
+    const [newNote] = await this.db.insert(clientNotes).values(note).returning();
+    return newNote;
+  }
+
+  async updateClientNote(id: number, noteUpdate: Partial<ClientNote>): Promise<ClientNote | undefined> {
+    const [updated] = await this.db.update(clientNotes).set({ ...noteUpdate, updatedAt: new Date() }).where(eq(clientNotes.id, id)).returning();
+    return updated;
+  }
+
+  async deleteClientNote(id: number): Promise<boolean> {
+    await this.db.delete(clientNotes).where(eq(clientNotes.id, id));
+    return true;
+  }
+
+  async getAllCustomPages(): Promise<CustomPage[]> {
+    return await this.db.select().from(customPages).orderBy(asc(customPages.createdAt));
+  }
+
+  async getCustomPageBySlug(slug: string): Promise<CustomPage | undefined> {
+    const [page] = await this.db.select().from(customPages).where(eq(customPages.slug, slug));
+    return page;
+  }
+
+  async createCustomPage(page: InsertCustomPage): Promise<CustomPage> {
+    const [newPage] = await this.db.insert(customPages).values(page).returning();
+    return newPage;
+  }
+
+  async updateCustomPage(id: number, pageUpdate: Partial<CustomPage>): Promise<CustomPage | undefined> {
+    const [updated] = await this.db.update(customPages).set({ ...pageUpdate, updatedAt: new Date() }).where(eq(customPages.id, id)).returning();
+    return updated;
+  }
+
+  async deleteCustomPage(id: number): Promise<boolean> {
+    await this.db.delete(customPages).where(eq(customPages.id, id));
+    return true;
   }
 }
 

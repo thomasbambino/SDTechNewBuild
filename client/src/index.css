@@ -11,3 +11,36 @@
     @apply font-sans antialiased bg-background text-foreground;
   }
 }
+
+/* Dark mode overrides for hardcoded Tailwind color classes */
+@layer utilities {
+  .dark .bg-white          { background-color: hsl(var(--card)); }
+  .dark .bg-gray-50        { background-color: hsl(var(--background)); }
+  .dark .bg-gray-100       { background-color: hsl(var(--muted) / 0.5); }
+  .dark .bg-gray-200       { background-color: hsl(var(--muted)); }
+
+  .dark .text-gray-900     { color: hsl(var(--foreground)); }
+  .dark .text-gray-800     { color: hsl(var(--foreground)); }
+  .dark .text-gray-700     { color: hsl(var(--foreground) / 0.85); }
+  .dark .text-gray-600     { color: hsl(var(--muted-foreground)); }
+  .dark .text-gray-500     { color: hsl(var(--muted-foreground)); }
+  .dark .text-gray-400     { color: hsl(var(--muted-foreground) / 0.7); }
+
+  .dark .border-gray-200   { border-color: hsl(var(--border)); }
+  .dark .border-gray-100   { border-color: hsl(var(--border)); }
+  .dark .divide-gray-200 > * + * { border-color: hsl(var(--border)); }
+  .dark .divide-gray-100 > * + * { border-color: hsl(var(--border)); }
+
+  /* Table header backgrounds */
+  .dark .bg-gray-50 th     { background-color: hsl(var(--muted) / 0.3); }
+
+  /* Primary color is dark navy — make it readable on dark backgrounds */
+  .dark .text-primary        { color: hsl(210 70% 72%); }
+  .dark a.text-primary       { color: hsl(210 70% 72%); }
+  .dark .hover\:text-primary:hover { color: hsl(210 70% 80%); }
+  .dark .text-primary-600    { color: hsl(210 70% 70%); }
+  .dark .text-primary-foreground { color: hsl(var(--foreground)); }
+
+  /* Secondary text color fix */
+  .dark .text-secondary-500  { color: hsl(var(--muted-foreground)); }
+}

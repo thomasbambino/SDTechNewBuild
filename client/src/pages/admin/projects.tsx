@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { 
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -39,7 +39,7 @@ import {
 } from "@/components/ui/card";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Project, insertProjectSchema, Client } from "@shared/schema";
+import { Project, insertProjectSchema, Client, Invoice, Document } from "@shared/schema";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -51,19 +51,36 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { 
-  Plus, 
-  Search, 
-  MoreHorizontal, 
-  RefreshCw, 
-  Calendar, 
-  DollarSign, 
-  Code, 
-  Smartphone, 
+import {
+  Plus,
+  Search,
+  MoreHorizontal,
+  RefreshCw,
+  Calendar,
+  DollarSign,
+  Code,
+  Smartphone,
   Database,
-  FileText
+  FileText,
+  Upload,
+  Trash2,
+  ExternalLink,
+  Flag,
+  Image as ImageIcon,
+  X,
 } from "lucide-react";
 import { format } from "date-fns";
+
+interface Milestone {
+  id: number;
+  projectId: number;
+  title: string;
+  notes: string | null;
+  imagePaths: string | null;
+  createdBy: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
 
 // Form schema based on insert project schema
 type ProjectFormValues = z.infer<typeof insertProjectSchema>;
@@ -75,6 +92,16 @@ export default function ProjectsPage() {
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+  const [invoicesProject, setInvoicesProject] = useState<Project | null>(null);
+  const [documentsProject, setDocumentsProject] = useState<Project | null>(null);
+  const [milestonesProject, setMilestonesProject] = useState<Project | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [milestoneUploading, setMilestoneUploading] = useState(false);
+  const [milestoneForm, setMilestoneForm] = useState({ title: "", notes: "" });
+  const [milestoneImages, setMilestoneImages] = useState<string[]>([]);
+  const [editingMilestone, setEditingMilestone] = useState<Milestone | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const milestoneImageRef = useRef<HTMLInputElement>(null);
 
   // Fetch projects
   const { data: projects = [], isLoading: isProjectsLoading, refetch } = useQuery<Project[]>({
@@ -84,6 +111,33 @@ export default function ProjectsPage() {
   // Fetch clients for the dropdown
   const { data: clients = [], isLoading: isClientsLoading } = useQuery<Client[]>({
     queryKey: ['/api/clients'],
+  });
+
+  // Fetch all invoices for the invoice dialog
+  const { data: allInvoices = [] } = useQuery<Invoice[]>({
+    queryKey: ['/api/invoices'],
+  });
+
+  // Fetch FreshBooks connection for building invoice URLs
+  const { data: fbConnection } = useQuery<{ accountId: string | null } | null>({
+    queryKey: ['/api/api-connections/freshbooks'],
+  });
+
+  const getFreshbooksInvoiceUrl = (inv: Invoice) => {
+    if (!inv.freshbooksId || !fbConnection?.accountId) return null;
+    return `https://my.freshbooks.com/#/invoice/${fbConnection.accountId}-${inv.freshbooksId}`;
+  };
+
+  // Fetch documents for the selected project
+  const { data: projectDocuments = [], refetch: refetchDocuments } = useQuery<Document[]>({
+    queryKey: ['/api/documents', documentsProject?.id],
+    queryFn: async () => {
+      if (!documentsProject) return [];
+      const res = await fetch(`/api/documents?projectId=${documentsProject.id}`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to fetch documents');
+      return res.json();
+    },
+    enabled: !!documentsProject,
   });
 
   // Create project mutation
@@ -133,6 +187,133 @@ export default function ProjectsPage() {
       });
     }
   });
+
+  // Delete document mutation
+  const deleteDocumentMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest('DELETE', `/api/documents/${id}`);
+    },
+    onSuccess: () => {
+      refetchDocuments();
+      toast({ title: "Document deleted" });
+    },
+    onError: () => {
+      toast({ title: "Delete failed", variant: "destructive" });
+    },
+  });
+
+  // Upload document handler
+  const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !documentsProject) return;
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('name', file.name);
+      formData.append('projectId', String(documentsProject.id));
+      const res = await fetch('/api/documents/upload', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || 'Upload failed');
+      }
+      await refetchDocuments();
+      toast({ title: "File uploaded", description: file.name });
+    } catch (err) {
+      toast({ title: "Upload failed", description: err instanceof Error ? err.message : 'Unknown error', variant: "destructive" });
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // Milestones query
+  const { data: projectMilestones = [], refetch: refetchMilestones } = useQuery<Milestone[]>({
+    queryKey: ["/api/milestones", milestonesProject?.id],
+    queryFn: async () => {
+      if (!milestonesProject) return [];
+      const res = await fetch(`/api/projects/${milestonesProject.id}/milestones`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch milestones");
+      return res.json();
+    },
+    enabled: !!milestonesProject,
+  });
+
+  const createMilestoneMutation = useMutation({
+    mutationFn: async (data: { title: string; notes: string; imagePaths: string[] }) => {
+      const res = await apiRequest("POST", "/api/milestones", { projectId: milestonesProject!.id, ...data });
+      return res.json();
+    },
+    onSuccess: () => { refetchMilestones(); setMilestoneForm({ title: "", notes: "" }); setMilestoneImages([]); toast({ title: "Milestone added" }); },
+    onError: (err: Error) => toast({ title: "Failed", description: err.message, variant: "destructive" }),
+  });
+
+  const updateMilestoneMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: { title: string; notes: string; imagePaths: string[] } }) => {
+      const res = await apiRequest("PUT", `/api/milestones/${id}`, data);
+      return res.json();
+    },
+    onSuccess: () => { refetchMilestones(); setEditingMilestone(null); toast({ title: "Milestone updated" }); },
+    onError: (err: Error) => toast({ title: "Failed", description: err.message, variant: "destructive" }),
+  });
+
+  const deleteMilestoneMutation = useMutation({
+    mutationFn: async (id: number) => { await apiRequest("DELETE", `/api/milestones/${id}`); },
+    onSuccess: () => { refetchMilestones(); toast({ title: "Milestone deleted" }); },
+    onError: (err: Error) => toast({ title: "Failed", description: err.message, variant: "destructive" }),
+  });
+
+  const handleMilestoneImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, isEdit = false) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setMilestoneUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+      const res = await fetch("/api/milestones/image", { method: "POST", credentials: "include", body: formData });
+      if (!res.ok) throw new Error("Upload failed");
+      const { url } = await res.json();
+      if (isEdit && editingMilestone) {
+        const existing = editingMilestone.imagePaths ? JSON.parse(editingMilestone.imagePaths) : [];
+        setEditingMilestone({ ...editingMilestone, imagePaths: JSON.stringify([...existing, url]) });
+      } else {
+        setMilestoneImages(prev => [...prev, url]);
+      }
+    } catch (err) {
+      toast({ title: "Upload failed", variant: "destructive" });
+    } finally {
+      setMilestoneUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  // Helpers for invoice display
+  const getClientName = (clientId: number) => {
+    const client = clients.find(c => c.id === clientId);
+    return client ? client.name : "Unknown Client";
+  };
+
+  const formatCurrencyInv = (amount: number) =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+
+  const getInvoiceStatusBadge = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case "paid": return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Paid</Badge>;
+      case "overdue": return <Badge className="bg-red-100 text-red-800 hover:bg-red-100">Overdue</Badge>;
+      default: return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">Pending</Badge>;
+    }
+  };
+
+  const formatBytes = (bytes: number | null) => {
+    if (!bytes) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
 
   // Add project form
   const form = useForm<ProjectFormValues>({
@@ -236,12 +417,6 @@ export default function ProjectsPage() {
       default:
         return <Badge>{status}</Badge>;
     }
-  };
-
-  // Find client name by ID
-  const getClientName = (clientId: number) => {
-    const client = clients.find(c => c.id === clientId);
-    return client ? client.name : "Unknown Client";
   };
 
   // Filter projects based on search query and status
@@ -553,11 +728,11 @@ export default function ProjectsPage() {
                           <DropdownMenuItem onClick={() => handleEditProject(project)}>
                             Edit
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => toast({ title: "View Details", description: `Viewing details for ${project.name}` })}>
-                            View Details
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => toast({ title: "View Documents", description: `Viewing documents for ${project.name}` })}>
+                          <DropdownMenuItem onClick={() => setDocumentsProject(project)}>
                             View Documents
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => { setMilestonesProject(project); setMilestoneForm({ title: "", notes: "" }); setMilestoneImages([]); setEditingMilestone(null); }}>
+                            Milestones
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -589,11 +764,11 @@ export default function ProjectsPage() {
                   </CardContent>
                   <CardFooter className="pt-0 justify-between items-center">
                     {getStatusBadge(project.status)}
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
+                    <Button
+                      variant="outline"
+                      size="sm"
                       className="ml-auto"
-                      onClick={() => toast({ title: "View Invoices", description: `Viewing invoices for ${project.name}` })}
+                      onClick={() => setInvoicesProject(project)}
                     >
                       <FileText className="h-4 w-4 mr-1" />
                       Invoices
@@ -604,6 +779,202 @@ export default function ProjectsPage() {
             </div>
           )}
         </div>
+
+        {/* Project Invoices Dialog */}
+        <Dialog open={!!invoicesProject} onOpenChange={(open) => !open && setInvoicesProject(null)}>
+          <DialogContent className="sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Invoices — {invoicesProject?.name}</DialogTitle>
+              <DialogDescription>All invoices associated with this project.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {(() => {
+                const projectInvoices = allInvoices.filter(inv => inv.projectId === invoicesProject?.id);
+                if (projectInvoices.length === 0) {
+                  return <p className="text-sm text-muted-foreground py-4 text-center">No invoices found for this project.</p>;
+                }
+                return projectInvoices.map(inv => (
+                  <div key={inv.id} className="flex items-center justify-between p-3 border rounded-md">
+                    <div>
+                      <p className="font-medium text-sm">#{inv.invoiceNumber}</p>
+                      <p className="text-xs text-muted-foreground">{getClientName(inv.clientId)}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {getInvoiceStatusBadge(inv.status || 'pending')}
+                      <span className="font-semibold text-sm">{formatCurrencyInv(inv.amount)}</span>
+                      {getFreshbooksInvoiceUrl(inv) && (
+                        <Button variant="ghost" size="sm" asChild>
+                          <a href={getFreshbooksInvoiceUrl(inv)!} target="_blank" rel="noreferrer">
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ));
+              })()}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setInvoicesProject(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Project Documents Dialog */}
+        <Dialog open={!!documentsProject} onOpenChange={(open) => !open && setDocumentsProject(null)}>
+          <DialogContent className="sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Documents — {documentsProject?.name}</DialogTitle>
+              <DialogDescription>Upload and manage files for this project.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2 max-h-72 overflow-y-auto">
+              {projectDocuments.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">No documents uploaded yet.</p>
+              ) : (
+                projectDocuments.map(doc => (
+                  <div key={doc.id} className="flex items-center justify-between p-3 border rounded-md">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{doc.name}</p>
+                        <p className="text-xs text-muted-foreground">{formatBytes(doc.size)} · {doc.type}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Button variant="ghost" size="sm" asChild>
+                        <a href={doc.path} target="_blank" rel="noreferrer">
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => deleteDocumentMutation.mutate(doc.id)}
+                        disabled={deleteDocumentMutation.isPending}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="border-t pt-4">
+              <input
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
+                onChange={handleDocumentUpload}
+              />
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                {isUploading ? "Uploading..." : "Upload File"}
+              </Button>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDocumentsProject(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Milestones Dialog */}
+        <Dialog open={!!milestonesProject} onOpenChange={open => !open && setMilestonesProject(null)}>
+          <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Milestones — {milestonesProject?.name}</DialogTitle>
+              <DialogDescription>Add progress updates visible to the client on their dashboard.</DialogDescription>
+            </DialogHeader>
+
+            {/* Existing milestones */}
+            <div className="space-y-3 max-h-64 overflow-y-auto">
+              {projectMilestones.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">No milestones yet.</p>
+              ) : projectMilestones.map(m => {
+                const images: string[] = m.imagePaths ? JSON.parse(m.imagePaths) : [];
+                if (editingMilestone?.id === m.id) {
+                  const editImages: string[] = editingMilestone.imagePaths ? JSON.parse(editingMilestone.imagePaths) : [];
+                  return (
+                    <div key={m.id} className="border rounded-md p-3 space-y-2 bg-muted/30">
+                      <Input value={editingMilestone.title} onChange={e => setEditingMilestone({ ...editingMilestone, title: e.target.value })} placeholder="Title" />
+                      <Textarea value={editingMilestone.notes || ""} onChange={e => setEditingMilestone({ ...editingMilestone, notes: e.target.value })} placeholder="Notes" rows={2} className="resize-none" />
+                      {editImages.length > 0 && (
+                        <div className="flex gap-2 flex-wrap">
+                          {editImages.map((src, i) => (
+                            <div key={i} className="relative">
+                              <img src={src} className="h-16 w-16 object-cover rounded border" />
+                              <button onClick={() => { const updated = editImages.filter((_, j) => j !== i); setEditingMilestone({ ...editingMilestone, imagePaths: JSON.stringify(updated) }); }} className="absolute -top-1 -right-1 bg-destructive text-white rounded-full h-4 w-4 flex items-center justify-center text-xs">×</button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        <input type="file" accept="image/*" className="hidden" ref={milestoneImageRef} onChange={e => handleMilestoneImageUpload(e, true)} />
+                        <Button variant="outline" size="sm" onClick={() => milestoneImageRef.current?.click()} disabled={milestoneUploading}><ImageIcon className="h-3 w-3 mr-1" />Add Image</Button>
+                        <Button size="sm" onClick={() => updateMilestoneMutation.mutate({ id: m.id, data: { title: editingMilestone.title, notes: editingMilestone.notes || "", imagePaths: editImages } })} disabled={updateMilestoneMutation.isPending}>Save</Button>
+                        <Button variant="outline" size="sm" onClick={() => setEditingMilestone(null)}>Cancel</Button>
+                      </div>
+                    </div>
+                  );
+                }
+                return (
+                  <div key={m.id} className="border rounded-md p-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">{m.title}</p>
+                        <p className="text-xs text-muted-foreground">{format(new Date(m.createdAt), "MMM d, yyyy · h:mm a")}</p>
+                        {m.notes && <p className="text-sm text-gray-600 mt-1">{m.notes}</p>}
+                        {images.length > 0 && (
+                          <div className="flex gap-2 mt-2 flex-wrap">
+                            {images.map((src, i) => <a key={i} href={src} target="_blank" rel="noreferrer"><img src={src} className="h-14 w-14 object-cover rounded border hover:opacity-80" /></a>)}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex gap-1 ml-2">
+                        <Button variant="ghost" size="sm" onClick={() => setEditingMilestone(m)}>Edit</Button>
+                        <Button variant="ghost" size="sm" onClick={() => deleteMilestoneMutation.mutate(m.id)} className="text-destructive hover:bg-destructive/10"><Trash2 className="h-3 w-3" /></Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Add new milestone */}
+            <div className="border-t pt-4 space-y-3">
+              <p className="text-sm font-medium">Add New Milestone</p>
+              <Input value={milestoneForm.title} onChange={e => setMilestoneForm(f => ({ ...f, title: e.target.value }))} placeholder="Title (e.g. Foundation work completed)" />
+              <Textarea value={milestoneForm.notes} onChange={e => setMilestoneForm(f => ({ ...f, notes: e.target.value }))} placeholder="Notes (optional)" rows={2} className="resize-none" />
+              {milestoneImages.length > 0 && (
+                <div className="flex gap-2 flex-wrap">
+                  {milestoneImages.map((src, i) => (
+                    <div key={i} className="relative">
+                      <img src={src} className="h-16 w-16 object-cover rounded border" />
+                      <button onClick={() => setMilestoneImages(prev => prev.filter((_, j) => j !== i))} className="absolute -top-1 -right-1 bg-destructive text-white rounded-full h-4 w-4 flex items-center justify-center text-xs">×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <input type="file" accept="image/*" className="hidden" onChange={e => handleMilestoneImageUpload(e, false)} id="milestone-img-input" />
+                <Button variant="outline" size="sm" onClick={() => document.getElementById("milestone-img-input")?.click()} disabled={milestoneUploading}>
+                  <ImageIcon className="h-3 w-3 mr-1" />{milestoneUploading ? "Uploading…" : "Add Image"}
+                </Button>
+                <Button size="sm" onClick={() => createMilestoneMutation.mutate({ title: milestoneForm.title, notes: milestoneForm.notes, imagePaths: milestoneImages })} disabled={!milestoneForm.title || createMilestoneMutation.isPending}>
+                  <Plus className="h-3 w-3 mr-1" />{createMilestoneMutation.isPending ? "Adding…" : "Add Milestone"}
+                </Button>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setMilestonesProject(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Edit Project Dialog */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>

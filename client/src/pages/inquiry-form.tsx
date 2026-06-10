@@ -33,13 +33,14 @@ import {
 } from "@/components/ui/form";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  ArrowLeft, 
-  Mail, 
-  Phone, 
-  User, 
-  RefreshCw, 
-  CheckCircle 
+import {
+  ArrowLeft,
+  Mail,
+  Phone,
+  User,
+  MapPin,
+  RefreshCw,
+  CheckCircle
 } from "lucide-react";
 
 // Inquiry form schema
@@ -47,6 +48,10 @@ const inquirySchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Please enter a valid email address"),
   phone: z.string().optional(),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  zip: z.string().optional(),
   service: z.string().min(1, "Please select a service"),
   budget: z.string().optional(),
   message: z.string().min(10, "Message must be at least 10 characters"),
@@ -58,17 +63,27 @@ export default function InquiryForm() {
   const [_, navigate] = useLocation();
   const { toast } = useToast();
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const { data: settings } = useQuery<{ logoPath?: string; companyName?: string }>({
+  const { data: settings } = useQuery<{ logoPath?: string; companyName?: string; contactEmail?: string; contactPhone?: string }>({
     queryKey: ["/api/settings/public"],
   });
-  
-  // Available services
-  const serviceOptions = [
+
+  // Pull services from CMS; fall back to defaults
+  const { data: cmsServices = [] } = useQuery<{ id: number; title: string | null }[]>({
+    queryKey: ["/api/content/service"],
+  });
+
+  const defaultServiceOptions = [
     { value: "web_development", label: "Web Development" },
     { value: "custom_software", label: "Custom Software" },
     { value: "it_consulting", label: "IT Consulting" },
     { value: "data_analytics", label: "Data Analytics" },
-    { value: "other", label: "Other Services" },
+  ];
+
+  const serviceOptions = [
+    ...(cmsServices.length > 1
+      ? cmsServices.slice(1).map(s => ({ value: s.title?.toLowerCase().replace(/\s+/g, "_") ?? "service", label: s.title ?? "Service" }))
+      : defaultServiceOptions),
+    { value: "other", label: "Other" },
   ];
   
   // Budget options
@@ -88,6 +103,10 @@ export default function InquiryForm() {
       name: "",
       email: "",
       phone: "",
+      address: "",
+      city: "",
+      state: "",
+      zip: "",
       service: "",
       budget: "not_sure",
       message: "",
@@ -97,15 +116,16 @@ export default function InquiryForm() {
   // Submit inquiry mutation
   const submitInquiryMutation = useMutation({
     mutationFn: async (data: InquiryFormValues) => {
-      // Transform the form data to match the API schema
-      const inquiryData = {
+      const res = await apiRequest("POST", "/api/inquiries", {
         name: data.name,
         email: data.email,
         phone: data.phone || "",
-        message: `Service: ${data.service}\nBudget: ${data.budget}\n\n${data.message}`,
-      };
-      
-      const res = await apiRequest("POST", "/api/inquiries", inquiryData);
+        address: data.address || "",
+        city: data.city || "",
+        state: data.state || "",
+        zip: data.zip || "",
+        message: `Service: ${data.service}\nBudget: ${data.budget || "not specified"}\n\n${data.message}`,
+      });
       return res.json();
     },
     onSuccess: () => {
@@ -200,8 +220,9 @@ export default function InquiryForm() {
               </CardFooter>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <div className="md:col-span-2">
+            <div className="space-y-8">
+              {/* Main form — full width */}
+              <div>
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-2xl">Get in Touch</CardTitle>
@@ -271,7 +292,7 @@ export default function InquiryForm() {
                               </FormItem>
                             )}
                           />
-                          
+
                           <FormField
                             control={form.control}
                             name="service"
@@ -298,6 +319,68 @@ export default function InquiryForm() {
                           />
                         </div>
                         
+                        {/* Address fields */}
+                        <FormField
+                          control={form.control}
+                          name="address"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Street Address (Optional)</FormLabel>
+                              <FormControl>
+                                <div className="relative">
+                                  <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                    <MapPin className="text-gray-400 h-5 w-5" />
+                                  </div>
+                                  <Input placeholder="123 Main St" className="pl-10" {...field} />
+                                </div>
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                          <FormField
+                            control={form.control}
+                            name="city"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>City</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="San Diego" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="state"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>State</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="CA" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="zip"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>ZIP Code</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="92101" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+
                         <FormField
                           control={form.control}
                           name="budget"
@@ -363,76 +446,56 @@ export default function InquiryForm() {
                   </CardContent>
                 </Card>
               </div>
-              
-              <div>
+
+              {/* Info cards — side by side below the form */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <Card>
                   <CardHeader>
                     <CardTitle>Contact Information</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="flex items-start">
-                      <Mail className="h-5 w-5 text-primary mt-0.5 mr-3" />
+                      <Mail className="h-5 w-5 text-primary mt-0.5 mr-3 flex-shrink-0" />
                       <div>
                         <p className="font-medium">Email</p>
-                        <a href="mailto:contact@sdtechpros.com" className="text-gray-600 hover:text-primary">
-                          contact@sdtechpros.com
+                        <a href={`mailto:${settings?.contactEmail || "contact@sdtechpros.com"}`} className="text-gray-600 hover:text-primary break-all">
+                          {settings?.contactEmail || "contact@sdtechpros.com"}
                         </a>
                       </div>
                     </div>
-                    
                     <div className="flex items-start">
-                      <Phone className="h-5 w-5 text-primary mt-0.5 mr-3" />
+                      <Phone className="h-5 w-5 text-primary mt-0.5 mr-3 flex-shrink-0" />
                       <div>
                         <p className="font-medium">Phone</p>
-                        <a href="tel:(555)123-4567" className="text-gray-600 hover:text-primary">
-                          (555) 123-4567
+                        <a href={`tel:${settings?.contactPhone || "(555) 123-4567"}`} className="text-gray-600 hover:text-primary">
+                          {settings?.contactPhone || "(555) 123-4567"}
                         </a>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
-                
-                <Card className="mt-6">
+
+                <Card>
                   <CardHeader>
                     <CardTitle>How It Works</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <ol className="space-y-4">
-                      <li className="flex">
-                        <div className="flex-shrink-0 h-6 w-6 bg-primary rounded-full flex items-center justify-center text-white font-medium text-sm mr-3">
-                          1
-                        </div>
-                        <p className="text-gray-600">
-                          <span className="font-medium text-gray-900">Submit your inquiry</span> with details about your project
-                        </p>
-                      </li>
-                      
-                      <li className="flex">
-                        <div className="flex-shrink-0 h-6 w-6 bg-primary rounded-full flex items-center justify-center text-white font-medium text-sm mr-3">
-                          2
-                        </div>
-                        <p className="text-gray-600">
-                          <span className="font-medium text-gray-900">Initial consultation</span> with our team to discuss your needs
-                        </p>
-                      </li>
-                      
-                      <li className="flex">
-                        <div className="flex-shrink-0 h-6 w-6 bg-primary rounded-full flex items-center justify-center text-white font-medium text-sm mr-3">
-                          3
-                        </div>
-                        <p className="text-gray-600">
-                          <span className="font-medium text-gray-900">Receive a proposal</span> with timeline and pricing details
-                        </p>
-                      </li>
-                      
-                      <li className="flex">
-                        <div className="flex-shrink-0 h-6 w-6 bg-primary rounded-full flex items-center justify-center text-white font-medium text-sm mr-3">
-                          4
-                        </div>
-                        <p className="text-gray-600">
-                          <span className="font-medium text-gray-900">Start your project</span> with our experienced team
-                        </p>
-                      </li>
+                    <ol className="space-y-3">
+                      {[
+                        ["Submit your inquiry", "with details about your project"],
+                        ["Initial consultation", "with our team to discuss your needs"],
+                        ["Receive a proposal", "with timeline and pricing details"],
+                        ["Start your project", "with our experienced team"],
+                      ].map(([title, desc], i) => (
+                        <li key={i} className="flex">
+                          <div className="flex-shrink-0 h-6 w-6 bg-primary rounded-full flex items-center justify-center text-white font-medium text-sm mr-3">
+                            {i + 1}
+                          </div>
+                          <p className="text-gray-600 text-sm">
+                            <span className="font-medium text-gray-900">{title}</span> {desc}
+                          </p>
+                        </li>
+                      ))}
                     </ol>
                   </CardContent>
                 </Card>

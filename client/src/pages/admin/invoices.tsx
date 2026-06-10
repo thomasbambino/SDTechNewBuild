@@ -30,12 +30,12 @@ import { useToast } from "@/hooks/use-toast";
 import { Invoice, Client, Project } from "@shared/schema";
 import { format } from "date-fns";
 import {
-  Search, 
-  RefreshCw, 
+  Search,
+  RefreshCw,
   FileText,
   Filter,
   MoreHorizontal,
-  Download,
+  ExternalLink,
   Mail,
   AlertCircle,
   CheckCircle
@@ -63,6 +63,16 @@ export default function InvoicesPage() {
   const { data: projects = [] } = useQuery<Project[]>({
     queryKey: ['/api/projects'],
   });
+
+  // Fetch FreshBooks connection to get accountId for building invoice URLs
+  const { data: fbConnection } = useQuery<{ accountId: string | null } | null>({
+    queryKey: ['/api/api-connections/freshbooks'],
+  });
+
+  const getFreshbooksInvoiceUrl = (invoice: Invoice) => {
+    if (!invoice.freshbooksId || !fbConnection?.accountId) return null;
+    return `https://my.freshbooks.com/#/invoice/${fbConnection.accountId}-${invoice.freshbooksId}`;
+  };
 
   // Update invoice status mutation
   const updateInvoiceStatusMutation = useMutation({
@@ -151,6 +161,7 @@ export default function InvoicesPage() {
       description: "Payment reminder has been sent to the client.",
     });
   };
+
 
   // Filter invoices based on search query and status
   const filteredInvoices = invoices.filter(invoice => {
@@ -350,17 +361,14 @@ export default function InvoicesPage() {
               </div>
               <DialogFooter className="flex justify-between">
                 <div className="flex space-x-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => toast({
-                      title: "Download Invoice",
-                      description: "Invoice PDF has been downloaded."
-                    })}
-                  >
-                    <Download className="h-4 w-4 mr-1" />
-                    Download
-                  </Button>
+                  {getFreshbooksInvoiceUrl(selectedInvoice) && (
+                    <Button variant="outline" size="sm" asChild>
+                      <a href={getFreshbooksInvoiceUrl(selectedInvoice)!} target="_blank" rel="noreferrer">
+                        <ExternalLink className="h-4 w-4 mr-1" />
+                        View in FreshBooks
+                      </a>
+                    </Button>
+                  )}
                   {(selectedInvoice.status || "") !== "paid" && (
                     <Button 
                       variant="outline" 

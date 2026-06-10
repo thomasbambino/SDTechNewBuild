@@ -42,7 +42,17 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Plus, Search, MoreHorizontal, RefreshCw, User, Mail, Phone, MapPin } from "lucide-react";
+import { Plus, Search, MoreHorizontal, RefreshCw, User, Mail, Phone, MapPin, Pin, Trash2 } from "lucide-react";
+import { format } from "date-fns";
+
+interface ClientNote {
+  id: number;
+  clientId: number;
+  title: string;
+  content: string;
+  isPinned: boolean;
+  createdAt: string;
+}
 
 // Form schema based on insert client schema
 type ClientFormValues = z.infer<typeof insertClientSchema>;
@@ -52,6 +62,8 @@ export default function ClientsPage() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [currentClient, setCurrentClient] = useState<Client | null>(null);
+  const [notesClient, setNotesClient] = useState<Client | null>(null);
+  const [noteForm, setNoteForm] = useState({ title: "", content: "", isPinned: false });
   const [searchQuery, setSearchQuery] = useState("");
 
   // Fetch clients
@@ -158,6 +170,32 @@ export default function ClientsPage() {
     });
     setIsEditDialogOpen(true);
   };
+
+  // Client notes
+  const { data: clientNotes = [], refetch: refetchNotes } = useQuery<ClientNote[]>({
+    queryKey: ["/api/client-notes", notesClient?.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/client-notes?clientId=${notesClient!.id}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    enabled: !!notesClient,
+  });
+
+  const createNoteMutation = useMutation({
+    mutationFn: async (data: { title: string; content: string; isPinned: boolean }) => {
+      const res = await apiRequest("POST", "/api/client-notes", { clientId: notesClient!.id, ...data });
+      return res.json();
+    },
+    onSuccess: () => { refetchNotes(); setNoteForm({ title: "", content: "", isPinned: false }); toast({ title: "Note added" }); },
+    onError: (err: Error) => toast({ title: "Failed", description: err.message, variant: "destructive" }),
+  });
+
+  const deleteNoteMutation = useMutation({
+    mutationFn: async (id: number) => { await apiRequest("DELETE", `/api/client-notes/${id}`); },
+    onSuccess: () => { refetchNotes(); toast({ title: "Note deleted" }); },
+    onError: (err: Error) => toast({ title: "Failed", description: err.message, variant: "destructive" }),
+  });
 
   // Filter clients based on search query
   const filteredClients = clients.filter(client => 
@@ -391,11 +429,8 @@ export default function ClientsPage() {
                               <DropdownMenuItem onClick={() => handleEditClient(client)}>
                                 Edit
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => toast({ title: "View Projects", description: `Viewing projects for ${client.name}` })}>
-                                View Projects
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => toast({ title: "View Invoices", description: `Viewing invoices for ${client.name}` })}>
-                                View Invoices
+                              <DropdownMenuItem onClick={() => { setNotesClient(client); setNoteForm({ title: "", content: "", isPinned: false }); }}>
+                                Client Notes
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -508,6 +543,57 @@ export default function ClientsPage() {
                 </DialogFooter>
               </form>
             </Form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Client Notes Dialog */}
+        <Dialog open={!!notesClient} onOpenChange={open => !open && setNotesClient(null)}>
+          <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Notes — {notesClient?.name}</DialogTitle>
+              <DialogDescription>Important notes visible to this client on their dashboard.</DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3 max-h-64 overflow-y-auto">
+              {clientNotes.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">No notes yet.</p>
+              ) : clientNotes.map(note => (
+                <div key={note.id} className="border rounded-md p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        {note.isPinned && <Pin className="h-3 w-3 text-amber-500 flex-shrink-0" />}
+                        <p className="font-medium text-sm">{note.title}</p>
+                      </div>
+                      <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">{note.content}</p>
+                      <p className="text-xs text-gray-400 mt-1">{format(new Date(note.createdAt), "MMM d, yyyy")}</p>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => deleteNoteMutation.mutate(note.id)} className="text-destructive hover:bg-destructive/10 flex-shrink-0">
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="border-t pt-4 space-y-3">
+              <p className="text-sm font-medium">Add Note</p>
+              <Input value={noteForm.title} onChange={e => setNoteForm(f => ({ ...f, title: e.target.value }))} placeholder="Title" />
+              <Textarea value={noteForm.content} onChange={e => setNoteForm(f => ({ ...f, content: e.target.value }))} placeholder="Content" rows={3} className="resize-none" />
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input type="checkbox" checked={noteForm.isPinned} onChange={e => setNoteForm(f => ({ ...f, isPinned: e.target.checked }))} className="rounded" />
+                  <Pin className="h-3 w-3 text-amber-500" /> Pin to top
+                </label>
+                <Button size="sm" onClick={() => createNoteMutation.mutate(noteForm)} disabled={!noteForm.title || !noteForm.content || createNoteMutation.isPending} className="ml-auto">
+                  <Plus className="h-3 w-3 mr-1" />{createNoteMutation.isPending ? "Adding…" : "Add Note"}
+                </Button>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setNotesClient(null)}>Close</Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>

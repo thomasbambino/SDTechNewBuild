@@ -66,6 +66,7 @@ export const invoices = pgTable("invoices", {
   dueDate: timestamp("due_date"),
   description: text("description"),
   freshbooksId: text("freshbooks_id"),
+  freshbooksUrl: text("freshbooks_url"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -200,3 +201,80 @@ export type InsertActivity = z.infer<typeof insertActivitySchema>;
 
 export type ApiConnection = typeof apiConnections.$inferSelect;
 export type InsertApiConnection = z.infer<typeof insertApiConnectionSchema>;
+
+// Messages between clients and admin
+export const messages = pgTable("messages", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").references(() => clients.id).notNull(),
+  senderUserId: integer("sender_user_id").references(() => users.id).notNull(),
+  content: text("content").notNull(),
+  isRead: boolean("is_read").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertMessageSchema = createInsertSchema(messages)
+  .omit({ id: true, createdAt: true });
+
+// Tracks which admin users have read which messages
+export const messageReads = pgTable("message_reads", {
+  id: serial("id").primaryKey(),
+  messageId: integer("message_id").references(() => messages.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  readAt: timestamp("read_at").defaultNow(),
+});
+
+export type Message = typeof messages.$inferSelect;
+export type InsertMessage = z.infer<typeof insertMessageSchema>;
+
+// Project milestones / progress updates
+export const milestones = pgTable("milestones", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  title: text("title").notNull(),
+  notes: text("notes"),
+  imagePaths: text("image_paths"), // JSON array string
+  createdBy: integer("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertMilestoneSchema = createInsertSchema(milestones)
+  .omit({ id: true, createdAt: true, updatedAt: true });
+
+export type Milestone = typeof milestones.$inferSelect;
+export type InsertMilestone = z.infer<typeof insertMilestoneSchema>;
+
+// Client-visible notes created by admin
+export const clientNotes = pgTable("client_notes", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").references(() => clients.id).notNull(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  isPinned: boolean("is_pinned").default(false),
+  createdBy: integer("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertClientNoteSchema = createInsertSchema(clientNotes)
+  .omit({ id: true, createdAt: true, updatedAt: true });
+
+export type ClientNote = typeof clientNotes.$inferSelect;
+export type InsertClientNote = z.infer<typeof insertClientNoteSchema>;
+
+// Custom hidden pages (e.g. privacy policy, terms)
+export const customPages = pgTable("custom_pages", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  slug: text("slug").notNull().unique(),
+  content: text("content"),
+  isPublished: boolean("is_published").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertCustomPageSchema = createInsertSchema(customPages)
+  .omit({ id: true, createdAt: true, updatedAt: true });
+
+export type CustomPage = typeof customPages.$inferSelect;
+export type InsertCustomPage = z.infer<typeof insertCustomPageSchema>;

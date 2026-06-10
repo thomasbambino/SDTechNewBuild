@@ -214,9 +214,55 @@ export function setupAuth(app: Express) {
 
   app.get("/api/user", (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    
-    // Don't send the password in the response
     const { password, ...userWithoutPassword } = req.user as SelectUser;
-    res.json(userWithoutPassword);
+    res.json({
+      ...userWithoutPassword,
+      isImpersonating: !!(req.session as any).originalUserId,
+    });
+  });
+
+  app.post("/api/admin/impersonate/:userId", async (req, res, next) => {
+    try {
+      if (!req.isAuthenticated() || (req.user as SelectUser).role !== "admin") {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      if ((req.session as any).originalUserId) {
+        return res.status(400).json({ message: "Already impersonating a user" });
+      }
+      const targetId = parseInt(req.params.userId);
+      const targetUser = await storage.getUser(targetId);
+      if (!targetUser) return res.status(404).json({ message: "User not found" });
+      if (targetUser.role === "admin") return res.status(400).json({ message: "Cannot impersonate an admin" });
+
+      const originalAdminId = (req.user as SelectUser).id;
+      req.login(targetUser, (err) => {
+        if (err) return next(err);
+        (req.session as any).originalUserId = originalAdminId;
+        const { password, ...safe } = targetUser;
+        res.json({ ...safe, isImpersonating: true });
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.post("/api/admin/stop-impersonating", async (req, res, next) => {
+    try {
+      const originalUserId = (req.session as any).originalUserId;
+      if (!req.isAuthenticated() || !originalUserId) {
+        return res.status(400).json({ message: "Not impersonating" });
+      }
+      const adminUser = await storage.getUser(originalUserId);
+      if (!adminUser) return res.status(404).json({ message: "Original admin not found" });
+
+      req.login(adminUser, (err) => {
+        if (err) return next(err);
+        delete (req.session as any).originalUserId;
+        const { password, ...safe } = adminUser;
+        res.json({ ...safe, isImpersonating: false });
+      });
+    } catch (err) {
+      next(err);
+    }
   });
 }

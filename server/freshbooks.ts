@@ -47,6 +47,10 @@ interface FreshbooksInvoice {
   payment_status: string;
   create_date: string;
   due_offset_days: number;
+  links?: {
+    client_view?: string;
+    view?: string;
+  };
 }
 
 export class FreshbooksService {
@@ -268,6 +272,57 @@ export class FreshbooksService {
     }
   }
 
+  public async createClient(data: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone?: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    zip?: string;
+    organization?: string;
+  }): Promise<number | null> {
+    try {
+      const accessToken = await this.getAccessToken();
+      const integration = await storage.getApiConnection('freshbooks');
+      if (!integration?.accountId) return null;
+
+      const response = await fetch(`${this.baseUrl}/accounting/account/${integration.accountId}/users/clients`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          client: {
+            fname: data.firstName,
+            lname: data.lastName,
+            email: data.email,
+            bus_phone: data.phone || '',
+            p_street: data.address || '',
+            p_city: data.city || '',
+            p_province: data.state || '',
+            p_code: data.zip || '',
+            organization: data.organization || '',
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.text();
+        console.error('FreshBooks create client failed:', err);
+        return null;
+      }
+
+      const result = await response.json();
+      return result.response.result.client.id ?? null;
+    } catch (error) {
+      console.error('Error creating FreshBooks client:', error);
+      return null;
+    }
+  }
+
   public async isConnected(): Promise<boolean> {
     try {
       const integration = await storage.getApiConnection('freshbooks');
@@ -374,9 +429,10 @@ export class FreshbooksService {
         const issueDate = new Date(invoice.create_date);
         const dueDate = new Date(issueDate);
         dueDate.setDate(dueDate.getDate() + (invoice.due_offset_days || 30));
+        const freshbooksUrl = invoice.links?.client_view || invoice.links?.view || null;
 
         if (existingInvoice) {
-          await storage.updateInvoice(existingInvoice.id, { amount, status });
+          await storage.updateInvoice(existingInvoice.id, { amount, status, freshbooksUrl });
         } else {
           await storage.createInvoice({
             freshbooksId,
@@ -388,6 +444,7 @@ export class FreshbooksService {
             issueDate,
             dueDate,
             paidDate: status === 'paid' ? issueDate : null,
+            freshbooksUrl,
           });
         }
       }

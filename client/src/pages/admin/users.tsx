@@ -53,7 +53,9 @@ import {
   UserCheck,
   Loader2,
   Key,
+  Eye,
 } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
 
 interface User {
   id: number;
@@ -89,8 +91,10 @@ const generateRandomPassword = () => {
 
 export default function AdminUsers() {
   const { toast } = useToast();
+  const { impersonateMutation } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [createdLogin, setCreatedLogin] = useState<{ username: string; tempPassword: string } | null>(null);
 
   // Set document title
   useEffect(() => {
@@ -98,8 +102,41 @@ export default function AdminUsers() {
   }, []);
 
   // Fetch users
-  const { data: users = [], isLoading } = useQuery<User[]>({
+  const { data: users = [], isLoading: usersLoading, refetch: refetchUsers } = useQuery<User[]>({
     queryKey: ['/api/users'],
+  });
+
+  // Fetch clients to merge in
+  const { data: clients = [], isLoading: clientsLoading } = useQuery<{ id: number; name: string; email: string; userId: number | null }[]>({
+    queryKey: ['/api/clients'],
+  });
+
+  const isLoading = usersLoading || clientsLoading;
+
+  // Build merged rows: users + clients without a user account
+  const userIds = new Set(users.map(u => u.id));
+  const clientsWithLogin = clients.filter(c => c.userId && userIds.has(c.userId));
+  const clientsWithoutLogin = clients.filter(c => !c.userId);
+
+  // For clients that have a user account, find their user record
+  const clientUserIds = new Set(clients.filter(c => c.userId).map(c => c.userId!));
+  const adminUsers = users.filter(u => u.role === 'admin');
+  const clientUsers = users.filter(u => clientUserIds.has(u.id));
+
+  // Create login mutation
+  const createLoginMutation = useMutation({
+    mutationFn: async (clientId: number) => {
+      const res = await apiRequest('POST', `/api/clients/${clientId}/create-login`);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setCreatedLogin({ username: data.username, tempPassword: data.tempPassword });
+      queryClient.invalidateQueries({ queryKey: ['/api/clients'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/users'] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to create login", description: error.message, variant: "destructive" });
+    },
   });
 
   // Create user form
@@ -157,10 +194,15 @@ export default function AdminUsers() {
   };
 
   // Filter users based on search term
-  const filteredUsers = users.filter(user => 
-    user.username.toLowerCase().includes(searchTerm.toLowerCase()) || 
+  const filteredUsers = users.filter(u => u.role !== 'client' || clientUserIds.has(u.id)).filter(user =>
+    user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const filteredClientsWithoutLogin = clientsWithoutLogin.filter(c =>
+    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (c.email || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   // Format date
@@ -466,7 +508,7 @@ export default function AdminUsers() {
                 <div className="flex justify-center items-center py-8">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
-              ) : filteredUsers.length === 0 ? (
+              ) : filteredUsers.length === 0 && filteredClientsWithoutLogin.length === 0 ? (
                 <div className="text-center py-8 text-secondary-500">
                   {searchTerm ? 'No users matching your search' : 'No users found'}
                 </div>
@@ -525,14 +567,29 @@ export default function AdminUsers() {
                                       <h4 className="font-medium">User Actions</h4>
                                       <p className="text-sm text-muted-foreground mb-2">Manage user permissions and access</p>
                                       <div className="flex flex-col space-y-2">
-                                        <Button 
-                                          variant="outline" 
+                                        <Button
+                                          variant="outline"
                                           onClick={() => handleResetPassword(user.id)}
                                           className="justify-start"
                                         >
                                           <Key className="mr-2 h-4 w-4" />
                                           Reset Password
                                         </Button>
+                                        {user.role === 'client' && (
+                                          <Button
+                                            variant="outline"
+                                            className="justify-start"
+                                            onClick={() => impersonateMutation.mutate(user.id)}
+                                            disabled={impersonateMutation.isPending}
+                                          >
+                                            {impersonateMutation.isPending ? (
+                                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            ) : (
+                                              <Eye className="mr-2 h-4 w-4" />
+                                            )}
+                                            View as Client
+                                          </Button>
+                                        )}
                                         <Button 
                                           variant={user.role === 'admin' ? 'outline' : 'default'}
                                           className="justify-start"
@@ -572,12 +629,77 @@ export default function AdminUsers() {
                           </TableCell>
                         </TableRow>
                       ))}
+
+                      {/* Clients without login accounts */}
+                      {filteredClientsWithoutLogin.map(client => (
+                        <TableRow key={`client-${client.id}`} className="opacity-75">
+                          <TableCell>
+                            <div className="flex items-center">
+                              <div className="w-9 h-9 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center mr-3 font-medium text-sm">
+                                {client.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+                              </div>
+                              <span className="font-medium">{client.name}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground text-sm">—</TableCell>
+                          <TableCell>
+                            {client.email ? (
+                              <a href={`mailto:${client.email}`} className="text-primary-600 hover:underline">{client.email}</a>
+                            ) : (
+                              <span className="text-muted-foreground text-sm">No email</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="bg-blue-100 text-blue-800 flex items-center gap-1 w-fit">
+                              <User className="h-3 w-3" />
+                              Client
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="bg-gray-100 text-gray-600 flex items-center gap-1 w-fit">
+                              No Login
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground text-sm">—</TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={!client.email || createLoginMutation.isPending}
+                              onClick={() => createLoginMutation.mutate(client.id)}
+                              title={!client.email ? "Client needs an email to create a login" : ""}
+                            >
+                              {createLoginMutation.isPending ? (
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              ) : (
+                                <Key className="h-4 w-4 mr-2" />
+                              )}
+                              Create Login
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
                     </TableBody>
                   </Table>
                 </div>
               )}
             </CardContent>
           </Card>
+
+          {/* Created login credentials dialog */}
+          {createdLogin && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm w-full mx-4">
+                <h3 className="font-semibold text-lg mb-1">Login Created</h3>
+                <p className="text-sm text-muted-foreground mb-4">Share these credentials with the client.</p>
+                <div className="space-y-3 bg-gray-50 rounded-md p-4 font-mono text-sm">
+                  <div><span className="text-gray-500">Username: </span><strong>{createdLogin.username}</strong></div>
+                  <div><span className="text-gray-500">Password: </span><strong>{createdLogin.tempPassword}</strong></div>
+                </div>
+                <Button className="w-full mt-4" onClick={() => setCreatedLogin(null)}>Done</Button>
+              </div>
+            </div>
+          )}
         </main>
       </div>
     </AppLayout>

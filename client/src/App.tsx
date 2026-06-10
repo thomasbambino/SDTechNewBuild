@@ -26,6 +26,7 @@ import AdminBranding from "@/pages/admin/branding";
 import AdminApiConnections from "@/pages/admin/api-connections";
 import AdminProfile from "@/pages/admin/profile";
 import AdminUsers from "@/pages/admin/users";
+import AdminMessages from "@/pages/admin/messages";
 
 // Client pages
 import ClientDashboard from "@/pages/client/dashboard";
@@ -34,6 +35,7 @@ import ClientInvoices from "@/pages/client/invoices";
 import ClientDocuments from "@/pages/client/documents";
 import ClientProfile from "@/pages/client/profile";
 import ClientMessages from "@/pages/client/messages";
+import CustomPageView from "@/pages/custom-page";
 
 function Router() {
   return (
@@ -56,6 +58,7 @@ function Router() {
       <ProtectedRoute path="/admin/api-connections" role="admin" component={AdminApiConnections} />
       <ProtectedRoute path="/admin/users" role="admin" component={AdminUsers} />
       <ProtectedRoute path="/admin/profile" role="admin" component={AdminProfile} />
+      <ProtectedRoute path="/admin/messages" role="admin" component={AdminMessages} />
       
       {/* Client routes */}
       <ProtectedRoute path="/client" role="client" component={ClientDashboard} />
@@ -65,6 +68,9 @@ function Router() {
       <ProtectedRoute path="/client/profile" role="client" component={ClientProfile} />
       <ProtectedRoute path="/client/messages" role="client" component={ClientMessages} />
       
+      {/* Custom hidden pages (e.g. /privacy-policy) */}
+      <Route path="/pages/:slug" component={CustomPageView} />
+
       {/* Fallback to 404 */}
       <Route component={NotFound} />
     </Switch>
