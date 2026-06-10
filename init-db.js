@@ -231,6 +231,19 @@ const createTables = async () => {
     await client.query(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS contact_phone TEXT;`);
     await client.query(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS contact_address TEXT;`);
 
+    // Custom pages table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS custom_pages (
+        id SERIAL PRIMARY KEY,
+        title TEXT NOT NULL,
+        slug TEXT NOT NULL UNIQUE,
+        content TEXT,
+        is_published BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     // Add a default admin user
     await client.query(`
       INSERT INTO users (username, password, name, email, role)
