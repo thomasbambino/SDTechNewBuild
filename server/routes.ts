@@ -1088,6 +1088,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/api-connections/freshbooks/auth", isAuthenticated, hasRole("admin"), (req, res) => {
     const clientId = process.env.FRESHBOOKS_CLIENT_ID;
     const redirectUri = process.env.FRESHBOOKS_REDIRECT_URI;
+    console.log("[FreshBooks debug] CLIENT_ID:", clientId ? `set (${clientId.length} chars)` : "NOT SET");
+    console.log("[FreshBooks debug] REDIRECT_URI:", redirectUri ? `set: ${redirectUri}` : "NOT SET");
     if (!clientId || !redirectUri) {
       return res.status(400).json({ message: "FRESHBOOKS_CLIENT_ID and FRESHBOOKS_REDIRECT_URI environment variables are not set." });
     }
