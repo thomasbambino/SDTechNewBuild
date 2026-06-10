@@ -6,6 +6,7 @@ import InvoicesTable, { Invoice } from "@/components/dashboard/InvoicesTable";
 import DocumentsList, { Document } from "@/components/dashboard/DocumentsList";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { MessageSquare, Pin, Image as ImageIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -95,7 +96,74 @@ export default function ClientDashboard() {
         </div>
 
         {isLoading ? (
-          <div className="text-center py-10 text-sm text-gray-500">Loading your dashboard…</div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left column skeleton */}
+            <div className="lg:col-span-2 space-y-6">
+              <div className="bg-card rounded-lg border">
+                <div className="px-5 py-4 border-b"><Skeleton className="h-6 w-32" /></div>
+                <div className="p-5 space-y-4">
+                  {Array.from({ length: 2 }).map((_, i) => (
+                    <div key={i} className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Skeleton className="h-5 w-40" />
+                        <Skeleton className="h-5 w-16 rounded-full" />
+                      </div>
+                      <Skeleton className="h-2 w-full rounded-full" />
+                      <Skeleton className="h-3 w-28" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="bg-card rounded-lg border">
+                <div className="px-5 py-4 border-b"><Skeleton className="h-6 w-32" /></div>
+                <div className="p-4 space-y-3">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-4">
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-4 flex-1" />
+                      <Skeleton className="h-6 w-16 rounded-full" />
+                      <Skeleton className="h-4 w-20" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="bg-card rounded-lg border">
+                <div className="px-5 py-4 border-b"><Skeleton className="h-6 w-28" /></div>
+                <div className="p-4 space-y-3">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      <Skeleton className="h-8 w-8 rounded flex-shrink-0" />
+                      <div className="flex-1 space-y-1">
+                        <Skeleton className="h-4 w-40" />
+                        <Skeleton className="h-3 w-24" />
+                      </div>
+                      <Skeleton className="h-8 w-20 rounded" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            {/* Right column skeleton */}
+            <div className="space-y-6">
+              <div className="bg-card rounded-lg border">
+                <div className="px-5 py-4 border-b"><Skeleton className="h-6 w-32" /></div>
+                <div className="p-5 space-y-4">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="flex gap-3">
+                      <div className="flex flex-col items-center">
+                        <Skeleton className="h-3 w-3 rounded-full" />
+                        <Skeleton className="w-0.5 flex-1 mt-1" />
+                      </div>
+                      <div className="pb-4 flex-1 space-y-1">
+                        <Skeleton className="h-4 w-36" />
+                        <Skeleton className="h-3 w-24" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
         ) : isError ? (
           <div className="text-center py-10">
             <p className="text-lg font-medium text-gray-900">Error loading dashboard</p>

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useSettings } from "@/hooks/use-settings";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   LayoutDashboard,
   Users,
@@ -15,6 +16,22 @@ import {
   ChevronUp,
   User
 } from "lucide-react";
+
+function SidebarLogo({ src, initial }: { src: string; initial: string }) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <div className="relative h-8 w-8">
+      {!loaded && <Skeleton className="absolute inset-0 rounded" />}
+      <img
+        src={src}
+        className={cn("h-8 w-8 rounded object-contain", !loaded && "opacity-0")}
+        alt="Company Logo"
+        onLoad={() => setLoaded(true)}
+        onError={() => setLoaded(true)}
+      />
+    </div>
+  );
+}
 
 interface SidebarItemProps {
   href: string;
@@ -59,11 +76,8 @@ export default function AdminSidebar() {
   const { settings, isLoading } = useSettings();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Get company name and logo from settings
-  console.log("Admin sidebar settings:", settings);
   const companyName = settings?.companyName || "SD Tech Pros";
   const companyLogo = settings?.logoPath;
-  console.log("Admin sidebar logo path:", companyLogo);
 
   const sidebarItems = [
     { href: "/admin", icon: <LayoutDashboard size={20} />, text: "Dashboard" },
@@ -82,29 +96,16 @@ export default function AdminSidebar() {
       <div className="px-6 pt-8 pb-6 border-b border-border">
         <div className="flex items-center space-x-3">
           {isLoading ? (
-            <div className="h-8 w-8 rounded bg-muted animate-pulse"></div>
+            <Skeleton className="h-8 w-8 rounded" />
           ) : companyLogo ? (
-            <img 
-              src={companyLogo} 
-              className="h-8 w-8 rounded" 
-              alt="Company Logo"
-              onError={(e) => {
-                console.error("Error loading logo in sidebar:", e);
-                (e.target as HTMLImageElement).style.display = 'none';
-              }}
-              onLoad={() => console.log("Logo loaded successfully in admin sidebar:", companyLogo)}
-            />
+            <SidebarLogo src={companyLogo} initial={companyName.charAt(0)} />
           ) : (
             <div className="h-8 w-8 rounded bg-primary flex items-center justify-center text-primary-foreground">
               <span className="font-semibold">{companyName.charAt(0)}</span>
             </div>
           )}
           <span className="text-foreground font-bold text-lg">
-            {isLoading ? (
-              <div className="h-5 w-32 bg-muted rounded animate-pulse"></div>
-            ) : (
-              companyName
-            )}
+            {isLoading ? <Skeleton className="h-5 w-32" /> : companyName}
           </span>
         </div>
       </div>

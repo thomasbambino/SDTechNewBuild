@@ -7,6 +7,7 @@ import ActivityFeed, { Activity } from "@/components/dashboard/ActivityFeed";
 import InquiriesList, { Inquiry } from "@/components/dashboard/InquiriesList";
 import ProjectsTable, { Project } from "@/components/dashboard/ProjectsTable";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { 
   Briefcase, 
   Users, 
@@ -98,12 +99,76 @@ export default function AdminDashboard() {
         </div>
 
         {isLoading ? (
-          <div className="text-center py-10">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-solid border-primary border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" role="status">
-              <span className="!absolute !-m-px !h-px !w-px !overflow-hidden !whitespace-nowrap !border-0 !p-0 ![clip:rect(0,0,0,0)]">Loading...</span>
+          <>
+            {/* Stats skeletons */}
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="bg-card rounded-lg border p-5">
+                  <div className="flex items-center">
+                    <Skeleton className="h-12 w-12 rounded-md flex-shrink-0" />
+                    <div className="ml-5 flex-1 space-y-2">
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-6 w-16" />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
-            <p className="mt-2 text-sm text-gray-500">Loading dashboard data...</p>
-          </div>
+
+            {/* Activity + Inquiries skeletons */}
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 mb-6">
+              <div className="bg-card rounded-lg border">
+                <div className="px-5 py-4 border-b"><Skeleton className="h-6 w-36" /></div>
+                <div className="p-5 space-y-6">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="flex items-start space-x-3">
+                      <Skeleton className="h-10 w-10 rounded-full flex-shrink-0" />
+                      <div className="flex-1 space-y-2">
+                        <Skeleton className="h-4 w-28" />
+                        <Skeleton className="h-3 w-48" />
+                        <Skeleton className="h-3 w-20" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="bg-card rounded-lg border">
+                <div className="px-5 py-4 border-b"><Skeleton className="h-6 w-40" /></div>
+                <div className="p-5 space-y-1 divide-y divide-border">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="py-4 flex items-start space-x-4">
+                      <Skeleton className="h-10 w-10 rounded-full flex-shrink-0" />
+                      <div className="flex-1 space-y-2">
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-3 w-48" />
+                      </div>
+                      <Skeleton className="h-8 w-20 rounded flex-shrink-0" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Projects table skeleton */}
+            <div className="bg-card rounded-lg border">
+              <div className="px-5 py-4 border-b"><Skeleton className="h-6 w-36" /></div>
+              <div className="p-4 space-y-3">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-4">
+                    <Skeleton className="h-10 w-10 rounded-md flex-shrink-0" />
+                    <div className="flex-1 space-y-1.5">
+                      <Skeleton className="h-4 w-40" />
+                      <Skeleton className="h-3 w-20" />
+                    </div>
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-6 w-20 rounded-full" />
+                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="h-4 w-16" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
         ) : isError ? (
           <div className="text-center py-10">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 text-red-600 mb-4">

@@ -1,7 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -32,7 +34,8 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 
 export default function AuthPage() {
   const { user, loginMutation } = useAuth();
-  const { data: publicSettings } = useQuery<{ logoPath?: string; companyName?: string }>({
+  const [logoLoaded, setLogoLoaded] = useState(false);
+  const { data: publicSettings, isLoading: settingsLoading } = useQuery<{ logoPath?: string; companyName?: string }>({
     queryKey: ["/api/settings/public"],
   });
   const [_, navigate] = useLocation();
@@ -58,13 +61,20 @@ export default function AuthPage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
-          <div className="flex items-center justify-center">
-            {publicSettings?.logoPath ? (
-              <img
-                src={publicSettings.logoPath}
-                alt={publicSettings.companyName || "Logo"}
-                className="h-12 max-w-[200px] object-contain"
-              />
+          <div className="flex items-center justify-center h-12">
+            {settingsLoading ? (
+              <Skeleton className="h-12 w-40" />
+            ) : publicSettings?.logoPath ? (
+              <div className="relative h-12 flex items-center">
+                {!logoLoaded && <Skeleton className="absolute inset-0 h-12 w-40 rounded-md" />}
+                <img
+                  src={publicSettings.logoPath}
+                  alt={publicSettings.companyName || "Logo"}
+                  className={cn("h-12 max-w-[200px] object-contain", !logoLoaded && "opacity-0")}
+                  onLoad={() => setLogoLoaded(true)}
+                  onError={() => setLogoLoaded(true)}
+                />
+              </div>
             ) : (
               <>
                 <span className="bg-primary text-primary-foreground font-bold text-3xl px-3 py-2 rounded mr-2">SD</span>
