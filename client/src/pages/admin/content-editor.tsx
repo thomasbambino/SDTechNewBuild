@@ -516,6 +516,7 @@ export default function ContentEditorPage() {
                         </Button>
                       </div>
                     ) : (
+                      <>
                       <DragDropContext onDragEnd={handleDragEnd}>
                         <Droppable droppableId={activeTab}>
                           {(provided) => (
@@ -549,6 +550,7 @@ export default function ContentEditorPage() {
                       <Button variant="outline" size="sm" className="w-full mt-3" onClick={handleAddContent}>
                         <Plus className="mr-2 h-4 w-4" />Add Item
                       </Button>
+                      </>
                     )}
                   </CardContent>
                 </Card>
