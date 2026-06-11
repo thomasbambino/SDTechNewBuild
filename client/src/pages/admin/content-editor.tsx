@@ -34,7 +34,34 @@ import {
   Globe,
   ExternalLink,
   Pencil,
+  Layout,
+  Code,
+  Briefcase,
+  BarChart,
+  Database,
+  Shield,
+  Zap,
+  Settings,
+  Monitor,
+  Smartphone,
+  Wrench,
 } from "lucide-react";
+
+const SERVICE_ICON_OPTIONS = [
+  { key: "layout",     label: "Layout",     Icon: Layout },
+  { key: "code",       label: "Code",       Icon: Code },
+  { key: "briefcase",  label: "Consulting", Icon: Briefcase },
+  { key: "barChart",   label: "Analytics",  Icon: BarChart },
+  { key: "globe",      label: "Web",        Icon: Globe },
+  { key: "database",   label: "Database",   Icon: Database },
+  { key: "shield",     label: "Security",   Icon: Shield },
+  { key: "zap",        label: "Speed",      Icon: Zap },
+  { key: "settings",   label: "IT/Ops",     Icon: Settings },
+  { key: "monitor",    label: "Hardware",   Icon: Monitor },
+  { key: "users",      label: "Team",       Icon: Users },
+  { key: "smartphone", label: "Mobile",     Icon: Smartphone },
+  { key: "wrench",     label: "Support",    Icon: Wrench },
+];
 import Cropper from "react-easy-crop";
 import heic2any from "heic2any";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -519,6 +546,9 @@ export default function ContentEditorPage() {
                           )}
                         </Droppable>
                       </DragDropContext>
+                      <Button variant="outline" size="sm" className="w-full mt-3" onClick={handleAddContent}>
+                        <Plus className="mr-2 h-4 w-4" />Add Item
+                      </Button>
                     )}
                   </CardContent>
                 </Card>
@@ -543,8 +573,31 @@ export default function ContentEditorPage() {
                         <Textarea id="content" name="content" value={editingContent.content || ""} onChange={handleContentChange} placeholder="Content" rows={4} />
                       </div>
 
-                      {/* Image upload with crop */}
-                      <div className="space-y-2">
+                      {/* Icon selector for service type */}
+                      {editingContent.type === 'service' && (
+                        <div className="space-y-2">
+                          <Label>Icon</Label>
+                          <div className="grid grid-cols-7 gap-1.5">
+                            {SERVICE_ICON_OPTIONS.map(({ key, label, Icon }) => (
+                              <button
+                                key={key}
+                                type="button"
+                                title={label}
+                                onClick={() => setEditingContent({ ...editingContent, imagePath: `icon:${key}` })}
+                                className={`p-2 rounded border flex flex-col items-center gap-1 hover:bg-primary/10 transition-colors ${
+                                  editingContent.imagePath === `icon:${key}` ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground'
+                                }`}
+                              >
+                                <Icon className="h-5 w-5" />
+                                <span className="text-[9px] leading-none">{label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Image upload with crop (non-service types only) */}
+                      {editingContent.type !== 'service' && <div className="space-y-2">
                         <Label>Image</Label>
                         <div className="flex items-start gap-4">
                           {imagePreview ? (
@@ -582,7 +635,7 @@ export default function ContentEditorPage() {
                             )}
                           </div>
                         </div>
-                      </div>
+                      </div>}
 
                       <div className="flex items-center gap-2">
                         <Switch id="active" checked={!!editingContent.isActive} onCheckedChange={handleActiveToggle} />

@@ -6,6 +6,7 @@ import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Sheet,
   SheetContent,
@@ -29,8 +30,32 @@ import {
   BarChart,
   Layout,
   Users,
-  Star
+  Star,
+  Globe,
+  Database,
+  Shield,
+  Zap,
+  Settings,
+  Monitor,
+  Smartphone,
+  Wrench,
 } from "lucide-react";
+
+const SERVICE_ICON_MAP: Record<string, React.ReactNode> = {
+  layout:     <Layout className="h-8 w-8" />,
+  code:       <Code className="h-8 w-8" />,
+  briefcase:  <Briefcase className="h-8 w-8" />,
+  barChart:   <BarChart className="h-8 w-8" />,
+  globe:      <Globe className="h-8 w-8" />,
+  database:   <Database className="h-8 w-8" />,
+  shield:     <Shield className="h-8 w-8" />,
+  zap:        <Zap className="h-8 w-8" />,
+  settings:   <Settings className="h-8 w-8" />,
+  monitor:    <Monitor className="h-8 w-8" />,
+  users:      <Users className="h-8 w-8" />,
+  smartphone: <Smartphone className="h-8 w-8" />,
+  wrench:     <Wrench className="h-8 w-8" />,
+};
 
 interface ContentSection {
   id: number;
@@ -134,21 +159,25 @@ export default function PublicHome() {
   });
   
   // Fetch content sections
-  const { data: heroContent = [] } = useQuery<ContentSection[]>({
+  const { data: heroContent, isLoading: heroLoading } = useQuery<ContentSection[]>({
     queryKey: ['/api/content/hero']
   });
-  
-  const { data: serviceContent = [] } = useQuery<ContentSection[]>({
+  const { data: serviceContent } = useQuery<ContentSection[]>({
     queryKey: ['/api/content/service']
   });
-  
-  const { data: aboutContent = [] } = useQuery<ContentSection[]>({
+  const { data: aboutContent } = useQuery<ContentSection[]>({
     queryKey: ['/api/content/about']
   });
-  
-  const { data: testimonialContent = [] } = useQuery<ContentSection[]>({
+  const { data: testimonialContent } = useQuery<ContentSection[]>({
     queryKey: ['/api/content/testimonial']
   });
+
+  // Testimonial header detection: if first item has no content it's a section header
+  const allTestimonials = testimonialContent ?? [];
+  const testimonialHasHeader = allTestimonials.length > 0 && !allTestimonials[0].content;
+  const testimonialSectionTitle = testimonialHasHeader ? (allTestimonials[0].title || "What Our Clients Say") : "What Our Clients Say";
+  const testimonialSectionSubtitle = testimonialHasHeader ? (allTestimonials[0].subtitle || "Don't just take our word for it. Hear from some of our satisfied clients.") : "Don't just take our word for it. Hear from some of our satisfied clients.";
+  const testimonialItems = testimonialHasHeader ? allTestimonials.slice(1) : allTestimonials;
 
   // Using default content for sections if no CMS content is available
   const defaultHero = {
@@ -352,19 +381,30 @@ export default function PublicHome() {
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
               <div>
+                {heroLoading ? (
+                  <div className="space-y-4 mb-8">
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-12 w-4/5" />
+                    <Skeleton className="h-6 w-full mt-4" />
+                    <Skeleton className="h-6 w-3/4" />
+                  </div>
+                ) : (
+                  <>
                 <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
-                  {heroContent[0]?.title || defaultHero.title}
+                  {heroContent?.[0]?.title || defaultHero.title}
                 </h1>
                 <p className="text-xl text-gray-600 mb-8">
-                  {heroContent[0]?.subtitle || defaultHero.subtitle}
+                  {heroContent?.[0]?.subtitle || defaultHero.subtitle}
                 </p>
+                  </>
+                )}
                 <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
                   <Button
                     onClick={() => navigate("/inquiry")}
                     size="lg"
                     className="text-base"
                   >
-                    {heroContent[0]?.content || defaultHero.cta}
+                    {heroContent?.[0]?.content || defaultHero.cta}
                     <ArrowRight className="ml-2 h-5 w-5" />
                   </Button>
                   <Button
@@ -401,21 +441,26 @@ export default function PublicHome() {
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16">
               <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-                {serviceContent[0]?.title || "Our Services"}
+                {serviceContent?.[0]?.title || "Our Services"}
               </h2>
               <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-                {serviceContent[0]?.subtitle || "We offer a range of technology solutions to help your business grow and succeed."}
+                {serviceContent?.[0]?.subtitle || "We offer a range of technology solutions to help your business grow and succeed."}
               </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-              {(serviceContent.length > 1 ? serviceContent.slice(1) : defaultServices).map((service, index) => (
-                <div 
-                  key={service.id || index} 
+              {((serviceContent ?? []).length > 1 ? (serviceContent ?? []).slice(1) : defaultServices).map((service, index) => {
+                const iconKey = service.imagePath?.startsWith('icon:') ? service.imagePath.slice(5) : null;
+                const icon = iconKey
+                  ? (SERVICE_ICON_MAP[iconKey] ?? defaultServices[index % defaultServices.length]?.icon)
+                  : (defaultServices[index % defaultServices.length]?.icon ?? <Briefcase className="h-8 w-8" />);
+                return (
+                <div
+                  key={service.id || index}
                   className="bg-white rounded-lg shadow-md p-6 transition-transform hover:scale-105"
                 >
                   <div className="h-16 w-16 bg-primary/10 rounded-lg flex items-center justify-center text-primary mb-4">
-                    {defaultServices[index].icon}
+                    {icon}
                   </div>
                   <h3 className="text-xl font-semibold text-gray-900 mb-2">
                     {service.title}
@@ -424,7 +469,8 @@ export default function PublicHome() {
                     {service.content}
                   </p>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </section>
@@ -477,11 +523,11 @@ export default function PublicHome() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
               <div>
                 <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6">
-                  {aboutContent[0]?.title || "About SD Tech Pros"}
+                  {aboutContent?.[0]?.title || "About SD Tech Pros"}
                 </h2>
                 <div className="prose prose-lg text-gray-600 max-w-none">
-                  <p>{aboutContent[0]?.subtitle || "We're a team of passionate technology experts dedicated to helping businesses succeed."}</p>
-                  <p>{aboutContent[0]?.content || "Founded in 2015, SD Tech Pros has been providing cutting-edge technology solutions to businesses of all sizes. Our mission is to empower organizations with the tools and expertise they need to thrive in today's digital landscape."}</p>
+                  <p>{aboutContent?.[0]?.subtitle || "We're a team of passionate technology experts dedicated to helping businesses succeed."}</p>
+                  <p>{aboutContent?.[0]?.content || "Founded in 2015, SD Tech Pros has been providing cutting-edge technology solutions to businesses of all sizes. Our mission is to empower organizations with the tools and expertise they need to thrive in today's digital landscape."}</p>
                   <p>Our values:</p>
                   <ul>
                     <li>Excellence in everything we do</li>
@@ -513,17 +559,17 @@ export default function PublicHome() {
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16">
               <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-                {testimonialContent[0]?.title || "What Our Clients Say"}
+                {testimonialSectionTitle}
               </h2>
               <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-                {testimonialContent[0]?.subtitle || "Don't just take our word for it. Hear from some of our satisfied clients."}
+                {testimonialSectionSubtitle}
               </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {(testimonialContent.length > 1 ? testimonialContent.slice(1) : defaultTestimonials).map((testimonial, index) => (
-                <div 
-                  key={testimonial.id || index} 
+              {(testimonialItems.length > 0 ? testimonialItems : defaultTestimonials).map((testimonial, index) => (
+                <div
+                  key={testimonial.id || index}
                   className="bg-white rounded-lg shadow-md p-6 border border-gray-100"
                 >
                   <div className="flex items-center mb-4">
@@ -536,10 +582,10 @@ export default function PublicHome() {
                   </p>
                   <div>
                     <p className="font-semibold text-gray-900">
-                      {testimonial.author || (defaultTestimonials[index]?.author || "Client")}
+                      {testimonial.title || (defaultTestimonials[index]?.author || "Client")}
                     </p>
                     <p className="text-gray-500 text-sm">
-                      {testimonial.company || (defaultTestimonials[index]?.company || "Company")}
+                      {testimonial.subtitle || (defaultTestimonials[index]?.company || "Company")}
                     </p>
                   </div>
                 </div>
