@@ -159,16 +159,16 @@ export default function PublicHome() {
   });
   
   // Fetch content sections
-  const { data: heroContent, isLoading: heroLoading } = useQuery<ContentSection[]>({
+  const { data: heroContent = [], isLoading: heroLoading } = useQuery<ContentSection[]>({
     queryKey: ['/api/content/hero']
   });
-  const { data: serviceContent } = useQuery<ContentSection[]>({
+  const { data: serviceContent = [] } = useQuery<ContentSection[]>({
     queryKey: ['/api/content/service']
   });
-  const { data: aboutContent } = useQuery<ContentSection[]>({
+  const { data: aboutContent = [] } = useQuery<ContentSection[]>({
     queryKey: ['/api/content/about']
   });
-  const { data: testimonialContent } = useQuery<ContentSection[]>({
+  const { data: testimonialContent = [] } = useQuery<ContentSection[]>({
     queryKey: ['/api/content/testimonial']
   });
 
