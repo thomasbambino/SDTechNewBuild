@@ -26,9 +26,6 @@ import {
   Phone,
   MapPin,
   Briefcase,
-  Code,
-  BarChart,
-  Layout,
   Users,
   Star,
   Globe,
@@ -179,61 +176,6 @@ export default function PublicHome() {
   const testimonialSectionSubtitle = testimonialHasHeader ? (allTestimonials[0].subtitle || "Don't just take our word for it. Hear from some of our satisfied clients.") : "Don't just take our word for it. Hear from some of our satisfied clients.";
   const testimonialItems = testimonialHasHeader ? allTestimonials.slice(1) : allTestimonials;
 
-  // Using default content for sections if no CMS content is available
-  const defaultHero = {
-    title: "Professional Technology Solutions for Your Business",
-    subtitle: "We help businesses transform through technology with custom software, web development and strategic IT consulting.",
-    cta: "Get Started",
-    imagePath: null
-  };
-
-  const defaultServices = [
-    {
-      id: 1,
-      title: "Web Development",
-      content: "We build responsive, modern websites and web applications tailored to your business needs.",
-      icon: <Layout className="h-8 w-8" />
-    },
-    {
-      id: 2,
-      title: "Custom Software",
-      content: "Tailored solutions that automate processes and solve your unique business challenges.",
-      icon: <Code className="h-8 w-8" />
-    },
-    {
-      id: 3,
-      title: "IT Consulting",
-      content: "Strategic technology guidance to help your business grow, scale and transform.",
-      icon: <Briefcase className="h-8 w-8" />
-    },
-    {
-      id: 4,
-      title: "Data Analytics",
-      content: "Turn your data into actionable insights with our analytics and reporting solutions.",
-      icon: <BarChart className="h-8 w-8" />
-    }
-  ];
-
-  const defaultTestimonials = [
-    {
-      id: 1,
-      content: "SD Tech Pros transformed our business with their custom software solution. Their team was professional, responsive, and delivered exactly what we needed.",
-      author: "Jane Smith",
-      company: "Acme Corporation"
-    },
-    {
-      id: 2,
-      content: "Working with SD Tech Pros was a game-changer for our company. Their web development expertise helped us increase our online presence and grow our customer base.",
-      author: "John Davis",
-      company: "TechStart Inc."
-    },
-    {
-      id: 3,
-      content: "The analytics dashboard SD Tech Pros built has given us invaluable insights into our business operations. I highly recommend their services.",
-      author: "Michael Brown",
-      company: "Global Financial"
-    }
-  ];
 
   // Navigation links
   const navLinks = [
@@ -391,10 +333,10 @@ export default function PublicHome() {
                 ) : (
                   <>
                 <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
-                  {heroContent?.[0]?.title || defaultHero.title}
+                  {heroContent?.[0]?.title}
                 </h1>
                 <p className="text-xl text-gray-600 mb-8">
-                  {heroContent?.[0]?.subtitle || defaultHero.subtitle}
+                  {heroContent?.[0]?.subtitle}
                 </p>
                   </>
                 )}
@@ -404,7 +346,7 @@ export default function PublicHome() {
                     size="lg"
                     className="text-base"
                   >
-                    {heroContent?.[0]?.content || defaultHero.cta}
+                    {heroContent?.[0]?.content || "Get Started"}
                     <ArrowRight className="ml-2 h-5 w-5" />
                   </Button>
                   <Button
@@ -449,11 +391,11 @@ export default function PublicHome() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-              {((serviceContent ?? []).length > 1 ? (serviceContent ?? []).slice(1) : defaultServices).map((service, index) => {
+              {((serviceContent ?? []).slice(1)).map((service, index) => {
                 const iconKey = service.imagePath?.startsWith('icon:') ? service.imagePath.slice(5) : null;
                 const icon = iconKey
-                  ? (SERVICE_ICON_MAP[iconKey] ?? defaultServices[index % defaultServices.length]?.icon)
-                  : (defaultServices[index % defaultServices.length]?.icon ?? <Briefcase className="h-8 w-8" />);
+                  ? (SERVICE_ICON_MAP[iconKey] ?? <Briefcase className="h-8 w-8" />)
+                  : <Briefcase className="h-8 w-8" />;
                 return (
                 <div
                   key={service.id || index}
@@ -567,7 +509,7 @@ export default function PublicHome() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {(testimonialItems.length > 0 ? testimonialItems : defaultTestimonials).map((testimonial, index) => (
+              {testimonialItems.map((testimonial, index) => (
                 <div
                   key={testimonial.id || index}
                   className="bg-white rounded-lg shadow-md p-6 border border-gray-100"
@@ -581,12 +523,8 @@ export default function PublicHome() {
                     "{testimonial.content}"
                   </p>
                   <div>
-                    <p className="font-semibold text-gray-900">
-                      {testimonial.title || (defaultTestimonials[index]?.author || "Client")}
-                    </p>
-                    <p className="text-gray-500 text-sm">
-                      {testimonial.subtitle || (defaultTestimonials[index]?.company || "Company")}
-                    </p>
+                    <p className="font-semibold text-gray-900">{testimonial.title}</p>
+                    <p className="text-gray-500 text-sm">{testimonial.subtitle}</p>
                   </div>
                 </div>
               ))}
