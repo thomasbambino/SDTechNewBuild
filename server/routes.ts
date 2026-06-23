@@ -2,6 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, comparePasswords, hashPassword } from "./auth";
+import { randomBytes } from "crypto";
 import { 
   insertClientSchema, 
   insertProjectSchema,
@@ -1449,30 +1450,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/users/:id/reset-password", isAuthenticated, hasRole("admin"), async (req, res, next) => {
     try {
       const userId = parseInt(req.params.id);
-      
-      // Check if user exists
+
       const user = await storage.getUser(userId);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
-      
-      // Generate a temporary password
-      const tempPassword = Math.random().toString(36).slice(2) + Math.random().toString(36).toUpperCase().slice(2);
-      
-      // Hash the password
-      const hashedPassword = await hashPassword(tempPassword);
-      
-      // Update user's password
+
+      const supplied = typeof req.body?.newPassword === "string" ? req.body.newPassword.trim() : "";
+      let newPassword: string;
+      if (supplied) {
+        if (supplied.length < 8) {
+          return res.status(400).json({ message: "Password must be at least 8 characters" });
+        }
+        newPassword = supplied;
+      } else {
+        newPassword = randomBytes(9).toString("base64url");
+      }
+
       const updatedUser = await storage.updateUser(userId, {
-        password: hashedPassword,
+        password: await hashPassword(newPassword),
         updatedAt: new Date()
       });
-      
+
       if (!updatedUser) {
         return res.status(500).json({ message: "Failed to reset password" });
       }
-      
-      // Create activity record
+
       await storage.createActivity({
         userId: req.user?.id,
         action: "Password Reset",
@@ -1480,12 +1483,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         entityType: "user",
         entityId: user.id
       });
-      
-      // In a real app, this would send an email with the temp password
-      // For now, return it in the response
-      res.json({ 
+
+      res.json({
         message: "Password has been reset",
-        tempPassword: tempPassword
+        username: user.username,
+        newPassword,
       });
     } catch (error) {
       next(error);

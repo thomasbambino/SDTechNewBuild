@@ -23,27 +23,17 @@ export async function hashPassword(password: string) {
 
 export async function comparePasswords(supplied: string, stored: string) {
   try {
-    console.log('Comparing password:', supplied);
-    console.log('Stored password:', stored);
-    
-    // Check if it's the admin account with a hardcoded password
-    if (supplied === 'admin123' && stored.includes('407eb6692bd8b03aa6bd939eea0f7f2b9579a06119499c89030f48480318e345b0efb442af7beef6c9e63f3c3ef79f93cdaa1a2c236866c1fefbe58d672ac821')) {
-      console.log('Special admin account authenticated with admin123');
-      return true;
-    }
-    
     const [hashed, salt] = stored.split(".");
     if (!salt) {
-      console.error('Invalid stored password format - missing salt:', stored);
+      console.error('Invalid stored password format - missing salt');
       return false;
     }
-    
+
     const hashedBuf = Buffer.from(hashed, "hex");
     const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
-    
-    const result = timingSafeEqual(hashedBuf, suppliedBuf);
-    console.log('Password comparison result:', result);
-    return result;
+
+    if (hashedBuf.length !== suppliedBuf.length) return false;
+    return timingSafeEqual(hashedBuf, suppliedBuf);
   } catch (error) {
     console.error('Error comparing passwords:', error);
     return false;

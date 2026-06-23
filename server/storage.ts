@@ -521,10 +521,7 @@ export class DatabaseStorage implements IStorage {
     const result = await this.client`SELECT * FROM users WHERE id = ${id}`;
     if (result.length === 0) return undefined;
     
-    // Map the result to the expected User type
     const user = result[0];
-    console.log('Found user by id:', user);
-    
     return {
       id: user.id,
       username: user.username,
@@ -532,6 +529,7 @@ export class DatabaseStorage implements IStorage {
       name: user.name,
       email: user.email,
       role: user.role,
+      status: user.status,
       createdAt: user["createdat"] || user["createdAt"] || new Date(),
       updatedAt: user["updatedat"] || user["updatedAt"] || new Date()
     };
@@ -540,11 +538,8 @@ export class DatabaseStorage implements IStorage {
   async getUserByUsername(username: string): Promise<User | undefined> {
     const result = await this.client`SELECT * FROM users WHERE username = ${username}`;
     if (result.length === 0) return undefined;
-    
-    // Map the result to the expected User type
+
     const user = result[0];
-    console.log('Found user:', user);
-    
     return {
       id: user.id,
       username: user.username,
@@ -552,19 +547,17 @@ export class DatabaseStorage implements IStorage {
       name: user.name,
       email: user.email,
       role: user.role,
+      status: user.status,
       createdAt: user["createdat"] || user["createdAt"] || new Date(),
       updatedAt: user["updatedat"] || user["updatedAt"] || new Date()
     };
   }
-  
+
   async getUserByEmail(email: string): Promise<User | undefined> {
     const result = await this.client`SELECT * FROM users WHERE email = ${email}`;
     if (result.length === 0) return undefined;
-    
-    // Map the result to the expected User type
+
     const user = result[0];
-    console.log('Found user by email:', user);
-    
     return {
       id: user.id,
       username: user.username,
@@ -572,6 +565,7 @@ export class DatabaseStorage implements IStorage {
       name: user.name,
       email: user.email,
       role: user.role,
+      status: user.status,
       createdAt: user["createdat"] || user["createdAt"] || new Date(),
       updatedAt: user["updatedat"] || user["updatedAt"] || new Date()
     };
@@ -583,35 +577,22 @@ export class DatabaseStorage implements IStorage {
   }
   
   async updateUser(id: number, userUpdate: Partial<User>): Promise<User | undefined> {
-    console.log(`Updating user with ID: ${id}, Update data:`, userUpdate);
     try {
-      // First verify the user exists
       const existingUser = await this.getUser(id);
-      if (!existingUser) {
-        console.log(`User with id ${id} not found`);
-        return undefined;
-      }
-      
-      // Prepare the update data
+      if (!existingUser) return undefined;
+
       const updateData: Partial<User> = {
         ...userUpdate,
         updatedAt: new Date()
       };
-      
-      // Using the eq function for safer comparisons
+
       const result = await this.db
         .update(users)
         .set(updateData)
         .where(eq(users.id, id))
         .returning();
-        
-      if (result && result.length > 0) {
-        console.log('Updated user result:', result[0]);
-        return result[0];
-      }
-      
-      console.log('No user updated');
-      return undefined;
+
+      return result?.[0];
     } catch (error) {
       console.error('Error updating user:', error);
       throw error;

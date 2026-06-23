@@ -95,6 +95,9 @@ export default function AdminUsers() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [createdLogin, setCreatedLogin] = useState<{ username: string; tempPassword: string } | null>(null);
+  const [resetTarget, setResetTarget] = useState<User | null>(null);
+  const [resetPasswordInput, setResetPasswordInput] = useState("");
+  const [resetResult, setResetResult] = useState<{ username: string; newPassword: string } | null>(null);
 
   // Set document title
   useEffect(() => {
@@ -270,20 +273,19 @@ export default function AdminUsers() {
       .substring(0, 2);
   };
 
-  // Reset password function
   const resetPasswordMutation = useMutation({
-    mutationFn: async (userId: number) => {
-      const response = await apiRequest('POST', `/api/users/${userId}/reset-password`, {});
+    mutationFn: async ({ userId, newPassword }: { userId: number; newPassword?: string }) => {
+      const response = await apiRequest(
+        'POST',
+        `/api/users/${userId}/reset-password`,
+        newPassword ? { newPassword } : {},
+      );
       return response.json();
     },
     onSuccess: (data) => {
-      toast({
-        title: "Password reset successful",
-        description: `Temporary password: ${data.tempPassword}`,
-      });
-      
-      // In a production environment, you would want to handle this differently,
-      // likely sending an email with the password rather than displaying it in the UI
+      setResetTarget(null);
+      setResetPasswordInput("");
+      setResetResult({ username: data.username, newPassword: data.newPassword });
     },
     onError: (error: Error) => {
       toast({
@@ -338,8 +340,18 @@ export default function AdminUsers() {
     }
   });
   
-  const handleResetPassword = (userId: number) => {
-    resetPasswordMutation.mutate(userId);
+  const handleResetPassword = (user: User) => {
+    setResetPasswordInput("");
+    setResetTarget(user);
+  };
+
+  const submitResetPassword = () => {
+    if (!resetTarget) return;
+    const trimmed = resetPasswordInput.trim();
+    resetPasswordMutation.mutate({
+      userId: resetTarget.id,
+      newPassword: trimmed ? trimmed : undefined,
+    });
   };
   
   const handleToggleRole = (user: User) => {
@@ -569,7 +581,7 @@ export default function AdminUsers() {
                                       <div className="flex flex-col space-y-2">
                                         <Button
                                           variant="outline"
-                                          onClick={() => handleResetPassword(user.id)}
+                                          onClick={() => handleResetPassword(user)}
                                           className="justify-start"
                                         >
                                           <Key className="mr-2 h-4 w-4" />
@@ -697,6 +709,97 @@ export default function AdminUsers() {
                   <div><span className="text-gray-500">Password: </span><strong>{createdLogin.tempPassword}</strong></div>
                 </div>
                 <Button className="w-full mt-4" onClick={() => setCreatedLogin(null)}>Done</Button>
+              </div>
+            </div>
+          )}
+
+          <Dialog
+            open={!!resetTarget}
+            onOpenChange={(open) => {
+              if (!open) {
+                setResetTarget(null);
+                setResetPasswordInput("");
+              }
+            }}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Reset Password</DialogTitle>
+                <DialogDescription>
+                  Set a new password for <strong>{resetTarget?.username}</strong>. Leave blank to generate a random one.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3 py-2">
+                <div className="flex space-x-2">
+                  <Input
+                    type="text"
+                    autoComplete="new-password"
+                    placeholder="New password (min 8 chars)"
+                    value={resetPasswordInput}
+                    onChange={(e) => setResetPasswordInput(e.target.value)}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setResetPasswordInput(generateRandomPassword())}
+                    title="Generate random password"
+                  >
+                    <Key className="h-4 w-4" />
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  The new password will be shown once after saving so you can copy it.
+                </p>
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setResetTarget(null);
+                    setResetPasswordInput("");
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={submitResetPassword} disabled={resetPasswordMutation.isPending}>
+                  {resetPasswordMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Password"
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {resetResult && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm w-full mx-4">
+                <h3 className="font-semibold text-lg mb-1">Password Reset</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Copy this now — it won't be shown again.
+                </p>
+                <div className="space-y-3 bg-gray-50 rounded-md p-4 font-mono text-sm break-all">
+                  <div><span className="text-gray-500">Username: </span><strong>{resetResult.username}</strong></div>
+                  <div><span className="text-gray-500">Password: </span><strong>{resetResult.newPassword}</strong></div>
+                </div>
+                <div className="flex space-x-2 mt-4">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => {
+                      navigator.clipboard.writeText(resetResult.newPassword);
+                      toast({ title: "Password copied" });
+                    }}
+                  >
+                    Copy Password
+                  </Button>
+                  <Button className="flex-1" onClick={() => setResetResult(null)}>Done</Button>
+                </div>
               </div>
             </div>
           )}
