@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
+import { formatBytes } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -257,7 +258,7 @@ export default function ClientDocumentsPage() {
                           )}
                           {document.size && (
                             <p className="text-gray-500">
-                              Size: {Math.round(document.size / 1024)} KB
+                              Size: {formatBytes(document.size)}
                             </p>
                           )}
                         </div>
@@ -393,7 +394,7 @@ export default function ClientDocumentsPage() {
                 </div>
                 <div>
                   <p className="text-gray-500">Size</p>
-                  <p className="font-medium">{selectedDocument.size ? `${Math.round(selectedDocument.size / 1024)} KB` : "Unknown"}</p>
+                  <p className="font-medium">{selectedDocument.size ? formatBytes(selectedDocument.size) : "Unknown"}</p>
                 </div>
               </div>
               

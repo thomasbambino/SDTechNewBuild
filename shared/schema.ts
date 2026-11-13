@@ -59,7 +59,13 @@ export const projects = pgTable("projects", {
 });
 
 export const insertProjectSchema = createInsertSchema(projects)
-  .omit({ id: true, createdAt: true, updatedAt: true });
+  .omit({ id: true, createdAt: true, updatedAt: true })
+  .extend({
+    // Frontend sends ISO strings (or null) for dates; coerce so drizzle
+    // doesn't choke when inserting.
+    startDate: z.coerce.date().nullable().optional(),
+    dueDate: z.coerce.date().nullable().optional(),
+  });
 
 // Invoice-related schemas
 export const invoices = pgTable("invoices", {

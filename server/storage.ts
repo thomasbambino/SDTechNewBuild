@@ -18,7 +18,7 @@ import {
 import session from "express-session";
 import createMemoryStore from "memorystore";
 import { drizzle } from 'drizzle-orm/postgres-js';
-import { eq, and, desc, asc, sql, ne, SQL } from 'drizzle-orm';
+import { eq, and, or, desc, asc, sql, ne, isNull, SQL } from 'drizzle-orm';
 import postgres from 'postgres';
 import connectPg from "connect-pg-simple";
 
@@ -863,13 +863,15 @@ export class DatabaseStorage implements IStorage {
   }
   
   async getContentByType(type: string): Promise<Content[]> {
+    // isActive defaults to true but legacy rows may be NULL — treat NULL as active
+    // so pre-existing content keeps rendering.
     return await this.db
       .select()
       .from(contents)
       .where(
         and(
           eq(contents.type, type),
-          eq(contents.isActive, true)
+          or(eq(contents.isActive, true), isNull(contents.isActive)),
         )
       );
   }

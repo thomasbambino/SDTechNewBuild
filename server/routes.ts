@@ -229,23 +229,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/settings/public", async (req, res, next) => {
     try {
       const settings = await storage.getSettings();
-      
-      // Only return public settings
-      const publicSettings = settings ? {
-        companyName: settings.companyName,
-        logoPath: settings.logoPath,
-        primaryColor: settings.primaryColor,
-        theme: settings.theme,
-        radius: settings.radius,
-        siteTitle: settings.siteTitle,
-        siteDescription: settings.siteDescription,
-        favicon: settings.favicon,
-        contactEmail: settings.contactEmail,
-        contactPhone: settings.contactPhone,
-        contactAddress: settings.contactAddress,
-      } : {};
 
-      res.json(publicSettings);
+      // Always return every public field with a usable default so the
+      // homepage/auth page don't render as a blank title when the DB
+      // row hasn't been created yet.
+      res.json({
+        companyName: settings?.companyName ?? "SD Tech Pros",
+        logoPath: settings?.logoPath ?? null,
+        primaryColor: settings?.primaryColor ?? "hsl(222.2 47.4% 11.2%)",
+        theme: settings?.theme ?? "light",
+        radius: settings?.radius ?? 0.5,
+        siteTitle: settings?.siteTitle ?? "SD Tech Pros Client Portal",
+        siteDescription: settings?.siteDescription ?? null,
+        favicon: settings?.favicon ?? null,
+        contactEmail: settings?.contactEmail ?? null,
+        contactPhone: settings?.contactPhone ?? null,
+        contactAddress: settings?.contactAddress ?? null,
+      });
     } catch (error) {
       next(error);
     }
