@@ -31,60 +31,82 @@ function initialsOf(name: string | null | undefined): string {
 
 function PostImages({ images, onOpen }: { images: string[]; onOpen: (index: number) => void }) {
   if (images.length === 0) return null;
+
+  const tile = (src: string, index: number, className = "") => (
+    <button
+      key={src + index}
+      type="button"
+      onClick={() => onOpen(index)}
+      className={`relative block overflow-hidden bg-gray-50 ${className}`}
+    >
+      <img
+        src={src}
+        alt={`Update photo ${index + 1}`}
+        className="w-full h-full object-cover hover:opacity-95 transition-opacity"
+        loading="lazy"
+      />
+    </button>
+  );
+
   if (images.length === 1) {
     return (
-      <button
-        type="button"
-        onClick={() => onOpen(0)}
-        className="mt-3 block w-full overflow-hidden rounded-lg border bg-gray-50"
-      >
-        <img
-          src={images[0]}
-          alt="Update"
-          className="w-full max-h-[480px] object-cover hover:opacity-95 transition-opacity"
-          loading="lazy"
-        />
-      </button>
-    );
-  }
-  if (images.length === 2) {
-    return (
-      <div className="mt-3 grid grid-cols-2 gap-1 rounded-lg overflow-hidden border">
-        {images.map((src, i) => (
-          <button
-            key={i}
-            type="button"
-            onClick={() => onOpen(i)}
-            className="block overflow-hidden bg-gray-50"
-          >
-            <img src={src} alt={`Update ${i + 1}`} className="w-full h-64 object-cover hover:opacity-95 transition-opacity" loading="lazy" />
-          </button>
-        ))}
+      <div className="mt-3 w-full overflow-hidden rounded-lg border bg-gray-50">
+        <button
+          type="button"
+          onClick={() => onOpen(0)}
+          className="block w-full"
+        >
+          <img
+            src={images[0]}
+            alt="Update"
+            className="w-full max-h-[520px] object-cover hover:opacity-95 transition-opacity"
+            loading="lazy"
+          />
+        </button>
       </div>
     );
   }
-  // 3+ images — primary image + stacked column
-  const [primary, ...rest] = images;
-  const extraCount = rest.length - 2;
+
+  if (images.length === 2) {
+    return (
+      <div className="mt-3 grid grid-cols-2 gap-1 rounded-lg overflow-hidden border h-80">
+        {tile(images[0], 0, "h-full")}
+        {tile(images[1], 1, "h-full")}
+      </div>
+    );
+  }
+
+  if (images.length === 3) {
+    // Big left, two stacked right — the Facebook "3 up" layout.
+    return (
+      <div className="mt-3 grid grid-cols-3 grid-rows-2 gap-1 rounded-lg overflow-hidden border h-80">
+        {tile(images[0], 0, "col-span-2 row-span-2")}
+        {tile(images[1], 1)}
+        {tile(images[2], 2)}
+      </div>
+    );
+  }
+
+  // 4+ photos: 2×2 grid, last tile shows "+N" when there are extras.
+  const visible = images.slice(0, 4);
+  const extraCount = images.length - 4;
   return (
-    <div className="mt-3 grid grid-cols-3 gap-1 h-72 rounded-lg overflow-hidden border">
-      <button
-        type="button"
-        onClick={() => onOpen(0)}
-        className="col-span-2 row-span-2 block overflow-hidden bg-gray-50"
-      >
-        <img src={primary} alt="Update 1" className="w-full h-full object-cover hover:opacity-95 transition-opacity" loading="lazy" />
-      </button>
-      {rest.slice(0, 2).map((src, i) => (
+    <div className="mt-3 grid grid-cols-2 gap-1 rounded-lg overflow-hidden border h-96">
+      {visible.map((src, i) => (
         <button
-          key={i}
+          key={src + i}
           type="button"
-          onClick={() => onOpen(i + 1)}
+          onClick={() => onOpen(i)}
           className="relative block overflow-hidden bg-gray-50"
         >
-          <img src={src} alt={`Update ${i + 2}`} className="w-full h-full object-cover hover:opacity-95 transition-opacity" loading="lazy" />
-          {i === 1 && extraCount > 0 && (
-            <div className="absolute inset-0 bg-black/50 flex items-center justify-center text-white text-xl font-semibold">
+          <img
+            src={src}
+            alt={`Update photo ${i + 1}`}
+            className="w-full h-full object-cover hover:opacity-95 transition-opacity"
+            loading="lazy"
+          />
+          {i === 3 && extraCount > 0 && (
+            <div className="absolute inset-0 bg-black/55 flex items-center justify-center text-white text-2xl font-semibold">
               +{extraCount}
             </div>
           )}

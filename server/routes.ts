@@ -121,7 +121,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     },
     limits: {
-      fileSize: 5 * 1024 * 1024 // 5MB limit
+      // HEIC originals from recent iPhones can hit ~4-6 MB; JPEGs from a
+      // DSLR regularly hit 10+ MB. 15 MB gives headroom without opening
+      // us up to multi-hundred-MB uploads.
+      fileSize: 15 * 1024 * 1024
     }
   });
 

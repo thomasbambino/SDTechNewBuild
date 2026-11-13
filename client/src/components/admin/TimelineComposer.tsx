@@ -1,11 +1,13 @@
 import { useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import heic2any from "heic2any";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
-import { Upload, X, Send } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Upload, X, Send, Star, ArrowLeft, ArrowRight, Loader2, Image as ImageIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -29,7 +31,8 @@ export default function TimelineComposer({ projects, clientId, defaultProjectId 
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [imagePaths, setImagePaths] = useState<string[]>([]);
-  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
+  const uploading = uploadProgress !== null;
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -55,32 +58,79 @@ export default function TimelineComposer({ projects, clientId, defaultProjectId 
     onError: (err: Error) => toast({ title: "Post failed", description: err.message, variant: "destructive" }),
   });
 
+  const prepareFile = async (file: File): Promise<File | null> => {
+    const isHeic = file.type === "image/heic"
+      || file.type === "image/heif"
+      || /\.(heic|heif)$/i.test(file.name);
+    if (!isHeic && !file.type.startsWith("image/")) {
+      toast({ title: "Not an image", description: `${file.name} was skipped.`, variant: "destructive" });
+      return null;
+    }
+    if (!isHeic) return file;
+    try {
+      const converted = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.92 });
+      const blob = Array.isArray(converted) ? converted[0] : converted;
+      return new File([blob], file.name.replace(/\.(heic|heif)$/i, ".jpg"), { type: "image/jpeg" });
+    } catch {
+      toast({ title: "HEIC conversion failed", description: `Couldn't convert ${file.name}. Export it as JPEG from Photos and try again.`, variant: "destructive" });
+      return null;
+    }
+  };
+
   const uploadFiles = async (files: FileList | File[]) => {
-    setUploading(true);
+    const list = Array.from(files);
+    setUploadProgress({ done: 0, total: list.length });
     const uploaded: string[] = [];
     try {
-      for (const file of Array.from(files)) {
-        if (!file.type.startsWith("image/")) continue;
+      for (let i = 0; i < list.length; i++) {
+        const prepped = await prepareFile(list[i]);
+        if (!prepped) {
+          setUploadProgress(p => p ? { ...p, done: p.done + 1 } : p);
+          continue;
+        }
         const fd = new FormData();
-        fd.append("image", file);
+        fd.append("image", prepped);
         const res = await fetch("/api/milestones/image", { method: "POST", credentials: "include", body: fd });
         if (!res.ok) {
           const text = await res.text().catch(() => "");
-          throw new Error(text || `Upload failed for ${file.name}`);
+          let message = text;
+          try { const j = JSON.parse(text); if (j.message) message = j.message; } catch { /* keep raw */ }
+          throw new Error(message || `Upload failed for ${prepped.name}`);
         }
         const data = await res.json();
         if (data.url) uploaded.push(data.url);
+        setUploadProgress(p => p ? { ...p, done: p.done + 1 } : p);
       }
       setImagePaths(prev => [...prev, ...uploaded]);
     } catch (err: any) {
       toast({ title: "Upload failed", description: err.message, variant: "destructive" });
     } finally {
-      setUploading(false);
+      setUploadProgress(null);
     }
   };
 
   const removeImage = (index: number) => {
     setImagePaths(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const moveImage = (index: number, direction: -1 | 1) => {
+    setImagePaths(prev => {
+      const next = [...prev];
+      const target = index + direction;
+      if (target < 0 || target >= next.length) return prev;
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  };
+
+  const makePrimary = (index: number) => {
+    setImagePaths(prev => {
+      if (index === 0) return prev;
+      const next = [...prev];
+      const [picked] = next.splice(index, 1);
+      next.unshift(picked);
+      return next;
+    });
   };
 
   if (projects.length === 0) {
@@ -125,37 +175,111 @@ export default function TimelineComposer({ projects, clientId, defaultProjectId 
       />
 
       {imagePaths.length > 0 && (
-        <div className="grid grid-cols-4 gap-2">
-          {imagePaths.map((src, i) => (
-            <div key={i} className="relative group aspect-square">
-              <img src={src} alt="" className="w-full h-full object-cover rounded-md border" />
-              <button
-                type="button"
-                onClick={() => removeImage(i)}
-                className="absolute -top-1.5 -right-1.5 bg-destructive text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                aria-label="Remove image"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              <ImageIcon className="h-3.5 w-3.5" />
+              {imagePaths.length} photo{imagePaths.length === 1 ? "" : "s"}
             </div>
-          ))}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs text-destructive hover:bg-destructive/10"
+              onClick={() => setImagePaths([])}
+            >
+              Clear all
+            </Button>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+            {imagePaths.map((src, i) => (
+              <div key={src + i} className="relative group aspect-square rounded-md overflow-hidden border bg-gray-50">
+                <img src={src} alt="" className="w-full h-full object-cover" />
+                {i === 0 && (
+                  <Badge className="absolute top-1.5 left-1.5 bg-primary text-white text-xs gap-1 shadow">
+                    <Star className="h-3 w-3" /> Lead
+                  </Badge>
+                )}
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                  <div className="flex gap-1">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      onClick={() => moveImage(i, -1)}
+                      disabled={i === 0}
+                      aria-label="Move left"
+                    >
+                      <ArrowLeft className="h-4 w-4" />
+                    </Button>
+                    {i !== 0 && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        onClick={() => makePrimary(i)}
+                        aria-label="Make lead photo"
+                        title="Make lead photo"
+                      >
+                        <Star className="h-4 w-4" />
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      onClick={() => moveImage(i, 1)}
+                      disabled={i === imagePaths.length - 1}
+                      aria-label="Move right"
+                    >
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeImage(i)}
+                  className="absolute top-1.5 right-1.5 bg-black/70 hover:bg-black text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                  aria-label="Remove image"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-gray-400">
+            Hover a photo to reorder, remove, or make it the lead (the big one that shows first in the feed).
+          </p>
         </div>
       )}
 
       <div
-        className="border-2 border-dashed border-muted rounded-md p-4 text-center cursor-pointer hover:bg-muted/30 transition-colors"
-        onClick={() => fileInputRef.current?.click()}
+        className="border-2 border-dashed border-muted rounded-lg p-6 text-center cursor-pointer hover:bg-muted/30 hover:border-muted-foreground/30 transition-colors"
+        onClick={() => !uploading && fileInputRef.current?.click()}
         onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-        onDrop={(e) => { e.preventDefault(); e.stopPropagation(); if (e.dataTransfer.files?.length) uploadFiles(e.dataTransfer.files); }}
+        onDrop={(e) => { e.preventDefault(); e.stopPropagation(); if (!uploading && e.dataTransfer.files?.length) uploadFiles(e.dataTransfer.files); }}
       >
-        <Upload className="h-5 w-5 mx-auto text-muted-foreground" />
-        <p className="text-xs text-muted-foreground mt-1">
-          {uploading ? "Uploading…" : "Drop photos here or click to upload (PNG/JPEG/GIF/WebP)"}
-        </p>
+        {uploading ? (
+          <>
+            <Loader2 className="h-6 w-6 mx-auto text-primary animate-spin" />
+            <p className="text-sm text-gray-600 mt-2">
+              Uploading {uploadProgress!.done + 1} of {uploadProgress!.total}…
+            </p>
+          </>
+        ) : (
+          <>
+            <Upload className="h-6 w-6 mx-auto text-muted-foreground" />
+            <p className="text-sm text-gray-600 mt-2 font-medium">Drop photos here or click to upload</p>
+            <p className="text-xs text-gray-400 mt-1">JPEG · PNG · HEIC · GIF · WebP</p>
+          </>
+        )}
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/png,image/jpeg,image/gif,image/webp"
+          accept="image/png,image/jpeg,image/jpg,image/gif,image/webp,image/heic,image/heif,.heic,.heif"
           multiple
           className="hidden"
           onChange={(e) => { if (e.target.files) uploadFiles(e.target.files); e.target.value = ""; }}
