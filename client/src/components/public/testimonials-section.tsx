@@ -1,5 +1,6 @@
 import { useContent } from "@/hooks/use-content";
 import { Star, StarHalf } from "lucide-react";
+import { Monogram } from "@/components/ui/monogram";
 
 interface Testimonial {
   content: string;
@@ -96,11 +97,7 @@ export default function TestimonialsSection() {
                 "{testimonial.content}"
               </p>
               <div className="flex items-center">
-                <img 
-                  src={`https://i.pravatar.cc/48?u=${testimonial.name}`} 
-                  alt={testimonial.name} 
-                  className="w-12 h-12 rounded-full mr-4 bg-primary-100"
-                />
+                <Monogram name={testimonial.name} className="mr-4" />
                 <div>
                   <h4 className="font-semibold text-secondary-800">
                     {testimonial.name}

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Monogram } from "@/components/ui/monogram";
 import {
   Sheet,
   SheetContent,
@@ -42,19 +43,19 @@ import {
 } from "lucide-react";
 
 const SERVICE_ICON_MAP: Record<string, React.ReactNode> = {
-  layout:     <Layout className="h-8 w-8" />,
-  code:       <Code className="h-8 w-8" />,
-  briefcase:  <Briefcase className="h-8 w-8" />,
-  barChart:   <BarChart className="h-8 w-8" />,
-  globe:      <Globe className="h-8 w-8" />,
-  database:   <Database className="h-8 w-8" />,
-  shield:     <Shield className="h-8 w-8" />,
-  zap:        <Zap className="h-8 w-8" />,
-  settings:   <Settings className="h-8 w-8" />,
-  monitor:    <Monitor className="h-8 w-8" />,
-  users:      <Users className="h-8 w-8" />,
-  smartphone: <Smartphone className="h-8 w-8" />,
-  wrench:     <Wrench className="h-8 w-8" />,
+  layout:     <Layout className="h-7 w-7" strokeWidth={1.75} />,
+  code:       <Code className="h-7 w-7" strokeWidth={1.75} />,
+  briefcase:  <Briefcase className="h-7 w-7" strokeWidth={1.75} />,
+  barChart:   <BarChart className="h-7 w-7" strokeWidth={1.75} />,
+  globe:      <Globe className="h-7 w-7" strokeWidth={1.75} />,
+  database:   <Database className="h-7 w-7" strokeWidth={1.75} />,
+  shield:     <Shield className="h-7 w-7" strokeWidth={1.75} />,
+  zap:        <Zap className="h-7 w-7" strokeWidth={1.75} />,
+  settings:   <Settings className="h-7 w-7" strokeWidth={1.75} />,
+  monitor:    <Monitor className="h-7 w-7" strokeWidth={1.75} />,
+  users:      <Users className="h-7 w-7" strokeWidth={1.75} />,
+  smartphone: <Smartphone className="h-7 w-7" strokeWidth={1.75} />,
+  wrench:     <Wrench className="h-7 w-7" strokeWidth={1.75} />,
 };
 
 interface ContentSection {
@@ -397,14 +398,14 @@ export default function PublicHome() {
               {((serviceContent ?? []).slice(1)).map((service, index) => {
                 const iconKey = service.imagePath?.startsWith('icon:') ? service.imagePath.slice(5) : null;
                 const icon = iconKey
-                  ? (SERVICE_ICON_MAP[iconKey] ?? <Briefcase className="h-8 w-8" />)
-                  : <Briefcase className="h-8 w-8" />;
+                  ? (SERVICE_ICON_MAP[iconKey] ?? <Briefcase className="h-7 w-7" strokeWidth={1.75} />)
+                  : <Briefcase className="h-7 w-7" strokeWidth={1.75} />;
                 return (
                 <div
                   key={service.id || index}
                   className="bg-white rounded-lg shadow-md p-6 transition-transform hover:scale-105"
                 >
-                  <div className="h-16 w-16 bg-primary/10 rounded-lg flex items-center justify-center text-primary mb-4">
+                  <div className="h-14 w-14 bg-primary/10 rounded-full flex items-center justify-center text-primary mb-4">
                     {icon}
                   </div>
                   <h3 className="text-xl font-semibold text-gray-900 mb-2">
@@ -525,9 +526,12 @@ export default function PublicHome() {
                   <p className="text-gray-600 mb-6">
                     "{testimonial.content}"
                   </p>
-                  <div>
-                    <p className="font-semibold text-gray-900">{testimonial.title}</p>
-                    <p className="text-gray-500 text-sm">{testimonial.subtitle}</p>
+                  <div className="flex items-center gap-3">
+                    <Monogram name={testimonial.title || ""} />
+                    <div>
+                      <p className="font-semibold text-gray-900">{testimonial.title}</p>
+                      <p className="text-gray-500 text-sm">{testimonial.subtitle}</p>
+                    </div>
                   </div>
                 </div>
               ))}
