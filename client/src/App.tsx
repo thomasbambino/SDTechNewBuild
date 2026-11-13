@@ -16,6 +16,7 @@ import AdminDashboard from "@/pages/admin/dashboard";
 import AdminClients from "@/pages/admin/clients";
 import AdminClientDetail from "@/pages/admin/client-detail";
 import AdminProjects from "@/pages/admin/projects";
+import AdminProjectDetail from "@/pages/admin/project-detail";
 import AdminInvoices from "@/pages/admin/invoices";
 import AdminInquiries from "@/pages/admin/inquiries";
 import AdminActivities from "@/pages/admin/activities";
@@ -47,6 +48,7 @@ function Router() {
       <ProtectedRoute path="/admin" role="admin" component={AdminDashboard} />
       <ProtectedRoute path="/admin/clients/:id" role="admin" component={AdminClientDetail} />
       <ProtectedRoute path="/admin/clients" role="admin" component={AdminClients} />
+      <ProtectedRoute path="/admin/projects/:id" role="admin" component={AdminProjectDetail} />
       <ProtectedRoute path="/admin/projects" role="admin" component={AdminProjects} />
       <ProtectedRoute path="/admin/invoices" role="admin" component={AdminInvoices} />
       <ProtectedRoute path="/admin/inquiries" role="admin" component={AdminInquiries} />
