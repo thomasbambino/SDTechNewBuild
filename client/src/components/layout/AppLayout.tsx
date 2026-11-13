@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import Header from "./header";
-import Sidebar from "./sidebar";
+import Header from "./Header";
+import Sidebar from "./Sidebar";
 import PageTransition from "./PageTransition";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
