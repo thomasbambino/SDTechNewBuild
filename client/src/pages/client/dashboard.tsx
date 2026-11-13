@@ -197,19 +197,37 @@ export default function ClientDashboard() {
                 </div>
               </Card>
 
-              {clientNotes.length > 0 && (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 px-1">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between px-1">
+                  <div className="flex items-center gap-2">
                     <Pin className="h-4 w-4 text-amber-500" />
                     <h3 className="text-base font-semibold text-gray-900">Important Notes</h3>
                   </div>
+                  <a
+                    href="#"
+                    onClick={e => { e.preventDefault(); navigate("/client/notes"); }}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    View all
+                  </a>
+                </div>
+                {clientNotes.length === 0 ? (
+                  <Card className="bg-white shadow-sm">
+                    <div className="px-5 py-6 text-center">
+                      <p className="text-sm text-gray-500">No notes yet.</p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        Wi-Fi credentials and other reference info your technician leaves will appear here.
+                      </p>
+                    </div>
+                  </Card>
+                ) : (
                   <div className="space-y-3">
                     {clientNotes.map(note => (
                       <NoteCard key={note.id} note={note} />
                     ))}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
         )}

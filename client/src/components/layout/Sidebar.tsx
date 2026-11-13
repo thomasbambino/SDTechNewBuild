@@ -13,7 +13,8 @@ import {
   Settings,
   UserCog,
   RefreshCw,
-  MessageSquare
+  MessageSquare,
+  StickyNote,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -279,6 +280,21 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen, offsetTop }: Side
                 >
                   <FileText className="h-5 w-5 mr-3" />
                   <span>Invoices</span>
+                </a>
+              </Link>
+
+              <Link href="/client/notes">
+                <a
+                  className={cn(
+                    "flex items-center px-3 py-2 text-sm font-medium rounded-md",
+                    isActive("/client/notes")
+                      ? "bg-primary/10 text-primary"
+                      : "text-foreground hover:bg-muted"
+                  )}
+                  onClick={handleLinkClick}
+                >
+                  <StickyNote className="h-5 w-5 mr-3" />
+                  <span>Notes & Details</span>
                 </a>
               </Link>
 

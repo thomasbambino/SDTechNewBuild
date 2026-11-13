@@ -1647,14 +1647,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/milestones", isAuthenticated, hasRole("admin"), async (req, res, next) => {
     try {
-      const { projectId, title, notes, imagePaths } = req.body;
+      const { projectId, title, notes, imagePaths, createdAt } = req.body;
       if (!projectId || !title) return res.status(400).json({ message: "projectId and title required" });
+      // createdAt is optional — admins may backdate (or forward-date) a post
+      // for events that happened before the record was added.
+      const ts = createdAt ? new Date(createdAt) : undefined;
+      if (ts && isNaN(ts.getTime())) {
+        return res.status(400).json({ message: "Invalid createdAt" });
+      }
       const milestone = await storage.createMilestone({
         projectId: parseInt(projectId),
         title,
         notes: notes || null,
         imagePaths: imagePaths ? JSON.stringify(imagePaths) : null,
         createdBy: req.user!.id,
+        ...(ts ? { createdAt: ts } : {}),
       });
       res.status(201).json(milestone);
     } catch (err) { next(err); }
@@ -1662,11 +1669,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/milestones/:id", isAuthenticated, hasRole("admin"), async (req, res, next) => {
     try {
-      const { title, notes, imagePaths } = req.body;
+      const { title, notes, imagePaths, createdAt } = req.body;
+      const ts = createdAt ? new Date(createdAt) : undefined;
+      if (ts && isNaN(ts.getTime())) {
+        return res.status(400).json({ message: "Invalid createdAt" });
+      }
       const updated = await storage.updateMilestone(parseInt(req.params.id), {
         title,
         notes: notes || null,
         imagePaths: imagePaths ? JSON.stringify(imagePaths) : null,
+        ...(ts ? { createdAt: ts } : {}),
       });
       if (!updated) return res.status(404).json({ message: "Milestone not found" });
       res.json(updated);

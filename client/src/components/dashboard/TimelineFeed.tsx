@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -120,41 +120,83 @@ function Lightbox({ images, startIndex, onClose }: { images: string[]; startInde
   const [index, setIndex] = useState(startIndex);
   const prev = () => setIndex(i => (i - 1 + images.length) % images.length);
   const next = () => setIndex(i => (i + 1) % images.length);
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft") prev();
+      else if (e.key === "ArrowRight") next();
+      else if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center" onClick={onClose}>
-      <button
-        className="absolute top-4 right-4 text-white/80 hover:text-white p-2"
-        onClick={(e) => { e.stopPropagation(); onClose(); }}
-        aria-label="Close"
-      >
-        <X className="h-6 w-6" />
-      </button>
+    <div className="fixed inset-0 z-50 bg-black/90 flex flex-col" onClick={onClose}>
+      {/* Top bar: counter + close */}
+      <div className="flex items-center justify-between px-4 py-3 text-white/80">
+        <div className="text-sm font-medium">
+          {images.length > 1 ? `${index + 1} of ${images.length}` : "Photo"}
+        </div>
+        <button
+          className="hover:text-white p-1"
+          onClick={(e) => { e.stopPropagation(); onClose(); }}
+          aria-label="Close"
+        >
+          <X className="h-6 w-6" />
+        </button>
+      </div>
+
+      {/* Main stage */}
+      <div className="flex-1 flex items-center justify-center relative min-h-0 px-4">
+        {images.length > 1 && (
+          <>
+            <button
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white p-2 bg-white/10 hover:bg-white/20 rounded-full"
+              onClick={(e) => { e.stopPropagation(); prev(); }}
+              aria-label="Previous"
+            >
+              <ChevronLeft className="h-6 w-6" />
+            </button>
+            <button
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white p-2 bg-white/10 hover:bg-white/20 rounded-full"
+              onClick={(e) => { e.stopPropagation(); next(); }}
+              aria-label="Next"
+            >
+              <ChevronRight className="h-6 w-6" />
+            </button>
+          </>
+        )}
+        <img
+          src={images[index]}
+          alt=""
+          className="max-h-full max-w-full object-contain"
+          onClick={(e) => e.stopPropagation()}
+        />
+      </div>
+
+      {/* Thumbnail strip — only shown when there's more than one */}
       {images.length > 1 && (
-        <>
-          <button
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white p-2 bg-white/10 rounded-full"
-            onClick={(e) => { e.stopPropagation(); prev(); }}
-            aria-label="Previous"
-          >
-            <ChevronLeft className="h-6 w-6" />
-          </button>
-          <button
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white p-2 bg-white/10 rounded-full"
-            onClick={(e) => { e.stopPropagation(); next(); }}
-            aria-label="Next"
-          >
-            <ChevronRight className="h-6 w-6" />
-          </button>
-        </>
-      )}
-      <img
-        src={images[index]}
-        alt=""
-        className="max-h-[90vh] max-w-[90vw] object-contain"
-        onClick={(e) => e.stopPropagation()}
-      />
-      {images.length > 1 && (
-        <div className="absolute bottom-4 text-white/80 text-sm">{index + 1} / {images.length}</div>
+        <div className="px-4 py-3 bg-black/60" onClick={(e) => e.stopPropagation()}>
+          <div className="flex gap-2 overflow-x-auto scroll-smooth pb-1 justify-center">
+            {images.map((src, i) => (
+              <button
+                key={src + i}
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setIndex(i); }}
+                className={`relative flex-shrink-0 h-16 w-16 sm:h-20 sm:w-20 rounded-md overflow-hidden transition-all ${
+                  i === index
+                    ? "ring-2 ring-white scale-105"
+                    : "opacity-60 hover:opacity-100"
+                }`}
+                aria-label={`Show photo ${i + 1}`}
+              >
+                <img src={src} alt={`Thumbnail ${i + 1}`} className="w-full h-full object-cover" />
+              </button>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );

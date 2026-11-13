@@ -21,7 +21,7 @@ import { Project, Client, Invoice, Document } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { formatBytes } from "@/lib/utils";
-import TimelineComposer from "@/components/admin/TimelineComposer";
+import TimelineComposer, { ExistingPost } from "@/components/admin/TimelineComposer";
 import TimelineFeed, { TimelineItem } from "@/components/dashboard/TimelineFeed";
 
 interface Milestone {
@@ -53,6 +53,7 @@ export default function AdminProjectDetailPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const projectId = parseInt(params.id as string);
+  const [editingPost, setEditingPost] = useState<ExistingPost | undefined>(undefined);
 
   const { data: project, isLoading, error } = useQuery<Project>({
     queryKey: [`/api/projects/${projectId}`],
@@ -216,9 +217,13 @@ export default function AdminProjectDetailPage() {
           <TabsContent value="timeline" className="mt-4 space-y-4">
             {client && (
               <TimelineComposer
+                key={editingPost?.id ?? "new"}
                 projects={[{ id: project.id, name: project.name }]}
                 clientId={client.id}
                 defaultProjectId={project.id}
+                editing={editingPost}
+                onCancel={() => setEditingPost(undefined)}
+                onSaved={() => setEditingPost(undefined)}
               />
             )}
             <TimelineFeed
@@ -232,17 +237,37 @@ export default function AdminProjectDetailPage() {
                   <div className="space-y-1">
                     {milestones.map(m => (
                       <div key={m.id} className="flex items-center justify-between text-sm py-1">
-                        <span className="text-gray-700 truncate">{m.title}</span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 text-destructive hover:bg-destructive/10"
-                          onClick={() => {
-                            if (confirm(`Delete post "${m.title}"?`)) deleteMilestoneMutation.mutate(m.id);
-                          }}
-                        >
-                          Delete
-                        </Button>
+                        <span className="text-gray-700 truncate flex-1 mr-2">{m.title}</span>
+                        <div className="flex gap-1 flex-shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7"
+                            onClick={() => {
+                              setEditingPost({
+                                id: m.id,
+                                projectId: m.projectId,
+                                title: m.title,
+                                notes: m.notes,
+                                imagePaths: m.imagePaths ? JSON.parse(m.imagePaths) : [],
+                                createdAt: m.createdAt,
+                              });
+                              window.scrollTo({ top: 0, behavior: "smooth" });
+                            }}
+                          >
+                            <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-destructive hover:bg-destructive/10"
+                            onClick={() => {
+                              if (confirm(`Delete post "${m.title}"?`)) deleteMilestoneMutation.mutate(m.id);
+                            }}
+                          >
+                            Delete
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>

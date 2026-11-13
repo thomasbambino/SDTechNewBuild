@@ -16,46 +16,86 @@ interface Project {
   name: string;
 }
 
+export interface ExistingPost {
+  id: number;
+  projectId: number;
+  title: string;
+  notes: string | null;
+  imagePaths: string[];
+  createdAt: string;
+}
+
 interface TimelineComposerProps {
   projects: Project[];
   clientId: number;
   defaultProjectId?: number;
+  // When provided, the composer is in "edit" mode: PUTs instead of POSTs
+  // and seeds fields from the post. onCancel / onSaved let callers dismiss.
+  editing?: ExistingPost;
+  onCancel?: () => void;
+  onSaved?: () => void;
 }
 
-export default function TimelineComposer({ projects, clientId, defaultProjectId }: TimelineComposerProps) {
+// For <input type="datetime-local"> the browser expects YYYY-MM-DDTHH:mm in
+// local time, not ISO 8601 UTC.
+function toLocalInputValue(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+export default function TimelineComposer({ projects, clientId, defaultProjectId, editing, onCancel, onSaved }: TimelineComposerProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [projectId, setProjectId] = useState<number | undefined>(defaultProjectId ?? projects[0]?.id);
-  const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
-  const [imagePaths, setImagePaths] = useState<string[]>([]);
+  const [projectId, setProjectId] = useState<number | undefined>(editing?.projectId ?? defaultProjectId ?? projects[0]?.id);
+  const [title, setTitle] = useState(editing?.title ?? "");
+  const [body, setBody] = useState(editing?.notes ?? "");
+  const [imagePaths, setImagePaths] = useState<string[]>(editing?.imagePaths ?? []);
+  // Default to the existing post's timestamp when editing, otherwise "now".
+  const initialTs = editing ? new Date(editing.createdAt) : new Date();
+  const [postedAt, setPostedAt] = useState<string>(toLocalInputValue(initialTs));
+  const [customTime, setCustomTime] = useState<boolean>(!!editing);
   const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
   const uploading = uploadProgress !== null;
 
-  const createMutation = useMutation({
+  const saveMutation = useMutation({
     mutationFn: async () => {
       if (!projectId) throw new Error("Pick a project first");
       if (!title.trim()) throw new Error("Give it a title");
-      const res = await apiRequest("POST", "/api/milestones", {
+      // datetime-local returns a local-time string; convert to ISO for the API.
+      // Only send createdAt when the admin explicitly set one — otherwise let
+      // the server default to the request time.
+      const createdAt = customTime ? new Date(postedAt).toISOString() : undefined;
+      const payload = {
         projectId,
         title: title.trim(),
         notes: body.trim() || null,
         imagePaths,
-      });
+        ...(createdAt ? { createdAt } : {}),
+      };
+      if (editing) {
+        const res = await apiRequest("PUT", `/api/milestones/${editing.id}`, payload);
+        return res.json();
+      }
+      const res = await apiRequest("POST", "/api/milestones", payload);
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: "Posted to the timeline" });
-      setTitle("");
-      setBody("");
-      setImagePaths([]);
+      toast({ title: editing ? "Post updated" : "Posted to the timeline" });
+      if (!editing) {
+        setTitle("");
+        setBody("");
+        setImagePaths([]);
+        setCustomTime(false);
+        setPostedAt(toLocalInputValue(new Date()));
+      }
       queryClient.invalidateQueries({ queryKey: [`/api/timeline/admin?clientId=${clientId}`] });
       queryClient.invalidateQueries({ queryKey: ["/api/timeline/client"] });
       queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/milestones`] });
+      onSaved?.();
     },
-    onError: (err: Error) => toast({ title: "Post failed", description: err.message, variant: "destructive" }),
+    onError: (err: Error) => toast({ title: editing ? "Update failed" : "Post failed", description: err.message, variant: "destructive" }),
   });
 
   const prepareFile = async (file: File): Promise<File | null> => {
@@ -307,14 +347,43 @@ export default function TimelineComposer({ projects, clientId, defaultProjectId 
         />
       </div>
 
-      <div className="flex justify-end">
-        <Button
-          onClick={() => createMutation.mutate()}
-          disabled={createMutation.isPending || uploading || !title.trim() || !projectId}
-        >
-          <Send className="h-4 w-4 mr-2" />
-          {createMutation.isPending ? "Posting…" : "Post Update"}
-        </Button>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <label className="flex items-center gap-2 text-sm text-gray-600">
+          <input
+            type="checkbox"
+            className="rounded"
+            checked={customTime}
+            onChange={e => {
+              setCustomTime(e.target.checked);
+              if (e.target.checked) setPostedAt(toLocalInputValue(new Date()));
+            }}
+          />
+          Set custom date & time
+        </label>
+        {customTime && (
+          <input
+            type="datetime-local"
+            value={postedAt}
+            onChange={e => setPostedAt(e.target.value)}
+            className="h-9 border rounded-md px-2 text-sm"
+          />
+        )}
+        <div className="ml-auto flex gap-2">
+          {editing && (
+            <Button variant="outline" onClick={() => onCancel?.()} disabled={saveMutation.isPending}>
+              Cancel
+            </Button>
+          )}
+          <Button
+            onClick={() => saveMutation.mutate()}
+            disabled={saveMutation.isPending || uploading || !title.trim() || !projectId}
+          >
+            <Send className="h-4 w-4 mr-2" />
+            {saveMutation.isPending
+              ? (editing ? "Saving…" : "Posting…")
+              : (editing ? "Save Changes" : "Post Update")}
+          </Button>
+        </div>
       </div>
     </Card>
   );

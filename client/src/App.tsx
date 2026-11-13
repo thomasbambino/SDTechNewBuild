@@ -34,6 +34,7 @@ import ClientInvoices from "@/pages/client/invoices";
 import ClientDocuments from "@/pages/client/documents";
 import ClientProfile from "@/pages/client/profile";
 import ClientMessages from "@/pages/client/messages";
+import ClientNotes from "@/pages/client/notes";
 import CustomPageView from "@/pages/custom-page";
 
 function Router() {
@@ -67,6 +68,7 @@ function Router() {
       <ProtectedRoute path="/client/documents" role="client" component={ClientDocuments} />
       <ProtectedRoute path="/client/profile" role="client" component={ClientProfile} />
       <ProtectedRoute path="/client/messages" role="client" component={ClientMessages} />
+      <ProtectedRoute path="/client/notes" role="client" component={ClientNotes} />
       
       {/* Custom hidden pages (e.g. /privacy-policy) */}
       <Route path="/pages/:slug" component={CustomPageView} />
