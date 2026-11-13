@@ -73,7 +73,7 @@ export default function ClientsPage() {
   const { toast } = useToast();
   const { impersonateMutation } = useAuth();
   const [, setLocation] = useLocation();
-  const [createdLogin, setCreatedLogin] = useState<{ username: string; tempPassword: string; clientName: string } | null>(null);
+  const [createdLogin, setCreatedLogin] = useState<{ username: string; tempPassword: string; userId: number; clientName: string } | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [currentClient, setCurrentClient] = useState<Client | null>(null);
@@ -698,7 +698,7 @@ export default function ClientsPage() {
               <div><span className="text-gray-500">Username: </span><strong>{createdLogin?.username}</strong></div>
               <div><span className="text-gray-500">Password: </span><strong className="font-mono">{createdLogin?.tempPassword}</strong></div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="flex-wrap gap-2">
               <Button
                 variant="outline"
                 onClick={() => {
@@ -708,7 +708,18 @@ export default function ClientsPage() {
               >
                 Copy
               </Button>
-              <Button onClick={() => setCreatedLogin(null)}>Done</Button>
+              <Button variant="outline" onClick={() => setCreatedLogin(null)}>Done</Button>
+              <Button
+                onClick={() => {
+                  if (!createdLogin) return;
+                  const userId = createdLogin.userId;
+                  setCreatedLogin(null);
+                  impersonateMutation.mutate(userId);
+                }}
+                disabled={impersonateMutation.isPending}
+              >
+                <Eye className="h-4 w-4 mr-2" /> View as Client
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

@@ -43,13 +43,13 @@ export default function ClientDetailPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { impersonateMutation } = useAuth();
-  const [createdLogin, setCreatedLogin] = useState<{ username: string; tempPassword: string } | null>(null);
+  const [createdLogin, setCreatedLogin] = useState<{ username: string; tempPassword: string; userId: number } | null>(null);
   const clientId = parseInt(params.id as string);
 
   const createLoginMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", `/api/clients/${clientId}/create-login`);
-      return res.json();
+      return res.json() as Promise<{ username: string; tempPassword: string; userId: number }>;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: [`/api/clients/${clientId}`] });
@@ -123,6 +123,11 @@ export default function ClientDetailPage() {
       case "overdue": return "destructive";
       default: return "secondary";
     }
+  };
+
+  const statusLabel = (s: string | null | undefined) => {
+    if (!s) return "—";
+    return s.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
   };
 
   return (
@@ -224,7 +229,7 @@ export default function ClientDetailPage() {
                           <TableCell className="font-medium">
                             <Link href="/admin/projects" className="hover:underline">{p.name}</Link>
                           </TableCell>
-                          <TableCell><Badge variant={statusVariant(p.status)}>{p.status || "—"}</Badge></TableCell>
+                          <TableCell><Badge variant={statusVariant(p.status)}>{statusLabel(p.status)}</Badge></TableCell>
                           <TableCell>{p.progress ?? 0}%</TableCell>
                           <TableCell>{p.dueDate ? format(new Date(p.dueDate), "MMM d, yyyy") : "—"}</TableCell>
                         </TableRow>
@@ -256,7 +261,7 @@ export default function ClientDetailPage() {
                         <TableRow key={i.id}>
                           <TableCell className="font-medium">{i.invoiceNumber}</TableCell>
                           <TableCell>${i.amount.toFixed(2)}</TableCell>
-                          <TableCell><Badge variant={statusVariant(i.status)}>{i.status || "—"}</Badge></TableCell>
+                          <TableCell><Badge variant={statusVariant(i.status)}>{statusLabel(i.status)}</Badge></TableCell>
                           <TableCell>{i.dueDate ? format(new Date(i.dueDate), "MMM d, yyyy") : "—"}</TableCell>
                         </TableRow>
                       ))}
@@ -365,7 +370,7 @@ export default function ClientDetailPage() {
               <div><span className="text-gray-500">Username: </span><strong>{createdLogin?.username}</strong></div>
               <div><span className="text-gray-500">Password: </span><strong className="font-mono">{createdLogin?.tempPassword}</strong></div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="flex-wrap gap-2">
               <Button
                 variant="outline"
                 onClick={() => {
@@ -375,7 +380,18 @@ export default function ClientDetailPage() {
               >
                 Copy
               </Button>
-              <Button onClick={() => setCreatedLogin(null)}>Done</Button>
+              <Button variant="outline" onClick={() => setCreatedLogin(null)}>Done</Button>
+              <Button
+                onClick={() => {
+                  if (!createdLogin) return;
+                  const userId = createdLogin.userId;
+                  setCreatedLogin(null);
+                  impersonateMutation.mutate(userId);
+                }}
+                disabled={impersonateMutation.isPending}
+              >
+                <Eye className="h-4 w-4 mr-2" /> View as Client
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
