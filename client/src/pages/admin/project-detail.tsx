@@ -128,16 +128,25 @@ export default function AdminProjectDetailPage() {
     );
   }
 
-  const timelineItems: TimelineItem[] = milestones.map(m => ({
-    id: `milestone-${m.id}`,
-    type: "milestone" as const,
-    date: m.createdAt,
-    title: m.title,
-    notes: m.notes,
-    images: m.imagePaths ? (JSON.parse(m.imagePaths) as string[]) : [],
-    projectName: project.name,
-    authorName: null,
-  }));
+  const timelineItems: TimelineItem[] = milestones.map(m => {
+    const images = m.imagePaths ? (JSON.parse(m.imagePaths) as string[]) : [];
+    return {
+      id: `milestone-${m.id}`,
+      type: "milestone" as const,
+      date: m.createdAt,
+      title: m.title,
+      notes: m.notes,
+      images,
+      projectName: project.name,
+      authorName: null,
+      adminMeta: {
+        milestoneId: m.id,
+        projectId: m.projectId,
+        createdAt: m.createdAt,
+        imagePaths: images,
+      },
+    };
+  });
 
   return (
     <AppLayout>
@@ -229,51 +238,21 @@ export default function AdminProjectDetailPage() {
             <TimelineFeed
               items={timelineItems}
               emptyMessage="No posts on this project yet."
+              onEdit={(meta, item) => {
+                setEditingPost({
+                  id: meta.milestoneId,
+                  projectId: meta.projectId,
+                  title: item.title,
+                  notes: item.notes,
+                  imagePaths: meta.imagePaths,
+                  createdAt: meta.createdAt,
+                });
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+              onDelete={(meta, item) => {
+                if (confirm(`Delete post "${item.title}"?`)) deleteMilestoneMutation.mutate(meta.milestoneId);
+              }}
             />
-            {milestones.length > 0 && (
-              <Card>
-                <CardContent className="p-4">
-                  <p className="text-xs text-gray-500 mb-2">Admin tools</p>
-                  <div className="space-y-1">
-                    {milestones.map(m => (
-                      <div key={m.id} className="flex items-center justify-between text-sm py-1">
-                        <span className="text-gray-700 truncate flex-1 mr-2">{m.title}</span>
-                        <div className="flex gap-1 flex-shrink-0">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7"
-                            onClick={() => {
-                              setEditingPost({
-                                id: m.id,
-                                projectId: m.projectId,
-                                title: m.title,
-                                notes: m.notes,
-                                imagePaths: m.imagePaths ? JSON.parse(m.imagePaths) : [],
-                                createdAt: m.createdAt,
-                              });
-                              window.scrollTo({ top: 0, behavior: "smooth" });
-                            }}
-                          >
-                            <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 text-destructive hover:bg-destructive/10"
-                            onClick={() => {
-                              if (confirm(`Delete post "${m.title}"?`)) deleteMilestoneMutation.mutate(m.id);
-                            }}
-                          >
-                            Delete
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
           </TabsContent>
 
           <TabsContent value="invoices" className="mt-4">

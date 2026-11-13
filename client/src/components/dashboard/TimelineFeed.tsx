@@ -4,7 +4,13 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, X, Flag } from "lucide-react";
+import { ChevronLeft, ChevronRight, X, Flag, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export interface TimelineItem {
   id: string;
@@ -15,11 +21,22 @@ export interface TimelineItem {
   images: string[];
   projectName?: string | null;
   authorName?: string | null;
+  // Optional admin payload: when present, the post renders an Edit/Delete menu.
+  // Set only on milestones (not project kickoffs).
+  adminMeta?: {
+    milestoneId: number;
+    projectId: number;
+    createdAt: string;
+    imagePaths: string[];
+  };
 }
 
 interface TimelineFeedProps {
   items: TimelineItem[];
   emptyMessage?: string;
+  // Called with the admin payload when the admin clicks Edit/Delete.
+  onEdit?: (meta: NonNullable<TimelineItem["adminMeta"]>, item: TimelineItem) => void;
+  onDelete?: (meta: NonNullable<TimelineItem["adminMeta"]>, item: TimelineItem) => void;
 }
 
 function initialsOf(name: string | null | undefined): string {
@@ -202,7 +219,7 @@ function Lightbox({ images, startIndex, onClose }: { images: string[]; startInde
   );
 }
 
-export default function TimelineFeed({ items, emptyMessage = "No updates yet" }: TimelineFeedProps) {
+export default function TimelineFeed({ items, emptyMessage = "No updates yet", onEdit, onDelete }: TimelineFeedProps) {
   const [lightbox, setLightbox] = useState<{ images: string[]; index: number } | null>(null);
 
   if (items.length === 0) {
@@ -246,6 +263,33 @@ export default function TimelineFeed({ items, emptyMessage = "No updates yet" }:
                     {item.authorName && item.type !== "start" && <span> · by {item.authorName}</span>}
                   </p>
                 </div>
+                {item.adminMeta && (onEdit || onDelete) && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        className="flex-shrink-0 h-8 w-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500"
+                        aria-label="Post options"
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {onEdit && (
+                        <DropdownMenuItem onClick={() => onEdit(item.adminMeta!, item)}>
+                          <Pencil className="h-3.5 w-3.5 mr-2" /> Edit post
+                        </DropdownMenuItem>
+                      )}
+                      {onDelete && (
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onClick={() => onDelete(item.adminMeta!, item)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete post
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </header>
 
               {item.notes && (

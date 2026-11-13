@@ -28,7 +28,7 @@ import { Client, Project, Invoice, Document, Message } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
-import TimelineComposer from "@/components/admin/TimelineComposer";
+import TimelineComposer, { ExistingPost } from "@/components/admin/TimelineComposer";
 import TimelineFeed, { TimelineItem } from "@/components/dashboard/TimelineFeed";
 import NoteCard from "@/components/dashboard/NoteCard";
 import NoteEditor, { NoteDraft } from "@/components/admin/NoteEditor";
@@ -65,6 +65,7 @@ export default function ClientDetailPage() {
   const [createdLogin, setCreatedLogin] = useState<{ username: string; tempPassword: string; userId: number } | null>(null);
   const [noteEditorOpen, setNoteEditorOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<NoteDraft | undefined>(undefined);
+  const [editingPost, setEditingPost] = useState<ExistingPost | undefined>(undefined);
   const clientId = parseInt(params.id as string);
 
   const deleteNoteMutation = useMutation({
@@ -72,6 +73,16 @@ export default function ClientDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/client-notes?clientId=${clientId}`] });
       toast({ title: "Note deleted" });
+    },
+    onError: (err: Error) => toast({ title: "Delete failed", description: err.message, variant: "destructive" }),
+  });
+
+  const deleteMilestoneMutation = useMutation({
+    mutationFn: async (id: number) => { await apiRequest("DELETE", `/api/milestones/${id}`); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/timeline/admin?clientId=${clientId}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/timeline/client"] });
+      toast({ title: "Post deleted" });
     },
     onError: (err: Error) => toast({ title: "Delete failed", description: err.message, variant: "destructive" }),
   });
@@ -250,19 +261,49 @@ export default function ClientDetailPage() {
           </TabsList>
 
           <TabsContent value="timeline" className="mt-4 space-y-4">
-            <TimelineComposer projects={projects} clientId={clientId} />
+            <TimelineComposer
+              key={editingPost?.id ?? "new"}
+              projects={projects}
+              clientId={clientId}
+              editing={editingPost}
+              onCancel={() => setEditingPost(undefined)}
+              onSaved={() => setEditingPost(undefined)}
+            />
             <TimelineFeed
-              items={timeline.map(m => ({
-                id: `milestone-${m.id}`,
-                type: "milestone" as const,
-                date: m.createdAt,
-                title: m.title,
-                notes: m.notes,
-                images: m.imagePaths ? (JSON.parse(m.imagePaths) as string[]) : [],
-                projectName: m.projectName,
-                authorName: m.authorName,
-              })) as TimelineItem[]}
+              items={timeline.map(m => {
+                const images = m.imagePaths ? (JSON.parse(m.imagePaths) as string[]) : [];
+                return {
+                  id: `milestone-${m.id}`,
+                  type: "milestone" as const,
+                  date: m.createdAt,
+                  title: m.title,
+                  notes: m.notes,
+                  images,
+                  projectName: m.projectName,
+                  authorName: m.authorName,
+                  adminMeta: {
+                    milestoneId: m.id,
+                    projectId: m.projectId,
+                    createdAt: m.createdAt,
+                    imagePaths: images,
+                  },
+                };
+              }) as TimelineItem[]}
               emptyMessage="No posts yet. Use the composer above to publish your first update."
+              onEdit={(meta, item) => {
+                setEditingPost({
+                  id: meta.milestoneId,
+                  projectId: meta.projectId,
+                  title: item.title,
+                  notes: item.notes,
+                  imagePaths: meta.imagePaths,
+                  createdAt: meta.createdAt,
+                });
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+              onDelete={(meta, item) => {
+                if (confirm(`Delete post "${item.title}"?`)) deleteMilestoneMutation.mutate(meta.milestoneId);
+              }}
             />
           </TabsContent>
 
