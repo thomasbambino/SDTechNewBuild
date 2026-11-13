@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { useParams, Link, useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,9 +14,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, Mail, Phone, MapPin, User, FileText, Receipt, MessageSquare, Pin } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ArrowLeft, Mail, Phone, MapPin, User, FileText, MessageSquare, Pin, Eye, KeyRound } from "lucide-react";
 import { format } from "date-fns";
 import { Client, Project, Invoice, Document, Message } from "@shared/schema";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 
 interface ClientNote {
   id: number;
@@ -29,7 +41,23 @@ interface ClientNote {
 export default function ClientDetailPage() {
   const params = useParams();
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  const { impersonateMutation } = useAuth();
+  const [createdLogin, setCreatedLogin] = useState<{ username: string; tempPassword: string } | null>(null);
   const clientId = parseInt(params.id as string);
+
+  const createLoginMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/clients/${clientId}/create-login`);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: [`/api/clients/${clientId}`] });
+      queryClient.invalidateQueries({ queryKey: ['/api/clients'] });
+      setCreatedLogin(data);
+    },
+    onError: (err: Error) => toast({ title: "Failed to create login", description: err.message, variant: "destructive" }),
+  });
 
   const { data: client, isLoading: clientLoading, error: clientError } = useQuery<Client>({
     queryKey: [`/api/clients/${clientId}`],
@@ -116,6 +144,27 @@ export default function ClientDetailPage() {
                 <CardTitle className="text-2xl">{client.name}</CardTitle>
                 {client.contactPerson && (
                   <CardDescription className="mt-1">{client.contactPerson}</CardDescription>
+                )}
+              </div>
+              <div className="flex-shrink-0">
+                {client.userId ? (
+                  <Button
+                    onClick={() => impersonateMutation.mutate(client.userId as number)}
+                    disabled={impersonateMutation.isPending}
+                  >
+                    <Eye className="h-4 w-4 mr-2" />
+                    {impersonateMutation.isPending ? "Opening…" : "View as Client"}
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    onClick={() => createLoginMutation.mutate()}
+                    disabled={createLoginMutation.isPending || !client.email}
+                    title={!client.email ? "Client needs an email address first" : undefined}
+                  >
+                    <KeyRound className="h-4 w-4 mr-2" />
+                    {createLoginMutation.isPending ? "Creating…" : "Create Login"}
+                  </Button>
                 )}
               </div>
             </div>
@@ -303,6 +352,33 @@ export default function ClientDetailPage() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        <Dialog open={!!createdLogin} onOpenChange={open => { if (!open) setCreatedLogin(null); }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Login created for {client.name}</DialogTitle>
+              <DialogDescription>
+                Copy these credentials now — the password won't be shown again.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2 py-2 text-sm">
+              <div><span className="text-gray-500">Username: </span><strong>{createdLogin?.username}</strong></div>
+              <div><span className="text-gray-500">Password: </span><strong className="font-mono">{createdLogin?.tempPassword}</strong></div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (createdLogin) navigator.clipboard?.writeText(`Username: ${createdLogin.username}\nPassword: ${createdLogin.tempPassword}`);
+                  toast({ title: "Copied to clipboard" });
+                }}
+              >
+                Copy
+              </Button>
+              <Button onClick={() => setCreatedLogin(null)}>Done</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </AppLayout>
   );

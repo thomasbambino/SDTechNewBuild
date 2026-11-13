@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { Client, insertClientSchema } from "@shared/schema";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -53,7 +54,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Plus, Search, MoreHorizontal, RefreshCw, User, Mail, Phone, MapPin, Pin, Trash2 } from "lucide-react";
+import { Plus, Search, MoreHorizontal, RefreshCw, User, Mail, Phone, MapPin, Pin, Trash2, Eye, KeyRound } from "lucide-react";
 import { format } from "date-fns";
 
 interface ClientNote {
@@ -70,7 +71,9 @@ type ClientFormValues = z.infer<typeof insertClientSchema>;
 
 export default function ClientsPage() {
   const { toast } = useToast();
+  const { impersonateMutation } = useAuth();
   const [, setLocation] = useLocation();
+  const [createdLogin, setCreatedLogin] = useState<{ username: string; tempPassword: string; clientName: string } | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [currentClient, setCurrentClient] = useState<Client | null>(null);
@@ -209,6 +212,20 @@ export default function ClientsPage() {
     mutationFn: async (id: number) => { await apiRequest("DELETE", `/api/client-notes/${id}`); },
     onSuccess: () => { refetchNotes(); toast({ title: "Note deleted" }); },
     onError: (err: Error) => toast({ title: "Failed", description: err.message, variant: "destructive" }),
+  });
+
+  // Create login for client (admin assigns a client user)
+  const createLoginMutation = useMutation({
+    mutationFn: async (client: Client) => {
+      const res = await apiRequest("POST", `/api/clients/${client.id}/create-login`);
+      const data = await res.json();
+      return { ...data, clientName: client.name };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/clients'] });
+      setCreatedLogin(data);
+    },
+    onError: (err: Error) => toast({ title: "Failed to create login", description: err.message, variant: "destructive" }),
   });
 
   // Delete client mutation
@@ -482,6 +499,21 @@ export default function ClientsPage() {
                               <DropdownMenuItem onClick={() => { setNotesClient(client); setNoteForm({ title: "", content: "", isPinned: false }); }}>
                                 Client Notes
                               </DropdownMenuItem>
+                              {client.userId ? (
+                                <DropdownMenuItem
+                                  onClick={() => impersonateMutation.mutate(client.userId as number)}
+                                  disabled={impersonateMutation.isPending}
+                                >
+                                  <Eye className="h-4 w-4 mr-2" /> View as Client
+                                </DropdownMenuItem>
+                              ) : (
+                                <DropdownMenuItem
+                                  onClick={() => createLoginMutation.mutate(client)}
+                                  disabled={createLoginMutation.isPending || !client.email}
+                                >
+                                  <KeyRound className="h-4 w-4 mr-2" /> Create Login
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuItem
                                 className="text-destructive focus:text-destructive"
                                 onClick={() => { setDeleteClient(client); setDeleteBlocked(null); }}
@@ -649,6 +681,34 @@ export default function ClientsPage() {
 
             <DialogFooter>
               <Button variant="outline" onClick={() => setNotesClient(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Created-login reveal */}
+        <Dialog open={!!createdLogin} onOpenChange={open => { if (!open) setCreatedLogin(null); }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Login created for {createdLogin?.clientName}</DialogTitle>
+              <DialogDescription>
+                Copy these credentials now — the password won't be shown again.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2 py-2 text-sm">
+              <div><span className="text-gray-500">Username: </span><strong>{createdLogin?.username}</strong></div>
+              <div><span className="text-gray-500">Password: </span><strong className="font-mono">{createdLogin?.tempPassword}</strong></div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (createdLogin) navigator.clipboard?.writeText(`Username: ${createdLogin.username}\nPassword: ${createdLogin.tempPassword}`);
+                  toast({ title: "Copied to clipboard" });
+                }}
+              >
+                Copy
+              </Button>
+              <Button onClick={() => setCreatedLogin(null)}>Done</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
