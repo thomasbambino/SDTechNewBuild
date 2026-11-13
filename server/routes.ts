@@ -141,7 +141,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Handler for zod validation errors
   const validateRequest = (schema: any) => (req: Request, res: Response, next: NextFunction) => {
     try {
-      schema.parse(req.body);
+      // Replace req.body with the parsed result so schema coercions
+      // (e.g. z.coerce.date() turning ISO strings into Date objects)
+      // actually reach the route handler.
+      req.body = schema.parse(req.body);
       next();
     } catch (error) {
       if (error instanceof ZodError) {
@@ -489,7 +492,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/projects/:id", isAuthenticated, hasRole("admin"), async (req, res, next) => {
     try {
       const projectId = parseInt(req.params.id);
-      const updatedProject = await storage.updateProject(projectId, req.body);
+      // Coerce ISO date strings → Date for drizzle; partial() so any
+      // subset of fields is fine on an update.
+      const body = insertProjectSchema.partial().parse(req.body);
+      const updatedProject = await storage.updateProject(projectId, body);
 
       if (!updatedProject) {
         return res.status(404).json({ message: "Project not found" });
