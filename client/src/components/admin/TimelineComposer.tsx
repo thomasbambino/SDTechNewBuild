@@ -67,13 +67,17 @@ export default function TimelineComposer({ projects, clientId, defaultProjectId 
       return null;
     }
     if (!isHeic) return file;
+    // Try the client-side HEIC → JPEG fast path first. If heic2any chokes
+    // on this particular variant (Live Photo, 10-bit HDR, newer brand),
+    // fall through and upload the raw HEIC — the server has a heic-convert
+    // fallback that handles the variants heic2any can't.
     try {
       const converted = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.92 });
       const blob = Array.isArray(converted) ? converted[0] : converted;
       return new File([blob], file.name.replace(/\.(heic|heif)$/i, ".jpg"), { type: "image/jpeg" });
     } catch {
-      toast({ title: "HEIC conversion failed", description: `Couldn't convert ${file.name}. Export it as JPEG from Photos and try again.`, variant: "destructive" });
-      return null;
+      // Hand off the raw HEIC to the server.
+      return new File([file], file.name, { type: file.type || "image/heic" });
     }
   };
 
