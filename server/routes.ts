@@ -19,6 +19,9 @@ import { fromZodError } from "zod-validation-error";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+// `heic-convert` lets the server rescue HEIC files when client-side
+// conversion (heic2any) chokes on newer / HDR / Live Photo variants.
+import heicConvert from "heic-convert";
 
 
 
@@ -58,29 +61,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return mimeToExt[mimeType] || '.img';
   };
 
-  // Verify a file on disk actually begins with one of the allowed image
-  // magic-byte signatures. Client-supplied mimetype is NOT trusted.
-  const isAllowedImageFile = (filePath: string): boolean => {
+  // Read the leading bytes of a file once and reuse for magic-byte checks.
+  const readLeadingBytes = (filePath: string, length: number): Buffer | null => {
     try {
       const fd = fs.openSync(filePath, 'r');
-      const buf = Buffer.alloc(12);
-      fs.readSync(fd, buf, 0, 12, 0);
+      const buf = Buffer.alloc(length);
+      fs.readSync(fd, buf, 0, length, 0);
       fs.closeSync(fd);
-      // PNG: 89 50 4E 47 0D 0A 1A 0A
-      if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47) return true;
-      // JPEG: FF D8 FF
-      if (buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF) return true;
-      // GIF: 47 49 46 38 ("GIF8")
-      if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x38) return true;
-      // WebP: 52 49 46 46 ?? ?? ?? ?? 57 45 42 50 ("RIFF....WEBP")
-      if (buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46 &&
-          buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50) return true;
-      // ICO: 00 00 01 00
-      if (buf[0] === 0x00 && buf[1] === 0x00 && buf[2] === 0x01 && buf[3] === 0x00) return true;
-      return false;
+      return buf;
     } catch {
-      return false;
+      return null;
     }
+  };
+
+  const isBrowserSafeImage = (buf: Buffer): boolean => {
+    // PNG: 89 50 4E 47 0D 0A 1A 0A
+    if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47) return true;
+    // JPEG: FF D8 FF
+    if (buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF) return true;
+    // GIF: 47 49 46 38 ("GIF8")
+    if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x38) return true;
+    // WebP: 52 49 46 46 ?? ?? ?? ?? 57 45 42 50 ("RIFF....WEBP")
+    if (buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46 &&
+        buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50) return true;
+    // ICO: 00 00 01 00
+    if (buf[0] === 0x00 && buf[1] === 0x00 && buf[2] === 0x01 && buf[3] === 0x00) return true;
+    return false;
+  };
+
+  const isHeicFile = (buf: Buffer): boolean => {
+    // HEIC/HEIF is ISOBMFF: bytes 4..7 = "ftyp", bytes 8..11 = brand code
+    // like "heic", "heix", "hevc", "mif1", "msf1", "heim", "heis".
+    if (buf.length < 12) return false;
+    if (buf[4] !== 0x66 || buf[5] !== 0x74 || buf[6] !== 0x79 || buf[7] !== 0x70) return false;
+    const brand = buf.slice(8, 12).toString('ascii');
+    return ['heic', 'heix', 'hevc', 'heim', 'heis', 'mif1', 'msf1'].includes(brand);
   };
   
   // Configure multer for file uploads.
@@ -107,17 +122,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const upload = multer({
     storage: multerStorage,
     fileFilter: (req, file, cb) => {
-      // Allow-list of raster image mimetypes. SVG and anything else is rejected.
-      // mimetype is client-supplied — magic bytes are re-verified post-write
-      // via verifyUploadedImage() on each route that uses this upload.
+      // Allow-list of raster image mimetypes. SVG is intentionally rejected.
+      // HEIC/HEIF is accepted here but transcoded to JPEG on disk below —
+      // either by heic2any client-side or heicConvert server-side as a
+      // fallback — so downstream consumers always see a browser-safe image.
+      // The mimetype is client-supplied; magic bytes are re-verified
+      // post-write via verifyUploadedImage() on each route that uses this
+      // upload.
       const allowed = new Set([
         'image/jpeg', 'image/png', 'image/gif', 'image/webp',
         'image/x-icon', 'image/vnd.microsoft.icon',
+        'image/heic', 'image/heif',
       ]);
-      if (allowed.has(file.mimetype)) {
+      const ext = path.extname(file.originalname).toLowerCase();
+      if (allowed.has(file.mimetype) || ext === '.heic' || ext === '.heif') {
         cb(null, true);
       } else {
-        cb(new Error('Only PNG, JPEG, GIF, WebP, or ICO images are allowed'));
+        cb(new Error('Only PNG, JPEG, GIF, WebP, HEIC, or ICO images are allowed'));
       }
     },
     limits: {
@@ -129,11 +150,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Post-write verification: image uploads must pass magic-byte check.
+  // If the bytes are HEIC, transcode to JPEG right here so clients only ever
+  // need to render browser-safe formats.
   // Call this inside a route handler after `upload.single(...)` has run.
-  const verifyUploadedImage = (req: Request, res: Response): boolean => {
+  const verifyUploadedImage = async (req: Request, res: Response): Promise<boolean> => {
     if (!req.file) return true;
     const filePath = path.join(clientUploadDir, req.file.filename);
-    if (!isAllowedImageFile(filePath)) {
+    const header = readLeadingBytes(filePath, 24);
+    if (!header) {
+      try { fs.unlinkSync(filePath); } catch { /* swallow */ }
+      res.status(400).json({ message: "Could not read uploaded file" });
+      return false;
+    }
+
+    if (isHeicFile(header)) {
+      try {
+        const input = fs.readFileSync(filePath);
+        const output = await heicConvert({
+          buffer: input as unknown as ArrayBufferLike,
+          format: "JPEG",
+          quality: 0.9,
+        });
+        const newFilename = req.file.filename.replace(/\.[^.]+$/, "") + ".jpg";
+        const newPath = path.join(clientUploadDir, newFilename);
+        fs.writeFileSync(newPath, Buffer.from(output));
+        // Delete the HEIC original and swap req.file to point at the JPEG so
+        // the route handler sees the transcoded result.
+        try { fs.unlinkSync(filePath); } catch { /* swallow */ }
+        req.file.filename = newFilename;
+        req.file.path = newPath;
+        req.file.mimetype = "image/jpeg";
+        return true;
+      } catch (err) {
+        console.error("HEIC → JPEG conversion failed", err);
+        try { fs.unlinkSync(filePath); } catch { /* swallow */ }
+        res.status(400).json({ message: "Could not convert HEIC image. Try exporting as JPEG from Photos and re-uploading." });
+        return false;
+      }
+    }
+
+    if (!isBrowserSafeImage(header)) {
       try { fs.unlinkSync(filePath); } catch { /* swallow */ }
       res.status(400).json({ message: "Uploaded file is not a valid image" });
       return false;
@@ -892,7 +948,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
       }
-      if (!verifyUploadedImage(req, res)) return;
+      if (!(await verifyUploadedImage(req, res))) return;
 
       const relativePath = `/uploads/${req.file.filename}`;
 
@@ -925,7 +981,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
       }
-      if (!verifyUploadedImage(req, res)) return;
+      if (!(await verifyUploadedImage(req, res))) return;
 
       const relativePath = `/uploads/${req.file.filename}`;
 
@@ -961,7 +1017,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
       }
-      if (!verifyUploadedImage(req, res)) return;
+      if (!(await verifyUploadedImage(req, res))) return;
       const relativePath = `/uploads/${req.file.filename}`;
       res.json({ url: relativePath });
     } catch (error) {
@@ -1628,7 +1684,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/milestones/image", isAuthenticated, hasRole("admin"), upload.single("image"), async (req, res, next) => {
     try {
       if (!req.file) return res.status(400).json({ message: "No file uploaded" });
-      if (!verifyUploadedImage(req, res)) return;
+      if (!(await verifyUploadedImage(req, res))) return;
       const relativePath = `/uploads/${req.file.filename}`;
       res.json({ url: relativePath });
     } catch (err) { next(err); }

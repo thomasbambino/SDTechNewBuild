@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import { formatBytes } from "@/lib/utils";
@@ -98,6 +99,7 @@ type ProjectFormValues = z.infer<typeof insertProjectSchema>;
 
 export default function ProjectsPage() {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
@@ -727,7 +729,11 @@ export default function ProjectsPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredProjects.map((project) => (
-                <Card key={project.id}>
+                <Card
+                  key={project.id}
+                  className="cursor-pointer hover:border-primary/40 transition-colors"
+                  onClick={() => setLocation(`/admin/projects/${project.id}`)}
+                >
                   <CardHeader className="pb-2">
                     <div className="flex justify-between items-start">
                       <div className="flex items-center">
@@ -741,6 +747,7 @@ export default function ProjectsPage() {
                           </CardDescription>
                         </div>
                       </div>
+                      <div onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -748,6 +755,9 @@ export default function ProjectsPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => setLocation(`/admin/projects/${project.id}`)}>
+                            View
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleEditProject(project)}>
                             Edit
                           </DropdownMenuItem>
@@ -765,6 +775,7 @@ export default function ProjectsPage() {
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent>
@@ -797,7 +808,7 @@ export default function ProjectsPage() {
                       variant="outline"
                       size="sm"
                       className="ml-auto"
-                      onClick={() => setInvoicesProject(project)}
+                      onClick={(e) => { e.stopPropagation(); setInvoicesProject(project); }}
                     >
                       <FileText className="h-4 w-4 mr-1" />
                       Invoices
