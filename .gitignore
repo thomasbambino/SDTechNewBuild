@@ -4,3 +4,6 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+
+# Runtime user uploads — Railway volume mounts here in production.
+client/public/uploads/
