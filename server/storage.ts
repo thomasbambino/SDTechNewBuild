@@ -864,7 +864,8 @@ export class DatabaseStorage implements IStorage {
   
   async getContentByType(type: string): Promise<Content[]> {
     // isActive defaults to true but legacy rows may be NULL — treat NULL as active
-    // so pre-existing content keeps rendering.
+    // so pre-existing content keeps rendering. Order by the admin-controlled
+    // `order` column so reordering in the editor affects the public site.
     return await this.db
       .select()
       .from(contents)
@@ -873,7 +874,8 @@ export class DatabaseStorage implements IStorage {
           eq(contents.type, type),
           or(eq(contents.isActive, true), isNull(contents.isActive)),
         )
-      );
+      )
+      .orderBy(asc(contents.order), asc(contents.id));
   }
   
   async createContent(content: InsertContent): Promise<Content> {

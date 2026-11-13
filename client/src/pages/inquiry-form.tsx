@@ -79,14 +79,9 @@ export default function InquiryForm() {
     { value: "data_analytics", label: "Data Analytics" },
   ];
 
-  // Skip the first row only if it's being used as a section header
-  // (no content and no icon) — same convention as the public home page.
-  const serviceHasHeader = cmsServices.length > 0 && !cmsServices[0].content && !cmsServices[0].imagePath;
-  const usableServices = serviceHasHeader ? cmsServices.slice(1) : cmsServices;
-
   const serviceOptions = [
-    ...(usableServices.length > 0
-      ? usableServices.map(s => ({ value: s.title?.toLowerCase().replace(/\s+/g, "_") ?? "service", label: s.title ?? "Service" }))
+    ...(cmsServices.length > 0
+      ? cmsServices.map(s => ({ value: s.title?.toLowerCase().replace(/\s+/g, "_") ?? "service", label: s.title ?? "Service" }))
       : defaultServiceOptions),
     { value: "other", label: "Other" },
   ];

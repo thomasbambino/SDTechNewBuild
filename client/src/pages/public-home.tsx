@@ -173,12 +173,9 @@ export default function PublicHome() {
     queryKey: ['/api/content/testimonial']
   });
 
-  // Testimonial header detection: if first item has no content it's a section header
-  // A services row is treated as a section header only if it has no body content
-  // AND no icon/image — same convention as testimonials. Otherwise render it as a card.
-  const allServices = serviceContent ?? [];
-  const serviceHasHeader = allServices.length > 0 && !allServices[0].content && !allServices[0].imagePath;
-  const serviceItems = serviceHasHeader ? allServices.slice(1) : allServices;
+  // Every service row from the CMS renders as a card — there is no admin UI
+  // for marking a row as a "section header" so we shouldn't silently drop any.
+  const serviceItems = serviceContent ?? [];
 
   const allTestimonials = testimonialContent ?? [];
   const testimonialHasHeader = allTestimonials.length > 0 && !allTestimonials[0].content;
@@ -393,10 +390,10 @@ export default function PublicHome() {
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16">
               <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-                {serviceHasHeader ? (serviceContent[0].title || "Our Services") : "Our Services"}
+                Our Services
               </h2>
               <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-                {serviceHasHeader ? (serviceContent[0].subtitle || "We offer a range of technology solutions to help your business grow and succeed.") : "We offer a range of technology solutions to help your business grow and succeed."}
+                We offer a range of technology solutions to help your business grow and succeed.
               </p>
             </div>
 
