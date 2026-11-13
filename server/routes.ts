@@ -82,40 +82,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   };
   
-  // Configure multer for file uploads
+  // Configure multer for file uploads.
+  // Everything goes to client/public/uploads — in production this is a
+  // Railway volume mount, so files persist across deploys. There used to
+  // be a second copy to server/public/uploads but it lived on ephemeral
+  // disk and got wiped on every deploy anyway.
   const clientUploadDir = path.join(process.cwd(), 'client/public/uploads');
-  const serverUploadDir = path.join(process.cwd(), 'server/public/uploads');
-  
-  // Create uploads directories if they don't exist
+
   if (!fs.existsSync(clientUploadDir)) {
     fs.mkdirSync(clientUploadDir, { recursive: true });
   }
-  
-  if (!fs.existsSync(serverUploadDir)) {
-    fs.mkdirSync(serverUploadDir, { recursive: true });
-  }
-  
+
   const multerStorage = multer.diskStorage({
-    destination: (req, file, cb) => {
-      // Save to client uploads directory first
-      cb(null, clientUploadDir);
-    },
+    destination: (req, file, cb) => cb(null, clientUploadDir),
     filename: (req, file, cb) => {
       const timestamp = Date.now();
-      // Make sure we preserve the file extension for proper MIME type detection
-      // First check if original filename has an extension, otherwise get one from MIME type
       const ext = path.extname(file.originalname) || getExtensionFromMimeType(file.mimetype);
-      
-      // Use file.fieldname (like 'logo' or 'favicon') to name the file properly
-      // Include the file extension in the name to ensure browser compatibility
       const filename = `${file.fieldname}-${timestamp}${ext}`;
-      console.log(`Creating file: ${filename} with mimetype: ${file.mimetype}`);
-      
-      // Ensure server upload directory exists in case it was deleted
-      if (!fs.existsSync(serverUploadDir)) {
-        fs.mkdirSync(serverUploadDir, { recursive: true });
-      }
-      
       cb(null, filename);
     }
   });
@@ -873,30 +856,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "No file uploaded" });
       }
       if (!verifyUploadedImage(req, res)) return;
-      
-      // Get the relative path to use in the frontend with the file extension included
+
       const relativePath = `/uploads/${req.file.filename}`;
-      
-      // Copy the uploaded file to server/public/uploads for static serving
-      try {
-        const sourceFile = path.join(clientUploadDir, req.file.filename);
-        const destFile = path.join(serverUploadDir, req.file.filename);
-        
-        // Make sure server uploads directory exists
-        if (!fs.existsSync(serverUploadDir)) {
-          fs.mkdirSync(serverUploadDir, { recursive: true });
-        }
-        
-        // Copy the file to server/public/uploads
-        fs.copyFileSync(sourceFile, destFile);
-        console.log(`Logo file copied to server public directory: ${destFile}`);
-      } catch (copyErr) {
-        console.error('Error copying logo file to server directory:', copyErr);
-        // Continue even if copy fails, as we still have the file in client/public
-      }
-      
-      console.log("Updating logo path in settings to:", relativePath);
-      
+
       const updatedSettings = await storage.updateSettings({
         logoPath: relativePath
       });
@@ -927,28 +889,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "No file uploaded" });
       }
       if (!verifyUploadedImage(req, res)) return;
-      
-      // Get the relative path to use in the frontend with the file extension included
+
       const relativePath = `/uploads/${req.file.filename}`;
-      
-      // Copy the uploaded file to server/public/uploads for static serving
-      try {
-        const sourceFile = path.join(clientUploadDir, req.file.filename);
-        const destFile = path.join(serverUploadDir, req.file.filename);
-        
-        // Make sure server uploads directory exists
-        if (!fs.existsSync(serverUploadDir)) {
-          fs.mkdirSync(serverUploadDir, { recursive: true });
-        }
-        
-        // Copy the file to server/public/uploads
-        fs.copyFileSync(sourceFile, destFile);
-        console.log(`Favicon file copied to server public directory: ${destFile}`);
-      } catch (copyErr) {
-        console.error('Error copying favicon file to server directory:', copyErr);
-        // Continue even if copy fails, as we still have the file in client/public
-      }
-      
+
+
       console.log("Updating favicon path in settings to:", relativePath);
       
       const updatedSettings = await storage.updateSettings({
@@ -982,13 +926,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       if (!verifyUploadedImage(req, res)) return;
       const relativePath = `/uploads/${req.file.filename}`;
-      try {
-        const destFile = path.join(serverUploadDir, req.file.filename);
-        if (!fs.existsSync(serverUploadDir)) fs.mkdirSync(serverUploadDir, { recursive: true });
-        fs.copyFileSync(path.join(clientUploadDir, req.file.filename), destFile);
-      } catch (copyErr) {
-        console.error('Error copying content image:', copyErr);
-      }
       res.json({ url: relativePath });
     } catch (error) {
       next(error);
@@ -1003,17 +940,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const relativePath = `/uploads/${req.file.filename}`;
-
-      // Copy to server public directory
-      try {
-        const destFile = path.join(serverUploadDir, req.file.filename);
-        if (!fs.existsSync(serverUploadDir)) {
-          fs.mkdirSync(serverUploadDir, { recursive: true });
-        }
-        fs.copyFileSync(path.join(clientUploadDir, req.file.filename), destFile);
-      } catch (copyErr) {
-        console.error('Error copying document file:', copyErr);
-      }
 
       const projectId = req.body.projectId ? parseInt(req.body.projectId) : null;
       const clientId = req.body.clientId ? parseInt(req.body.clientId) : null;
@@ -1642,11 +1568,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.file) return res.status(400).json({ message: "No file uploaded" });
       if (!verifyUploadedImage(req, res)) return;
       const relativePath = `/uploads/${req.file.filename}`;
-      try {
-        const destFile = path.join(serverUploadDir, req.file.filename);
-        if (!fs.existsSync(serverUploadDir)) fs.mkdirSync(serverUploadDir, { recursive: true });
-        fs.copyFileSync(path.join(clientUploadDir, req.file.filename), destFile);
-      } catch (e) { console.error("copy error", e); }
       res.json({ url: relativePath });
     } catch (err) { next(err); }
   });

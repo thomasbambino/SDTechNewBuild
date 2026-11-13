@@ -7,9 +7,10 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Serve static files from both client/public and server/public
+// Serve user-uploaded files (logo/favicon/docs) from client/public.
+// In production this directory is a Railway volume mount so uploads
+// survive deploys.
 app.use(express.static(path.join(process.cwd(), 'client/public')));
-app.use(express.static(path.join(process.cwd(), 'server/public')));
 
 app.use((req, res, next) => {
   const start = Date.now();
