@@ -128,11 +128,22 @@ export class FreshbooksService {
     }
   }
 
-  private async refreshAccessToken(): Promise<ApiConnection> {
-    try {
+  // Refresh 60 seconds before expiry so we never hand out a token that's
+  // about to die mid-request.
+  private static readonly REFRESH_SAFETY_MS = 60 * 1000;
+
+  // Single in-flight refresh promise — if multiple API calls race through
+  // getAccessToken when the token is stale, they share one refresh instead
+  // of each posting to /oauth/token with the (soon-rotated) refresh_token.
+  private refreshInFlight: Promise<ApiConnection> | null = null;
+
+  public async refreshAccessToken(): Promise<ApiConnection> {
+    if (this.refreshInFlight) return this.refreshInFlight;
+
+    this.refreshInFlight = (async () => {
       const integration = await storage.getApiConnection('freshbooks');
-      if (!integration) {
-        throw new Error('No FreshBooks integration found');
+      if (!integration?.refreshToken) {
+        throw new Error('No FreshBooks refresh token stored. Please reconnect.');
       }
 
       const response = await fetch(`${this.baseUrl}/auth/oauth/token`, {
@@ -147,42 +158,58 @@ export class FreshbooksService {
       });
 
       if (!response.ok) {
+        const body = await response.text().catch(() => '');
+        console.error('FreshBooks token refresh failed', response.status, body);
         throw new Error(`Failed to refresh token: ${response.statusText}`);
       }
 
       const data: FreshbooksTokenResponse = await response.json();
       const expiresAt = new Date(Date.now() + data.expires_in * 1000);
 
-      return await storage.updateApiConnection('freshbooks', {
+      // FreshBooks rotates the refresh_token on every refresh, but if the
+      // response ever omits one (or a proxy strips it), keep the existing
+      // one rather than nulling it out and locking ourselves out.
+      const nextRefreshToken = data.refresh_token || integration.refreshToken;
+
+      const updated = await storage.updateApiConnection('freshbooks', {
         provider: 'freshbooks',
         accessToken: data.access_token,
-        refreshToken: data.refresh_token,
+        refreshToken: nextRefreshToken,
         expiresAt,
         isActive: true,
       });
-    } catch (error) {
-      console.error('Error refreshing access token:', error);
-      throw error;
+      return updated!;
+    })();
+
+    try {
+      return await this.refreshInFlight;
+    } finally {
+      this.refreshInFlight = null;
     }
   }
 
   private async getAccessToken(): Promise<string> {
-    try {
-      const integration = await storage.getApiConnection('freshbooks');
-      if (!integration?.accessToken) {
-        throw new Error('No FreshBooks integration found');
-      }
+    const integration = await storage.getApiConnection('freshbooks');
+    if (!integration?.accessToken) {
+      throw new Error('No FreshBooks integration found');
+    }
 
-      if (integration.expiresAt && new Date() >= new Date(integration.expiresAt)) {
+    const expiresAt = integration.expiresAt ? new Date(integration.expiresAt).getTime() : 0;
+    const needsRefresh = !expiresAt || Date.now() >= expiresAt - FreshbooksService.REFRESH_SAFETY_MS;
+
+    if (needsRefresh) {
+      try {
         const refreshed = await this.refreshAccessToken();
         return refreshed.accessToken!;
+      } catch (err) {
+        // If we still have a non-expired token, fall through and use it;
+        // otherwise rethrow so the caller surfaces the error.
+        if (expiresAt && Date.now() < expiresAt) return integration.accessToken;
+        throw err;
       }
-
-      return integration.accessToken;
-    } catch (error) {
-      console.error('Error getting access token:', error);
-      throw error;
     }
+
+    return integration.accessToken;
   }
 
   // API methods for clients

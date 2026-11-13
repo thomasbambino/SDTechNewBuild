@@ -966,7 +966,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Freshbooks API connection routes
   app.get("/api/api-connections/freshbooks", isAuthenticated, hasRole("admin"), async (req, res, next) => {
     try {
-      const connection = await storage.getApiConnection("freshbooks");
+      let connection = await storage.getApiConnection("freshbooks");
+
+      // If the token is expired (or about to be) and we have a refresh
+      // token, refresh it before responding so the admin page doesn't
+      // show a stale "please reconnect" state.
+      if (connection?.refreshToken && connection.isActive) {
+        const expiresAt = connection.expiresAt ? new Date(connection.expiresAt).getTime() : 0;
+        const needsRefresh = !expiresAt || Date.now() >= expiresAt - 60_000;
+        if (needsRefresh) {
+          try {
+            const { freshbooksService } = await import("./freshbooks");
+            await freshbooksService.refreshAccessToken();
+            connection = await storage.getApiConnection("freshbooks");
+          } catch (err) {
+            console.error("Auto-refresh of FreshBooks token failed:", err);
+          }
+        }
+      }
+
       res.json(connection || null);
     } catch (error) {
       next(error);
@@ -1098,10 +1116,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const tokenData = await tokenRes.json();
       const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000);
 
+      // Preserve the existing refresh_token if the response omits one
+      // (FreshBooks rotates on each refresh, but if that ever fails to
+      // come back we don't want to erase the only way to re-auth).
       const updated = await storage.updateApiConnection("freshbooks", {
         provider: "freshbooks",
         accessToken: tokenData.access_token,
-        refreshToken: tokenData.refresh_token,
+        refreshToken: tokenData.refresh_token || connection.refreshToken,
         expiresAt,
         isActive: true,
       });
