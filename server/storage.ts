@@ -37,6 +37,8 @@ export interface IStorage {
   // Client operations
   getClient(id: number): Promise<Client | undefined>;
   getClientByUserId(userId: number): Promise<Client | undefined>;
+  getClientForUser(userId: number): Promise<Client | undefined>; // owner OR sub-user
+  getClientMembers(clientId: number): Promise<User[]>;
   createClient(client: InsertClient): Promise<Client>;
   updateClient(id: number, client: Partial<Client>): Promise<Client | undefined>;
   getClientRelatedCounts(id: number): Promise<{ projects: number; invoices: number; documents: number; messages: number; notes: number }>;
@@ -533,6 +535,7 @@ export class DatabaseStorage implements IStorage {
       email: user.email,
       role: user.role,
       status: user.status,
+      clientId: user["client_id"] ?? user["clientId"] ?? null,
       createdAt: user["createdat"] || user["createdAt"] || new Date(),
       updatedAt: user["updatedat"] || user["updatedAt"] || new Date()
     };
@@ -551,6 +554,7 @@ export class DatabaseStorage implements IStorage {
       email: user.email,
       role: user.role,
       status: user.status,
+      clientId: user["client_id"] ?? user["clientId"] ?? null,
       createdAt: user["createdat"] || user["createdAt"] || new Date(),
       updatedAt: user["updatedat"] || user["updatedAt"] || new Date()
     };
@@ -569,6 +573,7 @@ export class DatabaseStorage implements IStorage {
       email: user.email,
       role: user.role,
       status: user.status,
+      clientId: user["client_id"] ?? user["clientId"] ?? null,
       createdAt: user["createdat"] || user["createdAt"] || new Date(),
       updatedAt: user["updatedat"] || user["updatedAt"] || new Date()
     };
@@ -615,6 +620,20 @@ export class DatabaseStorage implements IStorage {
   async getClientByUserId(userId: number): Promise<Client | undefined> {
     const [client] = await this.db.select().from(clients).where(eq(clients.userId, userId));
     return client;
+  }
+
+  async getClientForUser(userId: number): Promise<Client | undefined> {
+    // Primary (owner) first…
+    const primary = await this.getClientByUserId(userId);
+    if (primary) return primary;
+    // …otherwise sub-user: look up the user's client_id.
+    const user = await this.getUser(userId);
+    if (!user || user.clientId == null) return undefined;
+    return this.getClient(user.clientId);
+  }
+
+  async getClientMembers(clientId: number): Promise<User[]> {
+    return await this.db.select().from(users).where(eq(users.clientId, clientId));
   }
   
   async createClient(client: InsertClient): Promise<Client> {

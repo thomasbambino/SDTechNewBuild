@@ -17,6 +17,10 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   role: text("role").notNull().default("client"), // admin, client, pending
   status: text("status").notNull().default("active"), // active, disabled
+  // For role="client": which client this user belongs to. Multiple users can
+  // share a clientId (owner + team members). clients.userId still identifies
+  // the designated "primary" owner.
+  clientId: integer("client_id"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

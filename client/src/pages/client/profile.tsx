@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
+import TeamMembers from "@/components/dashboard/TeamMembers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -72,6 +73,25 @@ const passwordFormSchema = z.object({
 
 type ProfileFormValues = z.infer<typeof profileFormSchema>;
 type PasswordFormValues = z.infer<typeof passwordFormSchema>;
+
+function TeamTab({ userId }: { userId: number | undefined }) {
+  const { data } = useQuery<{ client: { id: number; userId: number | null } }>({
+    queryKey: ["/api/dashboard/client"],
+  });
+  if (!data?.client) {
+    return (
+      <Card className="p-6 text-center text-sm text-muted-foreground">
+        Loading your account…
+      </Card>
+    );
+  }
+  return (
+    <TeamMembers
+      clientId={data.client.id}
+      canManage={data.client.userId === userId}
+    />
+  );
+}
 
 export default function ClientProfilePage() {
   const { toast } = useToast();
@@ -182,10 +202,14 @@ export default function ClientProfilePage() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="profile" className="flex items-center">
               <User className="h-4 w-4 mr-2" />
-              Profile Information
+              Profile
+            </TabsTrigger>
+            <TabsTrigger value="team" className="flex items-center">
+              <User className="h-4 w-4 mr-2" />
+              Team
             </TabsTrigger>
             <TabsTrigger value="security" className="flex items-center">
               <Shield className="h-4 w-4 mr-2" />
@@ -306,6 +330,11 @@ export default function ClientProfilePage() {
                 </form>
               </Form>
             </Card>
+          </TabsContent>
+
+          {/* Team Tab */}
+          <TabsContent value="team">
+            <TeamTab userId={user?.id} />
           </TabsContent>
 
           {/* Security Tab */}

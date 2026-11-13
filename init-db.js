@@ -222,6 +222,13 @@ const createTables = async () => {
     await client.query(`ALTER TABLE client_notes ADD COLUMN IF NOT EXISTS fields TEXT;`);
     await client.query(`ALTER TABLE client_notes ALTER COLUMN content SET DEFAULT '';`);
 
+    // Sub-users: let multiple user accounts share the same client.
+    // users.client_id links a user to a client (primary + any team members).
+    // clients.user_id still identifies the designated primary owner.
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS client_id INTEGER REFERENCES clients(id);`);
+    // Backfill: for any existing client with a linked user, set that user's client_id.
+    await client.query(`UPDATE users u SET client_id = c.id FROM clients c WHERE c.user_id = u.id AND u.client_id IS NULL;`);
+
     // Add status to users if it doesn't exist
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';`);
 

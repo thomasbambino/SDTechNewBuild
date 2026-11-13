@@ -293,7 +293,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/dashboard/client", isAuthenticated, async (req, res, next) => {
     try {
       // Get client associated with the current user
-      const client = await storage.getClientByUserId(req.user?.id as number);
+      const client = await storage.getClientForUser(req.user?.id as number);
 
       if (!client) {
         return res.status(404).json({ message: "Client profile not found" });
@@ -325,7 +325,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!req.query.clientId) return res.status(400).json({ message: "clientId required" });
         clientId = parseInt(req.query.clientId as string);
       } else {
-        const client = await storage.getClientByUserId(req.user!.id);
+        const client = await storage.getClientForUser(req.user!.id);
         if (!client) return res.status(404).json({ message: "Client profile not found" });
         clientId = client.id;
       }
@@ -479,7 +479,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // For client users, find their client record and get projects
-      const client = await storage.getClientByUserId(req.user?.id as number);
+      const client = await storage.getClientForUser(req.user?.id as number);
       
       if (!client) {
         return res.status(404).json({ message: "Client profile not found" });
@@ -520,7 +520,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // If user is not admin, check if the project belongs to their client
       if (req.user?.role !== "admin") {
-        const client = await storage.getClientByUserId(req.user?.id as number);
+        const client = await storage.getClientForUser(req.user?.id as number);
         
         if (!client || project.clientId !== client.id) {
           return res.status(403).json({ message: "Forbidden: You don't have access to this project" });
@@ -591,7 +591,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // For client users, find their client record and get invoices
-      const client = await storage.getClientByUserId(req.user?.id as number);
+      const client = await storage.getClientForUser(req.user?.id as number);
       
       if (!client) {
         return res.status(404).json({ message: "Client profile not found" });
@@ -615,7 +615,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // If user is not admin, check if the project belongs to their client
       if (req.user?.role !== "admin") {
-        const client = await storage.getClientByUserId(req.user?.id as number);
+        const client = await storage.getClientForUser(req.user?.id as number);
         
         if (!client || project.clientId !== client.id) {
           return res.status(403).json({ message: "Forbidden: You don't have access to this project" });
@@ -644,7 +644,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // For client users, find their client record and get documents
-      const client = await storage.getClientByUserId(req.user?.id as number);
+      const client = await storage.getClientForUser(req.user?.id as number);
       
       if (!client) {
         return res.status(404).json({ message: "Client profile not found" });
@@ -661,7 +661,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // If not admin, ensure document is associated with user's client
       if (req.user?.role !== "admin") {
-        const client = await storage.getClientByUserId(req.user?.id as number);
+        const client = await storage.getClientForUser(req.user?.id as number);
         
         if (!client) {
           return res.status(404).json({ message: "Client profile not found" });
@@ -1538,7 +1538,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Mark admin-received messages (from client) as read
         await storage.markMessagesReadForClient(clientId, req.user.id);
       } else {
-        const client = await storage.getClientByUserId(req.user!.id);
+        const client = await storage.getClientForUser(req.user!.id);
         if (!client) return res.status(404).json({ message: "Client profile not found" });
         clientId = client.id;
         await storage.markMessagesReadForClient(clientId, req.user!.id);
@@ -1559,7 +1559,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!bodyClientId) return res.status(400).json({ message: "clientId required" });
         clientId = parseInt(bodyClientId);
       } else {
-        const client = await storage.getClientByUserId(req.user!.id);
+        const client = await storage.getClientForUser(req.user!.id);
         if (!client) return res.status(404).json({ message: "Client profile not found" });
         clientId = client.id;
       }
@@ -1576,7 +1576,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const projectId = parseInt(req.params.projectId);
       if (req.user?.role !== "admin") {
         // Verify client owns this project
-        const client = await storage.getClientByUserId(req.user!.id);
+        const client = await storage.getClientForUser(req.user!.id);
         if (!client) return res.status(403).json({ message: "Forbidden" });
         const project = await storage.getProject(projectId);
         if (!project || project.clientId !== client.id) return res.status(403).json({ message: "Forbidden" });
@@ -1640,7 +1640,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!req.query.clientId) return res.status(400).json({ message: "clientId required" });
         clientId = parseInt(req.query.clientId as string);
       } else {
-        const client = await storage.getClientByUserId(req.user!.id);
+        const client = await storage.getClientForUser(req.user!.id);
         if (!client) return res.status(404).json({ message: "Client profile not found" });
         clientId = client.id;
       }
@@ -1691,6 +1691,114 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (err) { next(err); }
   });
 
+  // ── Client team members (sub-users) ───────────────────────────────────────
+
+  // Helper: can the current user manage members of this client?
+  // Primary owner OR admin.
+  const canManageMembers = async (req: Request, clientId: number): Promise<boolean> => {
+    if (!req.user) return false;
+    if (req.user.role === "admin") return true;
+    const c = await storage.getClient(clientId);
+    return !!c && c.userId === req.user.id;
+  };
+
+  app.get("/api/clients/:id/members", isAuthenticated, async (req, res, next) => {
+    try {
+      const clientId = parseInt(req.params.id);
+      const current = await storage.getClientForUser(req.user!.id);
+      if (req.user!.role !== "admin" && (!current || current.id !== clientId)) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      const [client, members] = await Promise.all([
+        storage.getClient(clientId),
+        storage.getClientMembers(clientId),
+      ]);
+      if (!client) return res.status(404).json({ message: "Client not found" });
+      const safe = members.map(({ password, ...u }) => ({
+        ...u,
+        isPrimary: client.userId === u.id,
+      }));
+      res.json(safe);
+    } catch (err) { next(err); }
+  });
+
+  app.post("/api/clients/:id/members", isAuthenticated, async (req, res, next) => {
+    try {
+      const clientId = parseInt(req.params.id);
+      if (!(await canManageMembers(req, clientId))) {
+        return res.status(403).json({ message: "Only the primary user or an admin can add team members" });
+      }
+
+      const { name, email } = req.body as { name?: string; email?: string };
+      if (!name?.trim() || !email?.trim()) {
+        return res.status(400).json({ message: "Name and email are required" });
+      }
+
+      const existingEmail = await storage.getUserByEmail(email);
+      if (existingEmail) return res.status(400).json({ message: "A user with that email already exists" });
+
+      // Generate a username similar to create-login flow
+      const baseUsername = name.toLowerCase().replace(/[^a-z0-9]/g, ".")
+        .replace(/\.+/g, ".").replace(/^\.|\.$/g, "")
+        || email.split("@")[0];
+      let username = baseUsername;
+      let suffix = 1;
+      while (await storage.getUserByUsername(username)) {
+        username = `${baseUsername}${suffix++}`;
+      }
+
+      const tempPassword = randomBytes(9).toString("base64url");
+      const newUser = await storage.createUser({
+        username,
+        password: await hashPassword(tempPassword),
+        name,
+        email,
+        role: "client",
+      });
+      // Set client_id separately since InsertUser doesn't include it as required.
+      await storage.updateUser(newUser.id, { clientId });
+
+      await storage.createActivity({
+        userId: req.user?.id,
+        action: "Team Member Added",
+        details: `Added team member ${username} to client ${clientId}`,
+        entityType: "client",
+        entityId: clientId,
+      });
+
+      res.status(201).json({ username, tempPassword, userId: newUser.id });
+    } catch (err) { next(err); }
+  });
+
+  app.delete("/api/clients/:id/members/:userId", isAuthenticated, async (req, res, next) => {
+    try {
+      const clientId = parseInt(req.params.id);
+      const userId = parseInt(req.params.userId);
+      if (!(await canManageMembers(req, clientId))) {
+        return res.status(403).json({ message: "Only the primary user or an admin can remove team members" });
+      }
+      const client = await storage.getClient(clientId);
+      if (!client) return res.status(404).json({ message: "Client not found" });
+      if (client.userId === userId) {
+        return res.status(400).json({ message: "Cannot remove the primary user. Reassign the primary first." });
+      }
+      const target = await storage.getUser(userId);
+      if (!target || target.clientId !== clientId) {
+        return res.status(404).json({ message: "Member not found on this client" });
+      }
+      // Soft disconnect — unlink the user from the client but preserve the row.
+      await storage.updateUser(userId, { clientId: null, status: "disabled" });
+      await storage.createActivity({
+        userId: req.user?.id,
+        action: "Team Member Removed",
+        details: `Removed team member ${target.username} from client ${clientId}`,
+        entityType: "client",
+        entityId: clientId,
+      });
+      res.sendStatus(204);
+    } catch (err) { next(err); }
+  });
+
   // Create a login account for an existing client
   app.post("/api/clients/:id/create-login", isAuthenticated, hasRole("admin"), async (req, res, next) => {
     try {
@@ -1726,6 +1834,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       await storage.updateClient(clientId, { userId: newUser.id });
+      // Also link the user → client so sub-user logic keeps a consistent invariant.
+      await storage.updateUser(newUser.id, { clientId });
 
       res.json({ username, tempPassword, userId: newUser.id });
     } catch (error) {

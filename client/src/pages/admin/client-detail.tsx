@@ -32,6 +32,7 @@ import TimelineComposer from "@/components/admin/TimelineComposer";
 import TimelineFeed, { TimelineItem } from "@/components/dashboard/TimelineFeed";
 import NoteCard from "@/components/dashboard/NoteCard";
 import NoteEditor, { NoteDraft } from "@/components/admin/NoteEditor";
+import TeamMembers from "@/components/dashboard/TeamMembers";
 import { Plus, Trash2, Pencil } from "lucide-react";
 
 interface ClientNote {
@@ -244,6 +245,7 @@ export default function ClientDetailPage() {
             <TabsTrigger value="invoices">Invoices ({invoices.length})</TabsTrigger>
             <TabsTrigger value="documents">Documents ({documents.length})</TabsTrigger>
             <TabsTrigger value="notes">Notes ({notes.length})</TabsTrigger>
+            <TabsTrigger value="team">Team</TabsTrigger>
             <TabsTrigger value="messages">Messages ({messages.length})</TabsTrigger>
           </TabsList>
 
@@ -438,6 +440,10 @@ export default function ClientDetailPage() {
               initial={editingNote}
               invalidateKeys={[`/api/client-notes?clientId=${clientId}`]}
             />
+          </TabsContent>
+
+          <TabsContent value="team" className="mt-4">
+            <TeamMembers clientId={clientId} canManage={true} />
           </TabsContent>
 
           <TabsContent value="messages" className="mt-4">
