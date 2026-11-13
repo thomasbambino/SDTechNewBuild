@@ -174,6 +174,12 @@ export default function PublicHome() {
   });
 
   // Testimonial header detection: if first item has no content it's a section header
+  // A services row is treated as a section header only if it has no body content
+  // AND no icon/image — same convention as testimonials. Otherwise render it as a card.
+  const allServices = serviceContent ?? [];
+  const serviceHasHeader = allServices.length > 0 && !allServices[0].content && !allServices[0].imagePath;
+  const serviceItems = serviceHasHeader ? allServices.slice(1) : allServices;
+
   const allTestimonials = testimonialContent ?? [];
   const testimonialHasHeader = allTestimonials.length > 0 && !allTestimonials[0].content;
   const testimonialSectionTitle = testimonialHasHeader ? (allTestimonials[0].title || "What Our Clients Say") : "What Our Clients Say";
@@ -387,15 +393,15 @@ export default function PublicHome() {
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16">
               <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-                {serviceContent?.[0]?.title || "Our Services"}
+                {serviceHasHeader ? (serviceContent[0].title || "Our Services") : "Our Services"}
               </h2>
               <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-                {serviceContent?.[0]?.subtitle || "We offer a range of technology solutions to help your business grow and succeed."}
+                {serviceHasHeader ? (serviceContent[0].subtitle || "We offer a range of technology solutions to help your business grow and succeed.") : "We offer a range of technology solutions to help your business grow and succeed."}
               </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-              {((serviceContent ?? []).slice(1)).map((service, index) => {
+              {serviceItems.map((service, index) => {
                 const iconKey = service.imagePath?.startsWith('icon:') ? service.imagePath.slice(5) : null;
                 const icon = iconKey
                   ? (SERVICE_ICON_MAP[iconKey] ?? <Briefcase className="h-7 w-7" strokeWidth={1.75} />)
