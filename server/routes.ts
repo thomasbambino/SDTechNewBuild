@@ -22,6 +22,11 @@ import fs from "fs";
 // `heic-convert` lets the server rescue HEIC files when client-side
 // conversion (heic2any) chokes on newer / HDR / Live Photo variants.
 import heicConvert from "heic-convert";
+import {
+  encryptFieldsArray,
+  decryptFieldsArray,
+  assertNoteCryptoReady,
+} from "./noteCrypto";
 
 
 
@@ -42,6 +47,9 @@ const hasRole = (role: string) => (req: Request, res: Response, next: NextFuncti
 };
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Fail fast if encryption for secret note fields isn't configured.
+  assertNoteCryptoReady();
+
   // Set up authentication routes
   setupAuth(app);
 
@@ -1716,7 +1724,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         clientId = client.id;
       }
       const notes = await storage.getClientNotesByClientId(clientId);
-      res.json(notes);
+      // Decrypt the `isSecret` values inside fields before handing them to
+      // the authenticated user. Non-secret fields pass through unchanged.
+      const materialized = notes.map(n => ({
+        ...n,
+        fields: n.fields ? JSON.stringify(decryptFieldsArray(n.fields)) : null,
+      }));
+      res.json(materialized);
     } catch (err) { next(err); }
   });
 
@@ -1727,12 +1741,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const hasBody = (typeof content === "string" && content.trim().length > 0)
         || (Array.isArray(fields) && fields.length > 0);
       if (!hasBody) return res.status(400).json({ message: "Either content or at least one field is required" });
+      const encryptedFields = Array.isArray(fields) && fields.length > 0
+        ? JSON.stringify(encryptFieldsArray(fields))
+        : null;
       const note = await storage.createClientNote({
         clientId: parseInt(clientId),
         title,
         content: content ?? "",
         category: category ?? "general",
-        fields: Array.isArray(fields) && fields.length > 0 ? JSON.stringify(fields) : null,
+        fields: encryptedFields,
         isPinned: !!isPinned,
         createdBy: req.user!.id,
       });
@@ -1743,11 +1760,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/client-notes/:id", isAuthenticated, hasRole("admin"), async (req, res, next) => {
     try {
       const { title, content, isPinned, category, fields } = req.body;
+      const encryptedFields = Array.isArray(fields) && fields.length > 0
+        ? JSON.stringify(encryptFieldsArray(fields))
+        : null;
       const updated = await storage.updateClientNote(parseInt(req.params.id), {
         title,
         content: content ?? "",
         category: category ?? "general",
-        fields: Array.isArray(fields) && fields.length > 0 ? JSON.stringify(fields) : null,
+        fields: encryptedFields,
         isPinned: !!isPinned,
       });
       if (!updated) return res.status(404).json({ message: "Note not found" });

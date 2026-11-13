@@ -21,7 +21,7 @@ export default function ClientNotesPage() {
             Notes & Details
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Wi-Fi credentials, VLAN assignments, access codes, and other reference info your technician left for you.
+            Important reference info your technician left for you.
           </p>
         </div>
 

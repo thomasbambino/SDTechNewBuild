@@ -216,7 +216,7 @@ export default function ClientDashboard() {
                     <div className="px-5 py-6 text-center">
                       <p className="text-sm text-gray-500">No notes yet.</p>
                       <p className="text-xs text-gray-400 mt-1">
-                        Wi-Fi credentials and other reference info your technician leaves will appear here.
+                        Important reference info your technician leaves will appear here.
                       </p>
                     </div>
                   </Card>
