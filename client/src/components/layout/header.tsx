@@ -174,11 +174,11 @@ export default function Header({ sidebarOpen, setSidebarOpen, themeMode, setThem
                     Your Profile
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href={user?.role === "admin" ? "/admin/branding" : "/client/settings"}>
-                    Settings
-                  </Link>
-                </DropdownMenuItem>
+                {user?.role === "admin" && (
+                  <DropdownMenuItem asChild>
+                    <Link href="/admin/branding">Settings</Link>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout}>
                   Sign out

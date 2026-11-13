@@ -18,7 +18,7 @@ import {
 import session from "express-session";
 import createMemoryStore from "memorystore";
 import { drizzle } from 'drizzle-orm/postgres-js';
-import { eq, and, desc, asc, sql, SQL } from 'drizzle-orm';
+import { eq, and, desc, asc, sql, ne, SQL } from 'drizzle-orm';
 import postgres from 'postgres';
 import connectPg from "connect-pg-simple";
 
@@ -746,8 +746,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteDocument(id: number): Promise<boolean> {
-    await this.db.delete(documents).where(eq(documents.id, id));
-    return true;
+    const deleted = await this.db.delete(documents).where(eq(documents.id, id)).returning({ id: documents.id });
+    return deleted.length > 0;
   }
 
   async getAllDocuments(): Promise<Document[]> {
@@ -889,8 +889,8 @@ export class DatabaseStorage implements IStorage {
   }
   
   async deleteContent(id: number): Promise<boolean> {
-    const result = await this.db.delete(contents).where(eq(contents.id, id));
-    return true; // Assuming operation was successful
+    const deleted = await this.db.delete(contents).where(eq(contents.id, id)).returning({ id: contents.id });
+    return deleted.length > 0;
   }
   
   async getAllContents(): Promise<Content[]> {
@@ -965,28 +965,39 @@ export class DatabaseStorage implements IStorage {
   }
 
   async markMessagesReadForClient(clientId: number, readerUserId: number): Promise<void> {
-    // For client readers: mark is_read on messages not sent by them
-    const clientMsgs = await this.db.select().from(messages).where(eq(messages.clientId, clientId));
-    for (const msg of clientMsgs) {
-      if (msg.senderUserId !== readerUserId && !msg.isRead) {
-        await this.db.update(messages).set({ isRead: true }).where(eq(messages.id, msg.id));
-      }
-      // For admin readers: insert into message_reads
-      if (msg.senderUserId !== readerUserId) {
-        await this.db.insert(messageReads).values({ messageId: msg.id, userId: readerUserId }).onConflictDoNothing();
-      }
-    }
+    // Mark the simple is_read flag in a single UPDATE.
+    await this.db.update(messages)
+      .set({ isRead: true })
+      .where(and(
+        eq(messages.clientId, clientId),
+        ne(messages.senderUserId, readerUserId),
+        eq(messages.isRead, false),
+      ));
+
+    // And record per-reader reads in one bulk upsert.
+    await this.client`
+      INSERT INTO message_reads (message_id, user_id)
+      SELECT m.id, ${readerUserId}
+      FROM messages m
+      WHERE m.client_id = ${clientId}
+        AND m.sender_user_id <> ${readerUserId}
+      ON CONFLICT DO NOTHING
+    `;
   }
 
   async getUnreadCountForAdmin(adminUserId: number): Promise<number> {
-    const allClientMessages = await this.db.select().from(messages).where(eq(messages.senderUserId, adminUserId));
-    // Get all messages NOT sent by this admin
-    const allMsgs = await this.db.select().from(messages);
-    const clientSentMsgs = allMsgs.filter(m => m.senderUserId !== adminUserId);
-    if (!clientSentMsgs.length) return 0;
-    const reads = await this.db.select().from(messageReads).where(eq(messageReads.userId, adminUserId));
-    const readIds = new Set(reads.map(r => r.messageId));
-    return clientSentMsgs.filter(m => !readIds.has(m.id)).length;
+    // Count messages not sent by this admin that have no matching
+    // message_reads row for them. Single query, no in-memory filtering.
+    const result = await this.client`
+      SELECT COUNT(*)::int AS count
+      FROM messages m
+      WHERE m.sender_user_id <> ${adminUserId}
+        AND NOT EXISTS (
+          SELECT 1 FROM message_reads r
+          WHERE r.message_id = m.id AND r.user_id = ${adminUserId}
+        )
+    `;
+    return (result[0] as { count: number })?.count ?? 0;
   }
 
   async getAllClientsWithMessageCounts(adminUserId?: number): Promise<{ clientId: number; unreadCount: number; latestMessage: Message | null }[]> {
@@ -1026,8 +1037,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteMilestone(id: number): Promise<boolean> {
-    await this.db.delete(milestones).where(eq(milestones.id, id));
-    return true;
+    const deleted = await this.db.delete(milestones).where(eq(milestones.id, id)).returning({ id: milestones.id });
+    return deleted.length > 0;
   }
 
   // Client note operations
@@ -1046,8 +1057,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteClientNote(id: number): Promise<boolean> {
-    await this.db.delete(clientNotes).where(eq(clientNotes.id, id));
-    return true;
+    const deleted = await this.db.delete(clientNotes).where(eq(clientNotes.id, id)).returning({ id: clientNotes.id });
+    return deleted.length > 0;
   }
 
   async getAllCustomPages(): Promise<CustomPage[]> {
@@ -1070,8 +1081,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteCustomPage(id: number): Promise<boolean> {
-    await this.db.delete(customPages).where(eq(customPages.id, id));
-    return true;
+    const deleted = await this.db.delete(customPages).where(eq(customPages.id, id)).returning({ id: customPages.id });
+    return deleted.length > 0;
   }
 }
 

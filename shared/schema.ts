@@ -2,6 +2,12 @@ import { pgTable, text, serial, integer, boolean, timestamp, doublePrecision } f
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Shared password rules — enforced on every form that sets a password.
+export const PASSWORD_MIN_LENGTH = 8;
+export const passwordSchema = z
+  .string()
+  .min(PASSWORD_MIN_LENGTH, `Password must be at least ${PASSWORD_MIN_LENGTH} characters`);
+
 // User-related schemas
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),

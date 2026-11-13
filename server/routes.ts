@@ -3,15 +3,16 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, comparePasswords, hashPassword } from "./auth";
 import { randomBytes } from "crypto";
-import { 
-  insertClientSchema, 
+import {
+  insertClientSchema,
   insertProjectSchema,
   insertInquirySchema,
   insertDocumentSchema,
   insertContentSchema,
   insertUserSchema,
   InsertInquiry,
-  InsertUser
+  InsertUser,
+  PASSWORD_MIN_LENGTH,
 } from "@shared/schema";
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
@@ -182,26 +183,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         entityId: inquiry.id
       });
 
-      // Also create in local clients table
-      try {
-        const nameParts = name.trim().split(' ');
-        const firstName = nameParts[0] || name;
-        const lastName = nameParts.slice(1).join(' ') || '';
-        const fullAddress = [address, city, state, zip].filter(Boolean).join(', ');
-
-        await storage.createClient({
-          name,
-          email,
-          phone: phone || '',
-          address: fullAddress || '',
-          notes: `Inquiry: ${message}`,
-          userId: null,
-          contactPerson: null,
-          freshbooksId: null,
-        });
-      } catch (clientErr) {
-        console.error('Failed to create local client from inquiry:', clientErr);
-      }
+      // Note: we used to also create a clients row here, but that duplicated
+      // records every time a visitor submitted the form. The admin inquiry
+      // approval flow creates the client when the inquiry is accepted.
 
       // Fire-and-forget: create in FreshBooks if connected
       (async () => {
@@ -1204,7 +1188,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!currentPassword || !newPassword) {
         return res.status(400).json({ message: "Current password and new password are required" });
       }
-      
+
+      if (newPassword.length < PASSWORD_MIN_LENGTH) {
+        return res.status(400).json({ message: `Password must be at least ${PASSWORD_MIN_LENGTH} characters` });
+      }
+
       const user = await storage.getUser(req.user?.id as number);
       
       if (!user) {

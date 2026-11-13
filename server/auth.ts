@@ -5,7 +5,7 @@ import session from "express-session";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
-import { User as SelectUser, InsertUser, User } from "@shared/schema";
+import { User as SelectUser, InsertUser, User, PASSWORD_MIN_LENGTH } from "@shared/schema";
 
 declare global {
   namespace Express {
@@ -22,22 +22,19 @@ export async function hashPassword(password: string) {
 }
 
 export async function comparePasswords(supplied: string, stored: string) {
-  try {
-    const [hashed, salt] = stored.split(".");
-    if (!salt) {
-      console.error('Invalid stored password format - missing salt');
-      return false;
-    }
-
-    const hashedBuf = Buffer.from(hashed, "hex");
-    const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
-
-    if (hashedBuf.length !== suppliedBuf.length) return false;
-    return timingSafeEqual(hashedBuf, suppliedBuf);
-  } catch (error) {
-    console.error('Error comparing passwords:', error);
+  const [hashed, salt] = stored.split(".");
+  if (!salt) {
+    // Legitimate "can't verify" — stored hash is malformed. Treat as mismatch.
+    console.error('Invalid stored password format - missing salt');
     return false;
   }
+
+  // Let unexpected errors (crypto failures, allocation failures, etc.) bubble
+  // up rather than silently turning them into failed-login responses.
+  const hashedBuf = Buffer.from(hashed, "hex");
+  const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
+  if (hashedBuf.length !== suppliedBuf.length) return false;
+  return timingSafeEqual(hashedBuf, suppliedBuf);
 }
 
 export function setupAuth(app: Express) {
@@ -132,6 +129,10 @@ export function setupAuth(app: Express) {
 
       if (!username || !password || !email || !name) {
         return res.status(400).json({ message: "All fields are required" });
+      }
+
+      if (password.length < PASSWORD_MIN_LENGTH) {
+        return res.status(400).json({ message: `Password must be at least ${PASSWORD_MIN_LENGTH} characters` });
       }
 
       // Check if username or email already exists
@@ -246,9 +247,17 @@ export function setupAuth(app: Express) {
       if (targetUser.role === "admin") return res.status(400).json({ message: "Cannot impersonate an admin" });
 
       const originalAdminId = (req.user as SelectUser).id;
-      req.login(targetUser, (err) => {
+      const adminUsername = (req.user as SelectUser).username;
+      req.login(targetUser, async (err) => {
         if (err) return next(err);
         (req.session as any).originalUserId = originalAdminId;
+        await storage.createActivity({
+          userId: originalAdminId,
+          action: "Impersonation Started",
+          details: `Admin ${adminUsername} started impersonating ${targetUser.username}`,
+          entityType: "user",
+          entityId: targetUser.id,
+        });
         const { password, ...safe } = targetUser;
         res.json({ ...safe, isImpersonating: true });
       });
@@ -266,9 +275,18 @@ export function setupAuth(app: Express) {
       const adminUser = await storage.getUser(originalUserId);
       if (!adminUser) return res.status(404).json({ message: "Original admin not found" });
 
-      req.login(adminUser, (err) => {
+      const impersonatedId = (req.user as SelectUser).id;
+      const impersonatedUsername = (req.user as SelectUser).username;
+      req.login(adminUser, async (err) => {
         if (err) return next(err);
         delete (req.session as any).originalUserId;
+        await storage.createActivity({
+          userId: adminUser.id,
+          action: "Impersonation Ended",
+          details: `Admin ${adminUser.username} stopped impersonating ${impersonatedUsername}`,
+          entityType: "user",
+          entityId: impersonatedId,
+        });
         const { password, ...safe } = adminUser;
         res.json({ ...safe, isImpersonating: false });
       });
