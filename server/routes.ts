@@ -294,22 +294,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Get client associated with the current user
       const client = await storage.getClientByUserId(req.user?.id as number);
-      
+
       if (!client) {
         return res.status(404).json({ message: "Client profile not found" });
       }
-      
+
       // Get client projects, invoices, and documents
       const projects = await storage.getProjectsByClientId(client.id);
       const invoices = await storage.getInvoicesByClientId(client.id);
       const documents = await storage.getDocumentsByClientId(client.id);
-      
+
       res.json({
         client,
         projects,
         invoices,
         documents
       });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Timeline for a client's dashboard — milestones across every project,
+  // joined with the project name and the author's display name. Reverse
+  // chronological.
+  app.get("/api/timeline/client", isAuthenticated, async (req, res, next) => {
+    try {
+      let clientId: number;
+      if (req.user?.role === "admin") {
+        if (!req.query.clientId) return res.status(400).json({ message: "clientId required" });
+        clientId = parseInt(req.query.clientId as string);
+      } else {
+        const client = await storage.getClientByUserId(req.user!.id);
+        if (!client) return res.status(404).json({ message: "Client profile not found" });
+        clientId = client.id;
+      }
+
+      const projects = await storage.getProjectsByClientId(clientId);
+      const projectNameById = new Map(projects.map(p => [p.id, p.name]));
+
+      const allMilestones = (await Promise.all(
+        projects.map(p => storage.getMilestonesByProjectId(p.id))
+      )).flat();
+
+      const authorIds = Array.from(new Set(allMilestones.map(m => m.createdBy).filter((v): v is number => v != null)));
+      const authors = await Promise.all(authorIds.map(id => storage.getUser(id)));
+      const authorNameById = new Map<number, string>();
+      authors.forEach(u => { if (u) authorNameById.set(u.id, u.name); });
+
+      const timeline = allMilestones.map(m => ({
+        id: m.id,
+        projectId: m.projectId,
+        projectName: projectNameById.get(m.projectId) ?? null,
+        title: m.title,
+        notes: m.notes,
+        imagePaths: m.imagePaths,
+        authorName: m.createdBy ? authorNameById.get(m.createdBy) ?? null : null,
+        createdAt: m.createdAt,
+      })).sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime());
+
+      res.json(timeline);
     } catch (error) {
       next(error);
     }

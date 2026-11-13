@@ -28,6 +28,8 @@ import { Client, Project, Invoice, Document, Message } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import TimelineComposer from "@/components/admin/TimelineComposer";
+import TimelineFeed, { TimelineItem } from "@/components/dashboard/TimelineFeed";
 
 interface ClientNote {
   id: number;
@@ -35,6 +37,17 @@ interface ClientNote {
   title: string;
   content: string;
   isPinned: boolean;
+  createdAt: string;
+}
+
+interface TimelinePost {
+  id: number;
+  projectId: number;
+  projectName: string | null;
+  title: string;
+  notes: string | null;
+  imagePaths: string | null;
+  authorName: string | null;
   createdAt: string;
 }
 
@@ -73,6 +86,15 @@ export default function ClientDetailPage() {
   });
   const { data: messages = [] } = useQuery<Message[]>({
     queryKey: [`/api/messages?clientId=${clientId}`],
+    enabled: !isNaN(clientId),
+  });
+  const { data: timeline = [] } = useQuery<TimelinePost[]>({
+    queryKey: [`/api/timeline/admin?clientId=${clientId}`],
+    queryFn: async () => {
+      const res = await fetch(`/api/timeline/client?clientId=${clientId}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load timeline");
+      return res.json();
+    },
     enabled: !isNaN(clientId),
   });
 
@@ -199,14 +221,32 @@ export default function ClientDetailPage() {
           </CardContent>
         </Card>
 
-        <Tabs defaultValue="projects">
+        <Tabs defaultValue="timeline">
           <TabsList>
+            <TabsTrigger value="timeline">Timeline ({timeline.length})</TabsTrigger>
             <TabsTrigger value="projects">Projects ({projects.length})</TabsTrigger>
             <TabsTrigger value="invoices">Invoices ({invoices.length})</TabsTrigger>
             <TabsTrigger value="documents">Documents ({documents.length})</TabsTrigger>
             <TabsTrigger value="notes">Notes ({notes.length})</TabsTrigger>
             <TabsTrigger value="messages">Messages ({messages.length})</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="timeline" className="mt-4 space-y-4">
+            <TimelineComposer projects={projects} clientId={clientId} />
+            <TimelineFeed
+              items={timeline.map(m => ({
+                id: `milestone-${m.id}`,
+                type: "milestone" as const,
+                date: m.createdAt,
+                title: m.title,
+                notes: m.notes,
+                images: m.imagePaths ? (JSON.parse(m.imagePaths) as string[]) : [],
+                projectName: m.projectName,
+                authorName: m.authorName,
+              })) as TimelineItem[]}
+              emptyMessage="No posts yet. Use the composer above to publish your first update."
+            />
+          </TabsContent>
 
           <TabsContent value="projects" className="mt-4">
             <Card>

@@ -4,11 +4,11 @@ import AppLayout from "@/components/layout/AppLayout";
 import ProjectStatus from "@/components/dashboard/ProjectStatus";
 import InvoicesTable, { Invoice } from "@/components/dashboard/InvoicesTable";
 import DocumentsList, { Document } from "@/components/dashboard/DocumentsList";
+import TimelineFeed, { TimelineItem } from "@/components/dashboard/TimelineFeed";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
-import { MessageSquare, Pin, Image as ImageIcon } from "lucide-react";
+import { MessageSquare, Pin } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 
@@ -19,13 +19,14 @@ interface ClientData {
   documents: Document[];
 }
 
-interface Milestone {
+interface TimelinePost {
   id: number;
   projectId: number;
+  projectName: string | null;
   title: string;
   notes: string | null;
   imagePaths: string | null;
-  createdBy: number | null;
+  authorName: string | null;
   createdAt: string;
 }
 
@@ -45,18 +46,11 @@ export default function ClientDashboard() {
   const { data, isLoading, isError, refetch } = useQuery<ClientData>({ queryKey: ["/api/dashboard/client"] });
   const { data: clientNotes = [] } = useQuery<ClientNote[]>({ queryKey: ["/api/client-notes"], enabled: !!data });
 
-  // Fetch milestones for all projects
-  const projectIds = data?.projects.map(p => p.id) ?? [];
-  const { data: allMilestones = [] } = useQuery<Milestone[]>({
-    queryKey: ["/api/milestones/all-client", projectIds],
-    queryFn: async () => {
-      if (!projectIds.length) return [];
-      const results = await Promise.all(
-        projectIds.map(id => fetch(`/api/projects/${id}/milestones`, { credentials: "include" }).then(r => r.json()))
-      );
-      return results.flat();
-    },
-    enabled: projectIds.length > 0,
+  // Fetch the full timeline (milestones + author + project names) from
+  // the server; one request, pre-sorted.
+  const { data: timeline = [] } = useQuery<TimelinePost[]>({
+    queryKey: ["/api/timeline/client"],
+    enabled: !!data,
   });
 
   const handleDocumentDownload = (doc: Document) => {
@@ -64,8 +58,7 @@ export default function ClientDashboard() {
     window.open(doc.path, "_blank");
   };
 
-  // Build timeline: project start dates + milestones, sorted chronologically (newest first)
-  const timelineItems = [
+  const timelineItems: TimelineItem[] = [
     ...(data?.projects.map(p => ({
       id: `start-${p.id}`,
       type: "start" as const,
@@ -73,14 +66,18 @@ export default function ClientDashboard() {
       title: `Project started: ${p.name}`,
       notes: p.description,
       images: [] as string[],
+      projectName: p.name,
+      authorName: null,
     })) ?? []),
-    ...allMilestones.map(m => ({
+    ...timeline.map(m => ({
       id: `milestone-${m.id}`,
       type: "milestone" as const,
       date: m.createdAt,
       title: m.title,
       notes: m.notes,
       images: m.imagePaths ? (JSON.parse(m.imagePaths) as string[]) : [],
+      projectName: m.projectName,
+      authorName: m.authorName,
     })),
   ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
@@ -171,16 +168,25 @@ export default function ClientDashboard() {
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left column — projects / invoices / documents */}
+            {/* Main column — Timeline feed (the hero of this dashboard) */}
             <div className="lg:col-span-2 space-y-6">
-              <Card className="bg-white shadow rounded-lg">
+              <TimelineFeed items={timelineItems} />
+
+              <InvoicesTable invoices={data!.invoices} onView={id => navigate(`/client/invoices/${id}`)} viewAllLink="/client/invoices" onViewAll={() => navigate("/client/invoices")} />
+
+              <DocumentsList documents={data!.documents} onDownload={handleDocumentDownload} viewAllLink="/client/documents" onViewAll={() => navigate("/client/documents")} />
+            </div>
+
+            {/* Right rail — compact status + important notes */}
+            <div className="space-y-6">
+              <Card className="bg-white shadow-sm">
                 <div className="px-5 py-4 border-b">
-                  <h3 className="text-lg font-medium text-gray-900">Project Status</h3>
+                  <h3 className="text-base font-semibold text-gray-900">Project Status</h3>
                 </div>
                 <div className="p-5">
-                  {data.projects.length === 0 ? (
-                    <p className="text-sm text-gray-500 text-center py-6">No active projects</p>
-                  ) : data.projects.map(project => (
+                  {data!.projects.length === 0 ? (
+                    <p className="text-sm text-gray-500 text-center py-4">No active projects</p>
+                  ) : data!.projects.map(project => (
                     <ProjectStatus key={project.id} project={project} onViewDetails={id => navigate(`/client/projects/${id}`)} />
                   ))}
                 </div>
@@ -189,19 +195,11 @@ export default function ClientDashboard() {
                 </div>
               </Card>
 
-              <InvoicesTable invoices={data.invoices} onView={id => navigate(`/client/invoices/${id}`)} viewAllLink="/client/invoices" onViewAll={() => navigate("/client/invoices")} />
-
-              <DocumentsList documents={data.documents} onDownload={handleDocumentDownload} viewAllLink="/client/documents" onViewAll={() => navigate("/client/documents")} />
-            </div>
-
-            {/* Right column — timeline + important notes */}
-            <div className="space-y-6">
-              {/* Important Notes */}
               {clientNotes.length > 0 && (
-                <Card className="bg-white shadow rounded-lg">
+                <Card className="bg-white shadow-sm">
                   <div className="px-5 py-4 border-b flex items-center gap-2">
                     <Pin className="h-4 w-4 text-amber-500" />
-                    <h3 className="text-base font-medium text-gray-900">Important Notes</h3>
+                    <h3 className="text-base font-semibold text-gray-900">Important Notes</h3>
                   </div>
                   <div className="divide-y">
                     {clientNotes.map(note => (
@@ -217,46 +215,6 @@ export default function ClientDashboard() {
                   </div>
                 </Card>
               )}
-
-              {/* Project Timeline */}
-              <Card className="bg-white shadow rounded-lg">
-                <div className="px-5 py-4 border-b">
-                  <h3 className="text-base font-medium text-gray-900">Project Timeline</h3>
-                  <p className="text-xs text-gray-500 mt-0.5">Progress updates from your team</p>
-                </div>
-                <div className="px-5 py-4">
-                  {timelineItems.length === 0 ? (
-                    <p className="text-sm text-gray-400 text-center py-6">No updates yet</p>
-                  ) : (
-                    <div className="relative">
-                      <div className="absolute left-3 top-0 bottom-0 w-px bg-gray-200" />
-                      <div className="space-y-6">
-                        {timelineItems.map(item => (
-                          <div key={item.id} className="relative pl-9">
-                            <div className={`absolute left-0 top-1 h-6 w-6 rounded-full flex items-center justify-center ring-2 ring-white ${item.type === "start" ? "bg-primary" : "bg-green-500"}`}>
-                              <span className="text-white text-xs font-bold">{item.type === "start" ? "S" : "✓"}</span>
-                            </div>
-                            <div>
-                              <p className="text-sm font-semibold text-gray-900">{item.title}</p>
-                              <p className="text-xs text-gray-400 mb-1">{format(new Date(item.date), "MMM d, yyyy · h:mm a")}</p>
-                              {item.notes && <p className="text-sm text-gray-600 whitespace-pre-wrap">{item.notes}</p>}
-                              {item.images.length > 0 && (
-                                <div className="mt-2 grid grid-cols-2 gap-2">
-                                  {item.images.map((src, i) => (
-                                    <a key={i} href={src} target="_blank" rel="noreferrer">
-                                      <img src={src} alt={`Update ${i + 1}`} className="rounded-md w-full h-24 object-cover border hover:opacity-90 transition-opacity" />
-                                    </a>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </Card>
             </div>
           </div>
         )}
