@@ -5,12 +5,12 @@ import ProjectStatus from "@/components/dashboard/ProjectStatus";
 import InvoicesTable, { Invoice } from "@/components/dashboard/InvoicesTable";
 import DocumentsList, { Document } from "@/components/dashboard/DocumentsList";
 import TimelineFeed, { TimelineItem } from "@/components/dashboard/TimelineFeed";
+import NoteCard from "@/components/dashboard/NoteCard";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MessageSquare, Pin } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
 
 interface ClientData {
   client: { id: number; name: string; contactPerson: string | null; email: string | null; phone: string | null; address: string | null; notes: string | null; userId: number | null; freshbooksId: string | null; createdAt: string; updatedAt: string };
@@ -35,6 +35,8 @@ interface ClientNote {
   clientId: number;
   title: string;
   content: string;
+  category: string | null;
+  fields: string | null;
   isPinned: boolean;
   createdAt: string;
 }
@@ -196,24 +198,17 @@ export default function ClientDashboard() {
               </Card>
 
               {clientNotes.length > 0 && (
-                <Card className="bg-white shadow-sm">
-                  <div className="px-5 py-4 border-b flex items-center gap-2">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 px-1">
                     <Pin className="h-4 w-4 text-amber-500" />
                     <h3 className="text-base font-semibold text-gray-900">Important Notes</h3>
                   </div>
-                  <div className="divide-y">
+                  <div className="space-y-3">
                     {clientNotes.map(note => (
-                      <div key={note.id} className="px-5 py-4">
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="font-medium text-sm text-gray-900">{note.title}</p>
-                          {note.isPinned && <Pin className="h-3 w-3 text-amber-500 flex-shrink-0 mt-0.5" />}
-                        </div>
-                        <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">{note.content}</p>
-                        <p className="text-xs text-gray-400 mt-2">{format(new Date(note.createdAt), "MMM d, yyyy")}</p>
-                      </div>
+                      <NoteCard key={note.id} note={note} />
                     ))}
                   </div>
-                </Card>
+                </div>
               )}
             </div>
           </div>

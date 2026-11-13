@@ -22,7 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Mail, Phone, MapPin, User, FileText, MessageSquare, Pin, Eye, KeyRound } from "lucide-react";
+import { ArrowLeft, Mail, Phone, MapPin, User, FileText, MessageSquare, Eye, KeyRound } from "lucide-react";
 import { format } from "date-fns";
 import { Client, Project, Invoice, Document, Message } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -30,12 +30,17 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import TimelineComposer from "@/components/admin/TimelineComposer";
 import TimelineFeed, { TimelineItem } from "@/components/dashboard/TimelineFeed";
+import NoteCard from "@/components/dashboard/NoteCard";
+import NoteEditor, { NoteDraft } from "@/components/admin/NoteEditor";
+import { Plus, Trash2, Pencil } from "lucide-react";
 
 interface ClientNote {
   id: number;
   clientId: number;
   title: string;
   content: string;
+  category: string | null;
+  fields: string | null;
   isPinned: boolean;
   createdAt: string;
 }
@@ -57,7 +62,18 @@ export default function ClientDetailPage() {
   const { toast } = useToast();
   const { impersonateMutation } = useAuth();
   const [createdLogin, setCreatedLogin] = useState<{ username: string; tempPassword: string; userId: number } | null>(null);
+  const [noteEditorOpen, setNoteEditorOpen] = useState(false);
+  const [editingNote, setEditingNote] = useState<NoteDraft | undefined>(undefined);
   const clientId = parseInt(params.id as string);
+
+  const deleteNoteMutation = useMutation({
+    mutationFn: async (id: number) => { await apiRequest("DELETE", `/api/client-notes/${id}`); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/client-notes?clientId=${clientId}`] });
+      toast({ title: "Note deleted" });
+    },
+    onError: (err: Error) => toast({ title: "Delete failed", description: err.message, variant: "destructive" }),
+  });
 
   const createLoginMutation = useMutation({
     mutationFn: async () => {
@@ -351,23 +367,77 @@ export default function ClientDetailPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="notes" className="mt-4">
-            <Card>
-              <CardContent className="p-4 space-y-3">
-                {notes.length === 0 ? (
+          <TabsContent value="notes" className="mt-4 space-y-4">
+            <div className="flex justify-end">
+              <Button onClick={() => { setEditingNote(undefined); setNoteEditorOpen(true); }}>
+                <Plus className="h-4 w-4 mr-2" /> Add Note
+              </Button>
+            </div>
+            {notes.length === 0 ? (
+              <Card>
+                <CardContent className="p-6">
                   <p className="text-sm text-gray-500 text-center py-4">No client-visible notes yet.</p>
-                ) : notes.map(note => (
-                  <div key={note.id} className="border rounded-md p-3">
-                    <div className="flex items-center gap-2">
-                      {note.isPinned && <Pin className="h-3 w-3 text-amber-500" />}
-                      <p className="font-medium text-sm">{note.title}</p>
-                    </div>
-                    <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">{note.content}</p>
-                    <p className="text-xs text-gray-400 mt-1">{format(new Date(note.createdAt), "MMM d, yyyy")}</p>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+                  <p className="text-xs text-gray-400 text-center">
+                    Use notes for Wi-Fi credentials, VLAN assignments, access codes, and anything the client should be able to reference.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {notes.map(note => {
+                  let parsedFields: any[] = [];
+                  if (note.fields) {
+                    try { parsedFields = JSON.parse(note.fields) || []; } catch { parsedFields = []; }
+                  }
+                  return (
+                    <NoteCard
+                      key={note.id}
+                      note={note}
+                      action={
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            onClick={() => {
+                              setEditingNote({
+                                id: note.id,
+                                title: note.title,
+                                content: note.content ?? "",
+                                category: note.category ?? "general",
+                                fields: parsedFields,
+                                isPinned: !!note.isPinned,
+                              });
+                              setNoteEditorOpen(true);
+                            }}
+                            aria-label="Edit"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
+                            onClick={() => deleteNoteMutation.mutate(note.id)}
+                            aria-label="Delete"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      }
+                    />
+                  );
+                })}
+              </div>
+            )}
+
+            <NoteEditor
+              clientId={clientId}
+              open={noteEditorOpen}
+              onClose={() => setNoteEditorOpen(false)}
+              initial={editingNote}
+              invalidateKeys={[`/api/client-notes?clientId=${clientId}`]}
+            />
           </TabsContent>
 
           <TabsContent value="messages" className="mt-4">

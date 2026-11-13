@@ -216,6 +216,12 @@ const createTables = async () => {
       );
     `);
 
+    // Extend client_notes with category + structured fields (for Wi-Fi
+    // credentials, VLAN info, etc.) — backfill existing rows.
+    await client.query(`ALTER TABLE client_notes ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'general';`);
+    await client.query(`ALTER TABLE client_notes ADD COLUMN IF NOT EXISTS fields TEXT;`);
+    await client.query(`ALTER TABLE client_notes ALTER COLUMN content SET DEFAULT '';`);
+
     // Add status to users if it doesn't exist
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';`);
 

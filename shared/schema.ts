@@ -261,7 +261,13 @@ export const clientNotes = pgTable("client_notes", {
   id: serial("id").primaryKey(),
   clientId: integer("client_id").references(() => clients.id).notNull(),
   title: text("title").notNull(),
-  content: text("content").notNull(),
+  // Optional free-text body. Kept optional so a note can be just a title + structured fields.
+  content: text("content").notNull().default(""),
+  // One of: "general", "credentials", "network", "access". Drives rendering.
+  category: text("category").notNull().default("general"),
+  // JSON array of { label: string, value: string, isSecret: boolean }
+  // for category === "credentials" or "network" style notes.
+  fields: text("fields"),
   isPinned: boolean("is_pinned").default(false),
   createdBy: integer("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),

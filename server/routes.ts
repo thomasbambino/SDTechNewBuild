@@ -1651,17 +1651,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/client-notes", isAuthenticated, hasRole("admin"), async (req, res, next) => {
     try {
-      const { clientId, title, content, isPinned } = req.body;
-      if (!clientId || !title || !content) return res.status(400).json({ message: "clientId, title, content required" });
-      const note = await storage.createClientNote({ clientId: parseInt(clientId), title, content, isPinned: !!isPinned, createdBy: req.user!.id });
+      const { clientId, title, content, isPinned, category, fields } = req.body;
+      if (!clientId || !title) return res.status(400).json({ message: "clientId and title are required" });
+      const hasBody = (typeof content === "string" && content.trim().length > 0)
+        || (Array.isArray(fields) && fields.length > 0);
+      if (!hasBody) return res.status(400).json({ message: "Either content or at least one field is required" });
+      const note = await storage.createClientNote({
+        clientId: parseInt(clientId),
+        title,
+        content: content ?? "",
+        category: category ?? "general",
+        fields: Array.isArray(fields) && fields.length > 0 ? JSON.stringify(fields) : null,
+        isPinned: !!isPinned,
+        createdBy: req.user!.id,
+      });
       res.status(201).json(note);
     } catch (err) { next(err); }
   });
 
   app.put("/api/client-notes/:id", isAuthenticated, hasRole("admin"), async (req, res, next) => {
     try {
-      const { title, content, isPinned } = req.body;
-      const updated = await storage.updateClientNote(parseInt(req.params.id), { title, content, isPinned: !!isPinned });
+      const { title, content, isPinned, category, fields } = req.body;
+      const updated = await storage.updateClientNote(parseInt(req.params.id), {
+        title,
+        content: content ?? "",
+        category: category ?? "general",
+        fields: Array.isArray(fields) && fields.length > 0 ? JSON.stringify(fields) : null,
+        isPinned: !!isPinned,
+      });
       if (!updated) return res.status(404).json({ message: "Note not found" });
       res.json(updated);
     } catch (err) { next(err); }
