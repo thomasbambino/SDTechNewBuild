@@ -3,6 +3,8 @@ import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,7 +54,8 @@ export default function Header({ sidebarOpen, setSidebarOpen, themeMode, setThem
   const [_, navigate] = useLocation();
   const { toast } = useToast();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const { data: publicSettings } = useQuery<{ logoPath?: string; companyName?: string }>({
+  const [logoImgLoaded, setLogoImgLoaded] = useState(false);
+  const { data: publicSettings, isLoading: settingsLoading } = useQuery<{ logoPath?: string; companyName?: string }>({
     queryKey: ["/api/settings/public"],
   });
 
@@ -110,12 +113,19 @@ export default function Header({ sidebarOpen, setSidebarOpen, themeMode, setThem
 
             {/* Logo */}
             <Link href={redirectPath} className="flex items-center">
-              {publicSettings?.logoPath ? (
-                <img
-                  src={publicSettings.logoPath}
-                  alt={publicSettings.companyName || "Logo"}
-                  className="h-8 max-w-[160px] object-contain mr-2 dark:brightness-0 dark:invert"
-                />
+              {settingsLoading ? (
+                <Skeleton className="h-8 w-28 mr-2" />
+              ) : publicSettings?.logoPath ? (
+                <div className="relative mr-2 h-8 flex items-center">
+                  {!logoImgLoaded && <Skeleton className="absolute inset-0 h-8 w-28 rounded-md" />}
+                  <img
+                    src={publicSettings.logoPath}
+                    alt={publicSettings.companyName || "Logo"}
+                    className={cn("h-8 max-w-[160px] object-contain dark:brightness-0 dark:invert", !logoImgLoaded && "opacity-0")}
+                    onLoad={() => setLogoImgLoaded(true)}
+                    onError={() => setLogoImgLoaded(true)}
+                  />
+                </div>
               ) : (
                 <>
                   <span className="bg-primary text-primary-foreground font-bold text-xl px-2 py-1 rounded mr-2">SD</span>
