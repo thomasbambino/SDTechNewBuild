@@ -200,7 +200,7 @@ export default function NoteEditor({ clientId, open, onClose, initial, invalidat
                       <Input
                         className="col-span-6 h-8 text-sm font-mono"
                         placeholder="Value"
-                        type={field.isSecret ? "password" : "text"}
+                        type="text"
                         value={field.value}
                         onChange={e => updateField(i, { value: e.target.value })}
                       />
@@ -220,7 +220,7 @@ export default function NoteEditor({ clientId, open, onClose, initial, invalidat
                     </div>
                   ))}
                   <p className="text-xs text-gray-400 flex items-center gap-2 pt-1">
-                    Check the lock box to mask the value (password, codes). Clients see "•••••••" and can click to reveal + copy.
+                    Check the lock box to mark a value as sensitive. The client sees "•••••••" with a reveal + copy button; you always see what you're typing while editing.
                   </p>
                 </div>
               )}
