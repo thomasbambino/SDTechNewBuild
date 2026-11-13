@@ -79,12 +79,15 @@ const createUserSchema = z.object({
 
 type CreateUserValues = z.infer<typeof createUserSchema>;
 
-// Create random password function
+// Cryptographically-secure random password using the browser's CSPRNG.
 const generateRandomPassword = () => {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
+  const length = 14;
+  const bytes = new Uint8Array(length);
+  crypto.getRandomValues(bytes);
   let password = "";
-  for (let i = 0; i < 10; i++) {
-    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  for (let i = 0; i < length; i++) {
+    password += chars.charAt(bytes[i] % chars.length);
   }
   return password;
 };

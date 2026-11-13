@@ -41,12 +41,12 @@ export async function comparePasswords(supplied: string, stored: string) {
 }
 
 export function setupAuth(app: Express) {
-  // Set a secure session secret
   if (!process.env.SESSION_SECRET) {
-    process.env.SESSION_SECRET = "sd-tech-pros-secret-key-" + Math.random().toString(36).substring(2, 15);
-    console.log('Warning: SESSION_SECRET not set, using a generated one');
+    throw new Error("SESSION_SECRET environment variable is required. Generate one with `openssl rand -base64 32` and add it to your .env file.");
   }
-  
+
+  const isProduction = process.env.NODE_ENV === "production";
+
   const sessionSettings: session.SessionOptions = {
     secret: process.env.SESSION_SECRET,
     resave: false,
@@ -54,6 +54,9 @@ export function setupAuth(app: Express) {
     store: storage.sessionStore,
     cookie: {
       maxAge: 7 * 24 * 60 * 60 * 1000, // 1 week
+      httpOnly: true,
+      sameSite: "lax",
+      secure: isProduction,
     }
   };
 
@@ -61,6 +64,25 @@ export function setupAuth(app: Express) {
   app.use(session(sessionSettings));
   app.use(passport.initialize());
   app.use(passport.session());
+
+  // CSRF defense: reject cross-origin state-changing requests.
+  // sameSite:"lax" above already blocks the common CSRF path (third-party
+  // sites can't send our cookie on their POSTs); this is belt-and-braces.
+  app.use((req, res, next) => {
+    const method = req.method.toUpperCase();
+    if (method === "GET" || method === "HEAD" || method === "OPTIONS") return next();
+    const origin = req.get("Origin") || req.get("Referer");
+    if (!origin) return next(); // non-browser client (curl, server-to-server)
+    try {
+      const originHost = new URL(origin).host;
+      if (originHost !== req.get("Host")) {
+        return res.status(403).json({ message: "Cross-origin request blocked" });
+      }
+    } catch {
+      return res.status(403).json({ message: "Invalid Origin header" });
+    }
+    next();
+  });
 
   passport.use(
     new LocalStrategy(async (username, password, done) => {
@@ -106,41 +128,40 @@ export function setupAuth(app: Express) {
 
   app.post("/api/register", async (req, res, next) => {
     try {
-      // Validate the request body
-      const { username, password, email, name, role = "client" } = req.body;
-      
+      const { username, password, email, name } = req.body;
+
       if (!username || !password || !email || !name) {
         return res.status(400).json({ message: "All fields are required" });
       }
-      
+
       // Check if username or email already exists
       const existingUsername = await storage.getUserByUsername(username);
       if (existingUsername) {
         return res.status(400).json({ message: "Username already exists" });
       }
-      
+
       const existingEmail = await storage.getUserByEmail(email);
       if (existingEmail) {
         return res.status(400).json({ message: "Email already exists" });
       }
-      
-      // Create the user
+
+      // Public self-registration is always role "client".
+      // Admin accounts must be created via the admin users page.
       const userData: InsertUser = {
         username,
         password: await hashPassword(password),
         email,
         name,
-        role,
-        status: 'active' // Set default status to active
+        role: "client",
+        status: 'active',
       };
-      
+
       const user = await storage.createUser(userData);
-      
-      // Create activity log
+
       await storage.createActivity({
         userId: user.id,
         action: "User Registration",
-        details: `User ${username} registered with role ${role}`,
+        details: `User ${username} registered`,
         entityType: "user",
         entityId: user.id
       });

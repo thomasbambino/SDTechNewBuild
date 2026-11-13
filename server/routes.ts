@@ -40,148 +40,46 @@ const hasRole = (role: string) => (req: Request, res: Response, next: NextFuncti
 export async function registerRoutes(app: Express): Promise<Server> {
   // Set up authentication routes
   setupAuth(app);
-  
-  // Add a dedicated test endpoint that serves a simple HTML page with the logo
-  app.get('/api/debug/logo-test', (req, res) => {
-    const logoPath = '/uploads/logo-1741979910954.png';
-    const html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Logo Test</title>
-      <style>
-        body { font-family: Arial, sans-serif; padding: 20px; }
-        .container { max-width: 800px; margin: 0 auto; }
-        .test-item { margin-bottom: 20px; padding: 10px; border: 1px solid #ddd; }
-        img { max-width: 300px; border: 2px solid #eee; }
-        h2 { color: #333; }
-        .success { color: green; }
-        .error { color: red; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <h1>Logo Test Page</h1>
-        
-        <div class="test-item">
-          <h2>Direct Image Path Test</h2>
-          <p>Testing: <code>${logoPath}</code></p>
-          <img src="${logoPath}" alt="Logo Test" onerror="this.parentNode.innerHTML += '<p class=\\'error\\'>❌ Image failed to load</p>'">
-        </div>
-        
-        <div class="test-item">
-          <h2>Alternative Path Test</h2>
-          <p>Testing: <code>/uploads/logo-1741979910954.png</code></p>
-          <img src="/uploads/logo-1741979910954.png" alt="Logo Test" onerror="this.parentNode.innerHTML += '<p class=\\'error\\'>❌ Image failed to load</p>'">
-        </div>
-        
-        <div class="test-item">
-          <h2>Path With Query Parameter Test</h2>
-          <p>Testing: <code>${logoPath}?t=${Date.now()}</code></p>
-          <img src="${logoPath}?t=${Date.now()}" alt="Logo Test" onerror="this.parentNode.innerHTML += '<p class=\\'error\\'>❌ Image failed to load</p>'">
-        </div>
-      </div>
-    </body>
-    </html>
-    `;
-    res.setHeader('Content-Type', 'text/html');
-    res.send(html);
-  });
 
-  // Enhanced debug endpoint to check file accessibility - no auth required for debugging
-  app.get('/api/debug/file-check', async (req, res) => {
-    try {
-      const filePath = req.query.path as string;
-      if (!filePath) {
-        return res.status(400).json({ message: "No file path provided" });
-      }
-      
-      // Remove leading slash if present
-      const cleanPath = filePath.startsWith('/') ? filePath.substring(1) : filePath;
-      
-      // Create absolute paths
-      const clientPublicPath = path.join(process.cwd(), 'client/public', cleanPath);
-      const serverPublicPath = path.join(process.cwd(), 'server/public', cleanPath);
-      
-      // Check if files exist
-      const clientFileExists = fs.existsSync(clientPublicPath);
-      const serverFileExists = fs.existsSync(serverPublicPath);
-      
-      // Check file sizes if they exist
-      let clientFileSize = 0;
-      let serverFileSize = 0;
-      let clientMimeType = null;
-      let serverMimeType = null;
-      let clientFileContent = null;
-      
-      if (clientFileExists) {
-        const clientStats = fs.statSync(clientPublicPath);
-        clientFileSize = clientStats.size;
-        
-        // Try to determine MIME type
-        if (clientPublicPath.endsWith('.png')) {
-          clientMimeType = 'image/png';
-        } else if (clientPublicPath.endsWith('.jpg') || clientPublicPath.endsWith('.jpeg')) {
-          clientMimeType = 'image/jpeg';
-        } else if (clientPublicPath.endsWith('.svg')) {
-          clientMimeType = 'image/svg+xml';
-          // For SVGs, we can read the content
-          clientFileContent = fs.readFileSync(clientPublicPath, 'utf8');
-        }
-      }
-      
-      if (serverFileExists) {
-        const serverStats = fs.statSync(serverPublicPath);
-        serverFileSize = serverStats.size;
-        
-        // Try to determine MIME type
-        if (serverPublicPath.endsWith('.png')) {
-          serverMimeType = 'image/png';
-        } else if (serverPublicPath.endsWith('.jpg') || serverPublicPath.endsWith('.jpeg')) {
-          serverMimeType = 'image/jpeg';
-        } else if (serverPublicPath.endsWith('.svg')) {
-          serverMimeType = 'image/svg+xml';
-        }
-      }
-      
-      // Test direct access URL
-      const directUrl = `${req.protocol}://${req.get('host')}${filePath}`;
-      const alternativeUrl = `${req.protocol}://${req.get('host')}/uploads/${path.basename(filePath)}`;
-      
-      res.json({
-        requestedPath: filePath,
-        cleanPath,
-        clientPublicPath,
-        serverPublicPath,
-        clientFileExists,
-        serverFileExists,
-        clientFileSize,
-        serverFileSize,
-        clientMimeType,
-        serverMimeType,
-        directUrl,
-        alternativeUrl,
-        clientFileContent,
-        currentUrl: `${req.protocol}://${req.get('host')}${req.originalUrl}`
-      });
-    } catch (error) {
-      res.status(500).json({ message: "Error checking file", error: String(error) });
-    }
-  });
-  
-  // Helper function to get file extension from MIME type
+  // Helper function to get file extension from MIME type.
+  // SVG is intentionally excluded — serving user-supplied SVGs from the
+  // same origin as the app is a stored-XSS vector.
   const getExtensionFromMimeType = (mimeType: string): string => {
     const mimeToExt: Record<string, string> = {
       'image/jpeg': '.jpg',
       'image/png': '.png',
       'image/gif': '.gif',
-      'image/svg+xml': '.svg',
       'image/webp': '.webp',
       'image/x-icon': '.ico',
       'image/vnd.microsoft.icon': '.ico'
     };
-    
+
     return mimeToExt[mimeType] || '.img';
+  };
+
+  // Verify a file on disk actually begins with one of the allowed image
+  // magic-byte signatures. Client-supplied mimetype is NOT trusted.
+  const isAllowedImageFile = (filePath: string): boolean => {
+    try {
+      const fd = fs.openSync(filePath, 'r');
+      const buf = Buffer.alloc(12);
+      fs.readSync(fd, buf, 0, 12, 0);
+      fs.closeSync(fd);
+      // PNG: 89 50 4E 47 0D 0A 1A 0A
+      if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47) return true;
+      // JPEG: FF D8 FF
+      if (buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF) return true;
+      // GIF: 47 49 46 38 ("GIF8")
+      if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x38) return true;
+      // WebP: 52 49 46 46 ?? ?? ?? ?? 57 45 42 50 ("RIFF....WEBP")
+      if (buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46 &&
+          buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50) return true;
+      // ICO: 00 00 01 00
+      if (buf[0] === 0x00 && buf[1] === 0x00 && buf[2] === 0x01 && buf[3] === 0x00) return true;
+      return false;
+    } catch {
+      return false;
+    }
   };
   
   // Configure multer for file uploads
@@ -222,20 +120,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  const upload = multer({ 
+  const upload = multer({
     storage: multerStorage,
     fileFilter: (req, file, cb) => {
-      // Only accept images
-      if (file.mimetype.startsWith('image/')) {
+      // Allow-list of raster image mimetypes. SVG and anything else is rejected.
+      // mimetype is client-supplied — magic bytes are re-verified post-write
+      // via verifyUploadedImage() on each route that uses this upload.
+      const allowed = new Set([
+        'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+        'image/x-icon', 'image/vnd.microsoft.icon',
+      ]);
+      if (allowed.has(file.mimetype)) {
         cb(null, true);
       } else {
-        cb(new Error('Only image files are allowed'));
+        cb(new Error('Only PNG, JPEG, GIF, WebP, or ICO images are allowed'));
       }
     },
     limits: {
       fileSize: 5 * 1024 * 1024 // 5MB limit
     }
   });
+
+  // Post-write verification: image uploads must pass magic-byte check.
+  // Call this inside a route handler after `upload.single(...)` has run.
+  const verifyUploadedImage = (req: Request, res: Response): boolean => {
+    if (!req.file) return true;
+    const filePath = path.join(clientUploadDir, req.file.filename);
+    if (!isAllowedImageFile(filePath)) {
+      try { fs.unlinkSync(filePath); } catch { /* swallow */ }
+      res.status(400).json({ message: "Uploaded file is not a valid image" });
+      return false;
+    }
+    return true;
+  };
 
   // Handler for zod validation errors
   const validateRequest = (schema: any) => (req: Request, res: Response, next: NextFunction) => {
@@ -955,8 +872,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
       }
-      
-      console.log("Logo uploaded:", req.file.filename, "Mimetype:", req.file.mimetype);
+      if (!verifyUploadedImage(req, res)) return;
       
       // Get the relative path to use in the frontend with the file extension included
       const relativePath = `/uploads/${req.file.filename}`;
@@ -1010,8 +926,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
       }
-      
-      console.log("Favicon uploaded:", req.file.filename, "Mimetype:", req.file.mimetype);
+      if (!verifyUploadedImage(req, res)) return;
       
       // Get the relative path to use in the frontend with the file extension included
       const relativePath = `/uploads/${req.file.filename}`;
@@ -1065,6 +980,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
       }
+      if (!verifyUploadedImage(req, res)) return;
       const relativePath = `/uploads/${req.file.filename}`;
       try {
         const destFile = path.join(serverUploadDir, req.file.filename);
@@ -1724,6 +1640,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/milestones/image", isAuthenticated, hasRole("admin"), upload.single("image"), async (req, res, next) => {
     try {
       if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+      if (!verifyUploadedImage(req, res)) return;
       const relativePath = `/uploads/${req.file.filename}`;
       try {
         const destFile = path.join(serverUploadDir, req.file.filename);
@@ -1799,7 +1716,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         username = `${baseUsername}${suffix++}`;
       }
 
-      const tempPassword = Math.random().toString(36).slice(2, 8) + Math.random().toString(36).toUpperCase().slice(2, 5);
+      // 12-char URL-safe random password from a CSPRNG.
+      const tempPassword = randomBytes(9).toString("base64url");
       const hashedPassword = await hashPassword(tempPassword);
 
       const newUser = await storage.createUser({
