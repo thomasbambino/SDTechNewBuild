@@ -79,8 +79,12 @@ export default function TimelineComposer({ projects, clientId, defaultProjectId 
 
   const uploadFiles = async (files: FileList | File[]) => {
     const list = Array.from(files);
+    if (list.length === 0) return;
     setUploadProgress({ done: 0, total: list.length });
+
     const uploaded: string[] = [];
+    const failures: string[] = [];
+
     try {
       for (let i = 0; i < list.length; i++) {
         const prepped = await prepareFile(list[i]);
@@ -88,24 +92,36 @@ export default function TimelineComposer({ projects, clientId, defaultProjectId 
           setUploadProgress(p => p ? { ...p, done: p.done + 1 } : p);
           continue;
         }
-        const fd = new FormData();
-        fd.append("image", prepped);
-        const res = await fetch("/api/milestones/image", { method: "POST", credentials: "include", body: fd });
-        if (!res.ok) {
-          const text = await res.text().catch(() => "");
-          let message = text;
-          try { const j = JSON.parse(text); if (j.message) message = j.message; } catch { /* keep raw */ }
-          throw new Error(message || `Upload failed for ${prepped.name}`);
+        try {
+          const fd = new FormData();
+          fd.append("image", prepped);
+          const res = await fetch("/api/milestones/image", { method: "POST", credentials: "include", body: fd });
+          if (!res.ok) {
+            const text = await res.text().catch(() => "");
+            let message = text;
+            try { const j = JSON.parse(text); if (j.message) message = j.message; } catch { /* keep raw */ }
+            throw new Error(message || `Upload failed`);
+          }
+          const data = await res.json();
+          if (data.url) uploaded.push(data.url);
+        } catch (err: any) {
+          // Don't abort the batch — remember the failure and keep going.
+          failures.push(`${prepped.name}: ${err.message}`);
         }
-        const data = await res.json();
-        if (data.url) uploaded.push(data.url);
         setUploadProgress(p => p ? { ...p, done: p.done + 1 } : p);
       }
-      setImagePaths(prev => [...prev, ...uploaded]);
-    } catch (err: any) {
-      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
     } finally {
+      // Always commit whatever succeeded, even if some files failed.
+      if (uploaded.length > 0) setImagePaths(prev => [...prev, ...uploaded]);
       setUploadProgress(null);
+    }
+
+    if (failures.length > 0) {
+      toast({
+        title: failures.length === list.length ? "No files uploaded" : `${failures.length} of ${list.length} failed`,
+        description: failures.slice(0, 3).join(" · ") + (failures.length > 3 ? ` · +${failures.length - 3} more` : ""),
+        variant: "destructive",
+      });
     }
   };
 
@@ -274,12 +290,13 @@ export default function TimelineComposer({ projects, clientId, defaultProjectId 
             <Upload className="h-6 w-6 mx-auto text-muted-foreground" />
             <p className="text-sm text-gray-600 mt-2 font-medium">Drop photos here or click to upload</p>
             <p className="text-xs text-gray-400 mt-1">JPEG · PNG · HEIC · GIF · WebP</p>
+            <p className="text-xs text-gray-400 mt-0.5">Select multiple with Shift-click or Cmd-click</p>
           </>
         )}
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/png,image/jpeg,image/jpg,image/gif,image/webp,image/heic,image/heif,.heic,.heif"
+          accept="image/*,.heic,.heif"
           multiple
           className="hidden"
           onChange={(e) => { if (e.target.files) uploadFiles(e.target.files); e.target.value = ""; }}
