@@ -173,13 +173,9 @@ export default function ClientDashboard() {
             {/* Main column — Timeline feed (the hero of this dashboard) */}
             <div className="lg:col-span-2 space-y-6">
               <TimelineFeed items={timelineItems} />
-
-              <InvoicesTable invoices={data!.invoices} onView={id => navigate(`/client/invoices/${id}`)} viewAllLink="/client/invoices" onViewAll={() => navigate("/client/invoices")} />
-
-              <DocumentsList documents={data!.documents} onDownload={handleDocumentDownload} viewAllLink="/client/documents" onViewAll={() => navigate("/client/documents")} />
             </div>
 
-            {/* Right rail — compact status + important notes */}
+            {/* Right rail — status, invoices, documents, notes */}
             <div className="space-y-6">
               <Card className="bg-white shadow-sm">
                 <div className="px-5 py-4 border-b">
@@ -196,6 +192,10 @@ export default function ClientDashboard() {
                   <a href="#" className="font-medium text-primary hover:underline" onClick={e => { e.preventDefault(); navigate("/client/projects"); }}>View all projects</a>
                 </div>
               </Card>
+
+              <InvoicesTable invoices={data!.invoices} onView={id => navigate(`/client/invoices/${id}`)} viewAllLink="/client/invoices" onViewAll={() => navigate("/client/invoices")} />
+
+              <DocumentsList documents={data!.documents} onDownload={handleDocumentDownload} viewAllLink="/client/documents" onViewAll={() => navigate("/client/documents")} />
 
               <div className="space-y-3">
                 <div className="flex items-center justify-between px-1">
