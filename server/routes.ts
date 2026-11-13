@@ -479,11 +479,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const clientId = parseInt(req.params.id);
       const updatedClient = await storage.updateClient(clientId, req.body);
-      
+
       if (!updatedClient) {
         return res.status(404).json({ message: "Client not found" });
       }
-      
+
       await storage.createActivity({
         userId: req.user?.id,
         action: "Client Updated",
@@ -491,8 +491,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
         entityType: "client",
         entityId: updatedClient.id
       });
-      
+
       res.json(updatedClient);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/clients/:id/related-counts", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+    try {
+      const counts = await storage.getClientRelatedCounts(parseInt(req.params.id));
+      res.json(counts);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.delete("/api/clients/:id", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+    try {
+      const clientId = parseInt(req.params.id);
+      const client = await storage.getClient(clientId);
+      if (!client) return res.status(404).json({ message: "Client not found" });
+
+      const counts = await storage.getClientRelatedCounts(clientId);
+      const blockers = Object.entries(counts).filter(([, n]) => n > 0);
+      if (blockers.length > 0) {
+        return res.status(409).json({
+          message: "Client has attached items that must be removed first.",
+          counts,
+        });
+      }
+
+      await storage.deleteClient(clientId);
+
+      await storage.createActivity({
+        userId: req.user?.id,
+        action: "Client Deleted",
+        details: `Client deleted: ${client.name}`,
+        entityType: "client",
+        entityId: clientId,
+      });
+
+      res.sendStatus(204);
     } catch (error) {
       next(error);
     }
@@ -566,11 +606,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const projectId = parseInt(req.params.id);
       const updatedProject = await storage.updateProject(projectId, req.body);
-      
+
       if (!updatedProject) {
         return res.status(404).json({ message: "Project not found" });
       }
-      
+
       await storage.createActivity({
         userId: req.user?.id,
         action: "Project Updated",
@@ -578,8 +618,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         entityType: "project",
         entityId: updatedProject.id
       });
-      
+
       res.json(updatedProject);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.delete("/api/projects/:id", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+    try {
+      const projectId = parseInt(req.params.id);
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+
+      await storage.deleteProject(projectId);
+
+      await storage.createActivity({
+        userId: req.user?.id,
+        action: "Project Deleted",
+        details: `Project deleted: ${project.name}`,
+        entityType: "project",
+        entityId: projectId,
+      });
+
+      res.sendStatus(204);
     } catch (error) {
       next(error);
     }

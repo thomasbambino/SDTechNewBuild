@@ -39,13 +39,16 @@ export interface IStorage {
   getClientByUserId(userId: number): Promise<Client | undefined>;
   createClient(client: InsertClient): Promise<Client>;
   updateClient(id: number, client: Partial<Client>): Promise<Client | undefined>;
+  getClientRelatedCounts(id: number): Promise<{ projects: number; invoices: number; documents: number; messages: number; notes: number }>;
+  deleteClient(id: number): Promise<boolean>;
   getAllClients(): Promise<Client[]>;
-  
+
   // Project operations
   getProject(id: number): Promise<Project | undefined>;
   getProjectsByClientId(clientId: number): Promise<Project[]>;
   createProject(project: InsertProject): Promise<Project>;
   updateProject(id: number, project: Partial<Project>): Promise<Project | undefined>;
+  deleteProject(id: number): Promise<boolean>;
   getAllProjects(): Promise<Project[]>;
   
   // Invoice operations
@@ -627,7 +630,28 @@ export class DatabaseStorage implements IStorage {
       .returning();
     return updatedClient;
   }
-  
+
+  async getClientRelatedCounts(id: number): Promise<{ projects: number; invoices: number; documents: number; messages: number; notes: number }> {
+    const [p, i, d, m, n] = await Promise.all([
+      this.db.select().from(projects).where(eq(projects.clientId, id)),
+      this.db.select().from(invoices).where(eq(invoices.clientId, id)),
+      this.db.select().from(documents).where(eq(documents.clientId, id)),
+      this.db.select().from(messages).where(eq(messages.clientId, id)),
+      this.db.select().from(clientNotes).where(eq(clientNotes.clientId, id)),
+    ]);
+    return { projects: p.length, invoices: i.length, documents: d.length, messages: m.length, notes: n.length };
+  }
+
+  async deleteClient(id: number): Promise<boolean> {
+    const client = await this.getClient(id);
+    if (!client) return false;
+    await this.db.delete(clients).where(eq(clients.id, id));
+    if (client.userId) {
+      await this.db.delete(users).where(eq(users.id, client.userId));
+    }
+    return true;
+  }
+
   async getAllClients(): Promise<Client[]> {
     return await this.db.select().from(clients);
   }
@@ -654,6 +678,16 @@ export class DatabaseStorage implements IStorage {
       .where(eq(projects.id, id))
       .returning();
     return updatedProject;
+  }
+
+  async deleteProject(id: number): Promise<boolean> {
+    const project = await this.getProject(id);
+    if (!project) return false;
+    await this.db.delete(milestones).where(eq(milestones.projectId, id));
+    await this.db.delete(documents).where(eq(documents.projectId, id));
+    await this.db.delete(invoices).where(eq(invoices.projectId, id));
+    await this.db.delete(projects).where(eq(projects.id, id));
+    return true;
   }
 
   async getAllProjects(): Promise<Project[]> {

@@ -1,6 +1,17 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -59,9 +70,12 @@ type ClientFormValues = z.infer<typeof insertClientSchema>;
 
 export default function ClientsPage() {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [currentClient, setCurrentClient] = useState<Client | null>(null);
+  const [deleteClient, setDeleteClient] = useState<Client | null>(null);
+  const [deleteBlocked, setDeleteBlocked] = useState<{ projects: number; invoices: number; documents: number; messages: number; notes: number } | null>(null);
   const [notesClient, setNotesClient] = useState<Client | null>(null);
   const [noteForm, setNoteForm] = useState({ title: "", content: "", isPinned: false });
   const [searchQuery, setSearchQuery] = useState("");
@@ -195,6 +209,35 @@ export default function ClientsPage() {
     mutationFn: async (id: number) => { await apiRequest("DELETE", `/api/client-notes/${id}`); },
     onSuccess: () => { refetchNotes(); toast({ title: "Note deleted" }); },
     onError: (err: Error) => toast({ title: "Failed", description: err.message, variant: "destructive" }),
+  });
+
+  // Delete client mutation
+  const deleteClientMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/clients/${id}`, { method: "DELETE", credentials: "include" });
+      if (res.status === 409) {
+        const body = await res.json();
+        const err: any = new Error(body.message || "Blocked");
+        err.counts = body.counts;
+        err.blocked = true;
+        throw err;
+      }
+      if (!res.ok) throw new Error((await res.text()) || res.statusText);
+      return true;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/clients'] });
+      toast({ title: "Client deleted" });
+      setDeleteClient(null);
+      setDeleteBlocked(null);
+    },
+    onError: (err: any) => {
+      if (err.blocked && err.counts) {
+        setDeleteBlocked(err.counts);
+      } else {
+        toast({ title: "Delete failed", description: err.message, variant: "destructive" });
+      }
+    },
   });
 
   // Filter clients based on search query
@@ -391,7 +434,11 @@ export default function ClientsPage() {
                   </TableHeader>
                   <TableBody>
                     {filteredClients.map((client) => (
-                      <TableRow key={client.id}>
+                      <TableRow
+                        key={client.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => setLocation(`/admin/clients/${client.id}`)}
+                      >
                         <TableCell className="font-medium">
                           <div className="flex items-center">
                             <div className="h-10 w-10 rounded-full bg-primary/10 mr-3 flex items-center justify-center text-primary">
@@ -417,7 +464,7 @@ export default function ClientsPage() {
                             </div>
                           ) : "—"}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -426,11 +473,20 @@ export default function ClientsPage() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => setLocation(`/admin/clients/${client.id}`)}>
+                                View
+                              </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleEditClient(client)}>
                                 Edit
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => { setNotesClient(client); setNoteForm({ title: "", content: "", isPinned: false }); }}>
                                 Client Notes
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => { setDeleteClient(client); setDeleteBlocked(null); }}
+                              >
+                                Delete
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -596,6 +652,46 @@ export default function ClientsPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Delete Client Confirmation */}
+        <AlertDialog open={!!deleteClient} onOpenChange={open => { if (!open) { setDeleteClient(null); setDeleteBlocked(null); } }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {deleteBlocked ? "Cannot delete this client yet" : `Delete ${deleteClient?.name}?`}
+              </AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                {deleteBlocked ? (
+                  <div className="space-y-2">
+                    <p>This client has related records that must be removed first:</p>
+                    <ul className="list-disc list-inside text-sm">
+                      {deleteBlocked.projects > 0 && <li>{deleteBlocked.projects} project{deleteBlocked.projects === 1 ? "" : "s"}</li>}
+                      {deleteBlocked.invoices > 0 && <li>{deleteBlocked.invoices} invoice{deleteBlocked.invoices === 1 ? "" : "s"}</li>}
+                      {deleteBlocked.documents > 0 && <li>{deleteBlocked.documents} document{deleteBlocked.documents === 1 ? "" : "s"}</li>}
+                      {deleteBlocked.messages > 0 && <li>{deleteBlocked.messages} message{deleteBlocked.messages === 1 ? "" : "s"}</li>}
+                      {deleteBlocked.notes > 0 && <li>{deleteBlocked.notes} note{deleteBlocked.notes === 1 ? "" : "s"}</li>}
+                    </ul>
+                    <p className="pt-2">Open the client to review and delete those items, then try again.</p>
+                  </div>
+                ) : (
+                  <span>This permanently removes the client{deleteClient?.userId ? " and their login account" : ""}. This action cannot be undone.</span>
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              {!deleteBlocked && (
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={(e) => { e.preventDefault(); if (deleteClient) deleteClientMutation.mutate(deleteClient.id); }}
+                  disabled={deleteClientMutation.isPending}
+                >
+                  {deleteClientMutation.isPending ? "Deleting…" : "Delete"}
+                </AlertDialogAction>
+              )}
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AppLayout>
   );

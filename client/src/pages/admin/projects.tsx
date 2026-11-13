@@ -2,6 +2,16 @@ import { useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -100,6 +110,7 @@ export default function ProjectsPage() {
   const [milestoneForm, setMilestoneForm] = useState({ title: "", notes: "" });
   const [milestoneImages, setMilestoneImages] = useState<string[]>([]);
   const [editingMilestone, setEditingMilestone] = useState<Milestone | null>(null);
+  const [deleteProjectTarget, setDeleteProjectTarget] = useState<Project | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const milestoneImageRef = useRef<HTMLInputElement>(null);
 
@@ -199,6 +210,23 @@ export default function ProjectsPage() {
     },
     onError: () => {
       toast({ title: "Delete failed", variant: "destructive" });
+    },
+  });
+
+  // Delete project mutation (cascades milestones, documents, invoices)
+  const deleteProjectMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest('DELETE', `/api/projects/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+      toast({ title: "Project deleted" });
+      setDeleteProjectTarget(null);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Delete failed", description: err.message, variant: "destructive" });
     },
   });
 
@@ -734,6 +762,12 @@ export default function ProjectsPage() {
                           <DropdownMenuItem onClick={() => { setMilestonesProject(project); setMilestoneForm({ title: "", notes: "" }); setMilestoneImages([]); setEditingMilestone(null); }}>
                             Milestones
                           </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => setDeleteProjectTarget(project)}
+                          >
+                            Delete
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
@@ -1157,6 +1191,28 @@ export default function ProjectsPage() {
             </Form>
           </DialogContent>
         </Dialog>
+
+        {/* Delete Project Confirmation */}
+        <AlertDialog open={!!deleteProjectTarget} onOpenChange={open => { if (!open) setDeleteProjectTarget(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete {deleteProjectTarget?.name}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This permanently deletes the project along with all of its milestones, documents, and invoices. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={(e) => { e.preventDefault(); if (deleteProjectTarget) deleteProjectMutation.mutate(deleteProjectTarget.id); }}
+                disabled={deleteProjectMutation.isPending}
+              >
+                {deleteProjectMutation.isPending ? "Deleting…" : "Delete Project"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AppLayout>
   );

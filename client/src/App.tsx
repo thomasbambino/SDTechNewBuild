@@ -17,6 +17,7 @@ import DynamicFavicon from "@/components/layout/DynamicFavicon";
 // Admin pages
 import AdminDashboard from "@/pages/admin/dashboard";
 import AdminClients from "@/pages/admin/clients";
+import AdminClientDetail from "@/pages/admin/client-detail";
 import AdminProjects from "@/pages/admin/projects";
 import AdminInvoices from "@/pages/admin/invoices";
 import AdminInquiries from "@/pages/admin/inquiries";
@@ -48,6 +49,7 @@ function Router() {
       
       {/* Admin routes */}
       <ProtectedRoute path="/admin" role="admin" component={AdminDashboard} />
+      <ProtectedRoute path="/admin/clients/:id" role="admin" component={AdminClientDetail} />
       <ProtectedRoute path="/admin/clients" role="admin" component={AdminClients} />
       <ProtectedRoute path="/admin/projects" role="admin" component={AdminProjects} />
       <ProtectedRoute path="/admin/invoices" role="admin" component={AdminInvoices} />
