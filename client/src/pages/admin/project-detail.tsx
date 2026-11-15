@@ -32,6 +32,9 @@ interface Milestone {
   imagePaths: string | null;
   createdBy: number | null;
   createdAt: string;
+  likeCount?: number;
+  commentCount?: number;
+  likedByMe?: boolean;
 }
 
 function statusVariant(s: string | null | undefined) {
@@ -145,6 +148,12 @@ export default function AdminProjectDetailPage() {
         createdAt: m.createdAt,
         imagePaths: images,
       },
+      engagement: {
+        milestoneId: m.id,
+        likeCount: m.likeCount ?? 0,
+        commentCount: m.commentCount ?? 0,
+        likedByMe: m.likedByMe ?? false,
+      },
     };
   });
 
@@ -238,6 +247,7 @@ export default function AdminProjectDetailPage() {
             <TimelineFeed
               items={timelineItems}
               emptyMessage="No posts on this project yet."
+              engagementRefreshKeys={[`/api/projects/${projectId}/milestones`]}
               onEdit={(meta, item) => {
                 setEditingPost({
                   id: meta.milestoneId,

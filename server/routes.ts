@@ -409,16 +409,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const authorNameById = new Map<number, string>();
       authors.forEach(u => { if (u) authorNameById.set(u.id, u.name); });
 
-      const timeline = allMilestones.map(m => ({
-        id: m.id,
-        projectId: m.projectId,
-        projectName: projectNameById.get(m.projectId) ?? null,
-        title: m.title,
-        notes: m.notes,
-        imagePaths: m.imagePaths,
-        authorName: m.createdBy ? authorNameById.get(m.createdBy) ?? null : null,
-        createdAt: m.createdAt,
-      })).sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime());
+      const engagement = await storage.getPostEngagement(
+        allMilestones.map(m => m.id),
+        req.user!.id,
+      );
+
+      const timeline = allMilestones.map(m => {
+        const eng = engagement.get(m.id) ?? { likeCount: 0, commentCount: 0, likedByMe: false };
+        return {
+          id: m.id,
+          projectId: m.projectId,
+          projectName: projectNameById.get(m.projectId) ?? null,
+          title: m.title,
+          notes: m.notes,
+          imagePaths: m.imagePaths,
+          authorName: m.createdBy ? authorNameById.get(m.createdBy) ?? null : null,
+          createdAt: m.createdAt,
+          likeCount: eng.likeCount,
+          commentCount: eng.commentCount,
+          likedByMe: eng.likedByMe,
+        };
+      }).sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime());
 
       res.json(timeline);
     } catch (error) {
@@ -1649,7 +1660,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!project || project.clientId !== client.id) return res.status(403).json({ message: "Forbidden" });
       }
       const items = await storage.getMilestonesByProjectId(projectId);
-      res.json(items);
+      const engagement = await storage.getPostEngagement(items.map(m => m.id), req.user!.id);
+      res.json(items.map(m => ({
+        ...m,
+        ...(engagement.get(m.id) ?? { likeCount: 0, commentCount: 0, likedByMe: false }),
+      })));
     } catch (err) { next(err); }
   });
 
@@ -1707,6 +1722,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!(await verifyUploadedImage(req, res))) return;
       const relativePath = `/uploads/${req.file.filename}`;
       res.json({ url: relativePath });
+    } catch (err) { next(err); }
+  });
+
+  // ── Post engagement (likes + comments) ────────────────────────────────────
+
+  // Non-admin users may only touch milestones that belong to their client.
+  const assertCanSeeMilestone = async (req: Request, milestoneId: number) => {
+    const rows = await (storage as any).client`
+      SELECT p.client_id AS "clientId"
+      FROM milestones m
+      JOIN projects p ON p.id = m.project_id
+      WHERE m.id = ${milestoneId}
+    `;
+    if (rows.length === 0) return { ok: false as const, code: 404, msg: "Post not found" };
+    const projectClientId = rows[0].clientId as number;
+    if (req.user!.role === "admin") return { ok: true as const, clientId: projectClientId };
+    const userClient = await storage.getClientForUser(req.user!.id);
+    if (!userClient || userClient.id !== projectClientId) {
+      return { ok: false as const, code: 403, msg: "Forbidden" };
+    }
+    return { ok: true as const, clientId: projectClientId };
+  };
+
+  app.post("/api/milestones/:id/like", isAuthenticated, async (req, res, next) => {
+    try {
+      const milestoneId = parseInt(req.params.id);
+      const access = await assertCanSeeMilestone(req, milestoneId);
+      if (!access.ok) return res.status(access.code).json({ message: access.msg });
+      const result = await storage.togglePostLike(milestoneId, req.user!.id);
+      res.json(result);
+    } catch (err) { next(err); }
+  });
+
+  app.get("/api/milestones/:id/comments", isAuthenticated, async (req, res, next) => {
+    try {
+      const milestoneId = parseInt(req.params.id);
+      const access = await assertCanSeeMilestone(req, milestoneId);
+      if (!access.ok) return res.status(access.code).json({ message: access.msg });
+      const comments = await storage.getPostComments(milestoneId);
+      res.json(comments);
+    } catch (err) { next(err); }
+  });
+
+  app.post("/api/milestones/:id/comments", isAuthenticated, async (req, res, next) => {
+    try {
+      const milestoneId = parseInt(req.params.id);
+      const access = await assertCanSeeMilestone(req, milestoneId);
+      if (!access.ok) return res.status(access.code).json({ message: access.msg });
+      const content = typeof req.body?.content === "string" ? req.body.content.trim() : "";
+      if (!content) return res.status(400).json({ message: "Comment cannot be empty" });
+      if (content.length > 2000) return res.status(400).json({ message: "Comment too long" });
+      const created = await storage.createPostComment({
+        milestoneId,
+        userId: req.user!.id,
+        content,
+      });
+      res.status(201).json(created);
+    } catch (err) { next(err); }
+  });
+
+  app.delete("/api/comments/:id", isAuthenticated, async (req, res, next) => {
+    try {
+      const commentId = parseInt(req.params.id);
+      // Read comment first so we can authorize: author OR admin.
+      const [row] = await (storage as any).client`
+        SELECT id, user_id AS "userId", milestone_id AS "milestoneId"
+        FROM post_comments WHERE id = ${commentId}
+      `;
+      if (!row) return res.status(404).json({ message: "Comment not found" });
+      if (req.user!.role !== "admin" && row.userId !== req.user!.id) {
+        return res.status(403).json({ message: "You can only delete your own comments" });
+      }
+      await storage.deletePostComment(commentId);
+      res.sendStatus(204);
     } catch (err) { next(err); }
   });
 

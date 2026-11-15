@@ -55,6 +55,9 @@ interface TimelinePost {
   imagePaths: string | null;
   authorName: string | null;
   createdAt: string;
+  likeCount: number;
+  commentCount: number;
+  likedByMe: boolean;
 }
 
 export default function ClientDetailPage() {
@@ -287,9 +290,16 @@ export default function ClientDetailPage() {
                     createdAt: m.createdAt,
                     imagePaths: images,
                   },
+                  engagement: {
+                    milestoneId: m.id,
+                    likeCount: m.likeCount,
+                    commentCount: m.commentCount,
+                    likedByMe: m.likedByMe,
+                  },
                 };
               }) as TimelineItem[]}
               emptyMessage="No posts yet. Use the composer above to publish your first update."
+              engagementRefreshKeys={[`/api/timeline/admin?clientId=${clientId}`]}
               onEdit={(meta, item) => {
                 setEditingPost({
                   id: meta.milestoneId,

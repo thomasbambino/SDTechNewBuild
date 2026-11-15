@@ -12,6 +12,8 @@ import {
   messages, Message, InsertMessage,
   messageReads,
   milestones, Milestone, InsertMilestone,
+  postLikes, PostLike,
+  postComments, PostComment, InsertPostComment,
   clientNotes, ClientNote, InsertClientNote,
   customPages, CustomPage, InsertCustomPage,
 } from "@shared/schema";
@@ -108,6 +110,13 @@ export interface IStorage {
   createMilestone(milestone: InsertMilestone): Promise<Milestone>;
   updateMilestone(id: number, milestone: Partial<Milestone>): Promise<Milestone | undefined>;
   deleteMilestone(id: number): Promise<boolean>;
+
+  // Post engagement
+  getPostEngagement(milestoneIds: number[], viewerUserId: number): Promise<Map<number, { likeCount: number; commentCount: number; likedByMe: boolean }>>;
+  togglePostLike(milestoneId: number, userId: number): Promise<{ liked: boolean; likeCount: number }>;
+  getPostComments(milestoneId: number): Promise<(PostComment & { authorName: string; authorRole: string })[]>;
+  createPostComment(comment: InsertPostComment): Promise<PostComment>;
+  deletePostComment(id: number): Promise<PostComment | undefined>;
 
   // Client note operations
   getClientNotesByClientId(clientId: number): Promise<ClientNote[]>;
@@ -1060,8 +1069,99 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteMilestone(id: number): Promise<boolean> {
+    // Blow away engagement first so the FK cascades aren't relied on in
+    // environments where the constraint wasn't declared with ON DELETE CASCADE.
+    await this.db.delete(postLikes).where(eq(postLikes.milestoneId, id));
+    await this.db.delete(postComments).where(eq(postComments.milestoneId, id));
     const deleted = await this.db.delete(milestones).where(eq(milestones.id, id)).returning({ id: milestones.id });
     return deleted.length > 0;
+  }
+
+  // Post engagement
+  async getPostEngagement(milestoneIds: number[], viewerUserId: number) {
+    const result = new Map<number, { likeCount: number; commentCount: number; likedByMe: boolean }>();
+    if (milestoneIds.length === 0) return result;
+    // Seed defaults so every requested id is present in the output.
+    for (const id of milestoneIds) result.set(id, { likeCount: 0, commentCount: 0, likedByMe: false });
+
+    const likeRows = await this.client<{ milestone_id: number; cnt: number; liked_by_me: boolean }[]>`
+      SELECT
+        milestone_id,
+        COUNT(*)::int AS cnt,
+        BOOL_OR(user_id = ${viewerUserId}) AS liked_by_me
+      FROM post_likes
+      WHERE milestone_id = ANY(${milestoneIds as unknown as number[]})
+      GROUP BY milestone_id
+    `;
+    for (const row of likeRows) {
+      const bucket = result.get(row.milestone_id)!;
+      bucket.likeCount = row.cnt;
+      bucket.likedByMe = row.liked_by_me;
+    }
+
+    const commentRows = await this.client<{ milestone_id: number; cnt: number }[]>`
+      SELECT milestone_id, COUNT(*)::int AS cnt
+      FROM post_comments
+      WHERE milestone_id = ANY(${milestoneIds as unknown as number[]})
+      GROUP BY milestone_id
+    `;
+    for (const row of commentRows) {
+      const bucket = result.get(row.milestone_id)!;
+      bucket.commentCount = row.cnt;
+    }
+
+    return result;
+  }
+
+  async togglePostLike(milestoneId: number, userId: number) {
+    const existing = await this.db.select().from(postLikes).where(
+      and(eq(postLikes.milestoneId, milestoneId), eq(postLikes.userId, userId)),
+    );
+    if (existing.length > 0) {
+      await this.db.delete(postLikes).where(
+        and(eq(postLikes.milestoneId, milestoneId), eq(postLikes.userId, userId)),
+      );
+    } else {
+      await this.db.insert(postLikes).values({ milestoneId, userId });
+    }
+    const [{ count }] = await this.client<{ count: number }[]>`
+      SELECT COUNT(*)::int AS count FROM post_likes WHERE milestone_id = ${milestoneId}
+    `;
+    return { liked: existing.length === 0, likeCount: count };
+  }
+
+  async getPostComments(milestoneId: number) {
+    // Join with users so we don't N+1 lookup author names.
+    const rows = await this.client<(PostComment & { author_name: string; author_role: string })[]>`
+      SELECT
+        c.id, c.milestone_id AS "milestoneId", c.user_id AS "userId",
+        c.content, c.created_at AS "createdAt", c.updated_at AS "updatedAt",
+        u.name AS author_name, u.role AS author_role
+      FROM post_comments c
+      JOIN users u ON u.id = c.user_id
+      WHERE c.milestone_id = ${milestoneId}
+      ORDER BY c.created_at ASC
+    `;
+    return rows.map(r => ({
+      id: r.id,
+      milestoneId: r.milestoneId,
+      userId: r.userId,
+      content: r.content,
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+      authorName: r.author_name,
+      authorRole: r.author_role,
+    }));
+  }
+
+  async createPostComment(comment: InsertPostComment): Promise<PostComment> {
+    const [created] = await this.db.insert(postComments).values(comment).returning();
+    return created;
+  }
+
+  async deletePostComment(id: number): Promise<PostComment | undefined> {
+    const [deleted] = await this.db.delete(postComments).where(eq(postComments.id, id)).returning();
+    return deleted;
   }
 
   // Client note operations

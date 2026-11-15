@@ -222,6 +222,28 @@ const createTables = async () => {
     await client.query(`ALTER TABLE client_notes ADD COLUMN IF NOT EXISTS fields TEXT;`);
     await client.query(`ALTER TABLE client_notes ALTER COLUMN content SET DEFAULT '';`);
 
+    // Timeline post engagement: likes + comments.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS post_likes (
+        id SERIAL PRIMARY KEY,
+        milestone_id INTEGER NOT NULL REFERENCES milestones(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (milestone_id, user_id)
+      );
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS post_comments (
+        id SERIAL PRIMARY KEY,
+        milestone_id INTEGER NOT NULL REFERENCES milestones(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        content TEXT NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_post_comments_milestone ON post_comments(milestone_id);`);
+
     // Sub-users: let multiple user accounts share the same client.
     // users.client_id links a user to a client (primary + any team members).
     // clients.user_id still identifies the designated primary owner.

@@ -1,16 +1,25 @@
 import { useState, useEffect } from "react";
-import { format } from "date-fns";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { format, formatDistanceToNow } from "date-fns";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, X, Flag, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  ChevronLeft, ChevronRight, X, Flag, MoreHorizontal, Pencil, Trash2,
+  Heart, MessageCircle, Send, ShieldCheck,
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
+import { cn } from "@/lib/utils";
 
 export interface TimelineItem {
   id: string;
@@ -29,6 +38,14 @@ export interface TimelineItem {
     createdAt: string;
     imagePaths: string[];
   };
+  // Engagement payload — set on milestones that live in the DB (not synthetic
+  // "project started" items). Enables Like/Comment controls on the post.
+  engagement?: {
+    milestoneId: number;
+    likeCount: number;
+    commentCount: number;
+    likedByMe: boolean;
+  };
 }
 
 interface TimelineFeedProps {
@@ -37,6 +54,9 @@ interface TimelineFeedProps {
   // Called with the admin payload when the admin clicks Edit/Delete.
   onEdit?: (meta: NonNullable<TimelineItem["adminMeta"]>, item: TimelineItem) => void;
   onDelete?: (meta: NonNullable<TimelineItem["adminMeta"]>, item: TimelineItem) => void;
+  // Query keys to invalidate when a like/comment lands, so the counts in
+  // the feed stay in sync. Usually the timeline endpoint key for this page.
+  engagementRefreshKeys?: readonly string[];
 }
 
 function initialsOf(name: string | null | undefined): string {
@@ -44,6 +64,208 @@ function initialsOf(name: string | null | undefined): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+interface CommentRow {
+  id: number;
+  milestoneId: number;
+  userId: number;
+  content: string;
+  createdAt: string;
+  authorName: string;
+  authorRole: string;
+}
+
+function EngagementBar({
+  engagement,
+  queryKeysToInvalidate,
+}: {
+  engagement: NonNullable<TimelineItem["engagement"]>;
+  queryKeysToInvalidate: readonly string[];
+}) {
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [draft, setDraft] = useState("");
+
+  const commentsQueryKey = [`/api/milestones/${engagement.milestoneId}/comments`] as const;
+  const { data: comments = [], isLoading: commentsLoading } = useQuery<CommentRow[]>({
+    queryKey: commentsQueryKey,
+    enabled: commentsOpen,
+  });
+
+  const invalidateTimeline = () =>
+    queryKeysToInvalidate.forEach(k => queryClient.invalidateQueries({ queryKey: [k] }));
+
+  const likeMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/milestones/${engagement.milestoneId}/like`);
+      return res.json() as Promise<{ liked: boolean; likeCount: number }>;
+    },
+    onSuccess: invalidateTimeline,
+    onError: (err: Error) => toast({ title: "Couldn't update like", description: err.message, variant: "destructive" }),
+  });
+
+  const addCommentMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/milestones/${engagement.milestoneId}/comments`, { content: draft.trim() });
+      return res.json();
+    },
+    onSuccess: () => {
+      setDraft("");
+      queryClient.invalidateQueries({ queryKey: commentsQueryKey });
+      invalidateTimeline();
+    },
+    onError: (err: Error) => toast({ title: "Couldn't post comment", description: err.message, variant: "destructive" }),
+  });
+
+  const deleteCommentMutation = useMutation({
+    mutationFn: async (id: number) => { await apiRequest("DELETE", `/api/comments/${id}`); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: commentsQueryKey });
+      invalidateTimeline();
+    },
+    onError: (err: Error) => toast({ title: "Couldn't delete", description: err.message, variant: "destructive" }),
+  });
+
+  return (
+    <div className="mt-3 pt-3 border-t">
+      {/* Counts */}
+      {(engagement.likeCount > 0 || engagement.commentCount > 0) && (
+        <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
+          <div className="flex items-center gap-1">
+            {engagement.likeCount > 0 && (
+              <>
+                <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-primary text-primary-foreground">
+                  <Heart className="h-3 w-3 fill-current" />
+                </span>
+                <span>{engagement.likeCount}</span>
+              </>
+            )}
+          </div>
+          {engagement.commentCount > 0 && (
+            <button
+              type="button"
+              className="hover:underline"
+              onClick={() => setCommentsOpen(o => !o)}
+            >
+              {engagement.commentCount} comment{engagement.commentCount === 1 ? "" : "s"}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Action buttons */}
+      <div className="flex items-center gap-1">
+        <Button
+          variant="ghost"
+          size="sm"
+          className={cn(
+            "flex-1 h-9 gap-2",
+            engagement.likedByMe && "text-primary"
+          )}
+          onClick={() => likeMutation.mutate()}
+          disabled={likeMutation.isPending}
+        >
+          <Heart className={cn("h-4 w-4", engagement.likedByMe && "fill-current")} />
+          <span className="font-medium">{engagement.likedByMe ? "Liked" : "Like"}</span>
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="flex-1 h-9 gap-2"
+          onClick={() => setCommentsOpen(o => !o)}
+        >
+          <MessageCircle className="h-4 w-4" />
+          <span className="font-medium">Comment</span>
+        </Button>
+      </div>
+
+      {/* Comments panel */}
+      {commentsOpen && (
+        <div className="mt-3 space-y-3">
+          {commentsLoading ? (
+            <p className="text-xs text-gray-400 text-center py-2">Loading comments…</p>
+          ) : comments.length === 0 ? (
+            <p className="text-xs text-gray-400 text-center py-2">Be the first to comment.</p>
+          ) : (
+            <div className="space-y-2">
+              {comments.map(c => (
+                <div key={c.id} className="flex gap-2 group">
+                  <Avatar className="h-7 w-7 flex-shrink-0">
+                    <AvatarFallback className={c.authorRole === "admin" ? "bg-primary/10 text-primary text-xs" : "bg-neutral-100 text-neutral-700 text-xs"}>
+                      {initialsOf(c.authorName)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <div className="bg-neutral-100 rounded-2xl px-3 py-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-sm font-semibold text-gray-900">{c.authorName}</span>
+                        {c.authorRole === "admin" && (
+                          <Badge variant="outline" className="h-4 px-1 text-[10px] gap-0.5">
+                            <ShieldCheck className="h-2.5 w-2.5" /> Team
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-800 whitespace-pre-wrap break-words mt-0.5">{c.content}</p>
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5 ml-3">
+                      <span className="text-[11px] text-gray-500">
+                        {formatDistanceToNow(new Date(c.createdAt), { addSuffix: true })}
+                      </span>
+                      {(c.userId === user?.id || user?.role === "admin") && (
+                        <button
+                          type="button"
+                          className="text-[11px] text-gray-500 hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => {
+                            if (confirm("Delete this comment?")) deleteCommentMutation.mutate(c.id);
+                          }}
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Composer */}
+          <div className="flex gap-2 pt-1">
+            <Avatar className="h-7 w-7 flex-shrink-0">
+              <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                {initialsOf(user?.name)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0 flex gap-2 items-end">
+              <Textarea
+                value={draft}
+                onChange={e => setDraft(e.target.value)}
+                placeholder="Write a comment…"
+                rows={1}
+                className="min-h-9 py-2 resize-none text-sm"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && draft.trim()) {
+                    e.preventDefault();
+                    addCommentMutation.mutate();
+                  }
+                }}
+              />
+              <Button
+                size="sm"
+                onClick={() => addCommentMutation.mutate()}
+                disabled={!draft.trim() || addCommentMutation.isPending}
+              >
+                <Send className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function PostImages({ images, onOpen }: { images: string[]; onOpen: (index: number) => void }) {
@@ -219,7 +441,13 @@ function Lightbox({ images, startIndex, onClose }: { images: string[]; startInde
   );
 }
 
-export default function TimelineFeed({ items, emptyMessage = "No updates yet", onEdit, onDelete }: TimelineFeedProps) {
+export default function TimelineFeed({
+  items,
+  emptyMessage = "No updates yet",
+  onEdit,
+  onDelete,
+  engagementRefreshKeys = [],
+}: TimelineFeedProps) {
   const [lightbox, setLightbox] = useState<{ images: string[]; index: number } | null>(null);
 
   if (items.length === 0) {
@@ -297,6 +525,13 @@ export default function TimelineFeed({ items, emptyMessage = "No updates yet", o
               )}
 
               <PostImages images={item.images} onOpen={(index) => setLightbox({ images: item.images, index })} />
+
+              {item.engagement && (
+                <EngagementBar
+                  engagement={item.engagement}
+                  queryKeysToInvalidate={engagementRefreshKeys}
+                />
+              )}
             </article>
           ))}
         </div>

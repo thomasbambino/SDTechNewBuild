@@ -28,6 +28,9 @@ interface TimelinePost {
   imagePaths: string | null;
   authorName: string | null;
   createdAt: string;
+  likeCount: number;
+  commentCount: number;
+  likedByMe: boolean;
 }
 
 interface ClientNote {
@@ -80,6 +83,12 @@ export default function ClientDashboard() {
       images: m.imagePaths ? (JSON.parse(m.imagePaths) as string[]) : [],
       projectName: m.projectName,
       authorName: m.authorName,
+      engagement: {
+        milestoneId: m.id,
+        likeCount: m.likeCount,
+        commentCount: m.commentCount,
+        likedByMe: m.likedByMe,
+      },
     })),
   ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
@@ -172,7 +181,10 @@ export default function ClientDashboard() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Main column — Timeline feed (the hero of this dashboard) */}
             <div className="lg:col-span-2 space-y-6">
-              <TimelineFeed items={timelineItems} />
+              <TimelineFeed
+                items={timelineItems}
+                engagementRefreshKeys={["/api/timeline/client"]}
+              />
             </div>
 
             {/* Right rail — status, invoices, documents, notes */}

@@ -260,6 +260,32 @@ export const insertMilestoneSchema = createInsertSchema(milestones)
 export type Milestone = typeof milestones.$inferSelect;
 export type InsertMilestone = z.infer<typeof insertMilestoneSchema>;
 
+// Likes on timeline posts. One row per (post, user).
+export const postLikes = pgTable("post_likes", {
+  id: serial("id").primaryKey(),
+  milestoneId: integer("milestone_id").references(() => milestones.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type PostLike = typeof postLikes.$inferSelect;
+
+// Comments on timeline posts.
+export const postComments = pgTable("post_comments", {
+  id: serial("id").primaryKey(),
+  milestoneId: integer("milestone_id").references(() => milestones.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertPostCommentSchema = createInsertSchema(postComments)
+  .omit({ id: true, createdAt: true, updatedAt: true });
+
+export type PostComment = typeof postComments.$inferSelect;
+export type InsertPostComment = z.infer<typeof insertPostCommentSchema>;
+
 // Client-visible notes created by admin
 export const clientNotes = pgTable("client_notes", {
   id: serial("id").primaryKey(),
