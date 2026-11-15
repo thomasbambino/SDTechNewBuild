@@ -175,7 +175,7 @@ export class MemStorage implements IStorage {
       id: 1,
       companyName: "SD Tech Pros",
       logoPath: null,
-      primaryColor: "hsl(222.2 47.4% 11.2%)",
+      primaryColor: "#2B5A94",
       theme: "light",
       radius: 0.5,
       siteTitle: "SD Tech Pros Client Portal",
@@ -853,7 +853,7 @@ export class DatabaseStorage implements IStorage {
         const defaultSettings = {
           companyName: updateData.companyName || 'SD Tech Pros',
           logoPath: updateData.logoPath || null,
-          primaryColor: updateData.primaryColor || 'hsl(222.2 47.4% 11.2%)',
+          primaryColor: updateData.primaryColor || '#2B5A94',
           theme: updateData.theme || 'light',
           radius: updateData.radius !== undefined ? updateData.radius : 0.5,
           siteTitle: updateData.siteTitle || 'SD Tech Pros Client Portal',

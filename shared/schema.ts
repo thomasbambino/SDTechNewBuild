@@ -127,7 +127,7 @@ export const settings = pgTable("settings", {
   id: serial("id").primaryKey(),
   companyName: text("company_name").default("SD Tech Pros"),
   logoPath: text("logo_path"),
-  primaryColor: text("primary_color").default("hsl(222.2 47.4% 11.2%)"),
+  primaryColor: text("primary_color").default("#2B5A94"),
   theme: text("theme").default("light"), // light, dark
   radius: doublePrecision("radius").default(0.5),
   siteTitle: text("site_title").default("SD Tech Pros Client Portal"),

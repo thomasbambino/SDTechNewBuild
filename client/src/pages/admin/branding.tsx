@@ -78,7 +78,7 @@ export default function BrandingPage() {
     if (settings) {
       setFormData({
         companyName: settings.companyName || 'SD Tech Pros',
-        primaryColor: settings.primaryColor || 'hsl(222.2 47.4% 11.2%)',
+        primaryColor: settings.primaryColor || '#2B5A94',
         theme: settings.theme || 'light',
         radius: settings.radius || 0.5,
         siteTitle: settings.siteTitle || 'SD Tech Pros Client Portal',
@@ -371,7 +371,7 @@ export default function BrandingPage() {
                           name="primaryColor"
                           value={formData.primaryColor}
                           onChange={handleChange}
-                          placeholder="hsl(222.2 47.4% 11.2%)"
+                          placeholder="#2B5A94"
                         />
                         <div 
                           className="w-10 h-10 rounded-md border"
@@ -447,7 +447,7 @@ export default function BrandingPage() {
                   <CardContent>
                     <div className="text-center py-8">
                       <p className="text-sm text-gray-500">
-                        Typography settings are coming soon. The system currently uses Inter from Google Fonts.
+                        Typography settings are coming soon. The system uses Barlow (body) and Barlow Condensed (headings) from Google Fonts.
                       </p>
                     </div>
                   </CardContent>

@@ -2,13 +2,207 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+  SD Tech Pros design tokens.
+  Source of truth for color, radius and shadow. Tailwind reads the HSL
+  variables through tailwind.config.ts (hsl(var(--x))); the hex scales at
+  the bottom of :root back the primary, signal and neutral numbered utilities.
+
+  Roles:
+    primary  = "Patch blue"     anything you can click or that is selected
+    signal   = "Signal orange"  the logo mark, job tags, before/after labels,
+                                the single quote CTA. Text on it is ink, never white.
+    neutral  = warm greys       backgrounds, borders, text
+  Dark mode is the .dark class on <html>.
+*/
+@layer base {
+  :root {
+    --background: 48 22% 95%; /* #F6F5F1 */
+    --foreground: 215 21% 11%; /* #161B22 */
+    --card: 0 0% 100%; /* #FFFFFF */
+    --card-foreground: 215 21% 11%; /* #161B22 */
+    --popover: 0 0% 100%; /* #FFFFFF */
+    --popover-foreground: 215 21% 11%; /* #161B22 */
+    --primary: 213 55% 37%; /* #2B5A94 */
+    --primary-foreground: 0 0% 100%; /* #FFFFFF */
+    --primary-soft: 212 62% 96%; /* #EEF4FB */
+    --primary-soft-foreground: 213 54% 24%; /* #1C3A5F */
+    --secondary: 45 19% 92%; /* #EEECE6 */
+    --secondary-foreground: 215 21% 11%; /* #161B22 */
+    --muted: 45 19% 92%; /* #EEECE6 */
+    --muted-foreground: 212 8% 44%; /* #687079 */
+    --accent: 44 17% 87%; /* #E4E1D9 */
+    --accent-foreground: 215 21% 11%; /* #161B22 */
+    --signal: 19 79% 48%; /* #D9571A */
+    --signal-foreground: 215 21% 11%; /* #161B22 */
+    --signal-soft: 25 83% 95%; /* #FDF2EA */
+    --signal-soft-foreground: 19 85% 38%; /* #B5440F */
+    --success: 150 59% 30%; /* #1F7A4D */
+    --success-foreground: 0 0% 100%; /* #FFFFFF */
+    --success-soft: 146 40% 92%; /* #E3F3EA */
+    --success-soft-foreground: 154 61% 23%; /* #176040 */
+    --warning: 34 94% 31%; /* #9A5A05 */
+    --warning-foreground: 0 0% 100%; /* #FFFFFF */
+    --warning-soft: 41 82% 91%; /* #FBEFD6 */
+    --warning-soft-foreground: 34 94% 25%; /* #7A4704 */
+    --destructive: 3 71% 41%; /* #B3261E */
+    --destructive-foreground: 0 0% 100%; /* #FFFFFF */
+    --destructive-soft: 5 76% 94%; /* #FBE4E2 */
+    --destructive-soft-foreground: 3 71% 33%; /* #8F1E18 */
+    --border: 44 14% 84%; /* #DCD9D1 */
+    --input: 43 11% 76%; /* #C9C5BB */
+    --ring: 213 55% 37%; /* #2B5A94 */
+    --chart-1: 213 55% 37%; /* #2B5A94 */
+    --chart-2: 19 79% 48%; /* #D9571A */
+    --chart-3: 151 59% 37%; /* #27955F */
+    --chart-4: 35 92% 40%; /* #C47508 */
+    --chart-5: 48 5% 58%; /* #9A9890 */
+    --sidebar-background: 0 0% 100%; /* #FFFFFF */
+    --sidebar-foreground: 214 9% 32%; /* #4A5058 */
+    --sidebar-primary: 213 55% 37%; /* #2B5A94 */
+    --sidebar-primary-foreground: 0 0% 100%; /* #FFFFFF */
+    --sidebar-accent: 212 62% 96%; /* #EEF4FB */
+    --sidebar-accent-foreground: 213 54% 24%; /* #1C3A5F */
+    --sidebar-border: 44 14% 84%; /* #DCD9D1 */
+    --sidebar-ring: 213 55% 37%; /* #2B5A94 */
+
+    --radius: 0.75rem;
+
+    --shadow-sm: 0 1px 2px rgba(22, 27, 34, 0.06);
+    --shadow-md: 0 4px 14px -4px rgba(22, 27, 34, 0.14), 0 1px 2px rgba(22, 27, 34, 0.06);
+    --shadow-lg: 0 24px 48px -20px rgba(22, 27, 34, 0.22);
+
+    /* primary scale (hex, for one-off use and the Tailwind primary-* utilities) */
+    --primary-50: #EEF4FB;
+    --primary-100: #D9E6F6;
+    --primary-200: #B4CDEC;
+    --primary-300: #86ADDE;
+    --primary-400: #5A8CCB;
+    --primary-500: #3A6FB0;
+    --primary-600: #2B5A94;
+    --primary-700: #234A79;
+    --primary-800: #1C3A5F;
+    --primary-900: #152C48;
+    --primary-950: #0D1B2D;
+    /* signal scale (hex, for one-off use and the Tailwind signal-* utilities) */
+    --signal-50: #FDF2EA;
+    --signal-100: #FBE3D2;
+    --signal-200: #F7C5A6;
+    --signal-300: #F3A071;
+    --signal-400: #EC7A42;
+    --signal-500: #D9571A;
+    --signal-600: #B5440F;
+    --signal-700: #90360D;
+    --signal-800: #6E2A0C;
+    --signal-900: #4D1E0A;
+    --signal-950: #2E1206;
+    /* neutral scale (hex, for one-off use and the Tailwind neutral-* utilities) */
+    --neutral-0: #FFFFFF;
+    --neutral-50: #F6F5F1;
+    --neutral-100: #EEECE6;
+    --neutral-200: #E4E1D9;
+    --neutral-300: #DCD9D1;
+    --neutral-400: #C9C5BB;
+    --neutral-500: #9A9890;
+    --neutral-600: #687079;
+    --neutral-700: #4A5058;
+    --neutral-800: #2C343E;
+    --neutral-900: #181D24;
+    --neutral-950: #11151A;
+  }
+
+  .dark {
+    --background: 213 21% 8%; /* #11151A */
+    --foreground: 220 9% 94%; /* #EDEEF0 */
+    --card: 215 20% 12%; /* #181D24 */
+    --card-foreground: 220 9% 94%; /* #EDEEF0 */
+    --popover: 215 20% 12%; /* #181D24 */
+    --popover-foreground: 220 9% 94%; /* #EDEEF0 */
+    --primary: 213 52% 57%; /* #5A8CCB */
+    --primary-foreground: 214 55% 11%; /* #0D1B2D */
+    --primary-soft: 214 42% 19%; /* #1C2E45 */
+    --primary-soft-foreground: 213 60% 82%; /* #B4CDEC */
+    --secondary: 214 20% 16%; /* #212831 */
+    --secondary-foreground: 220 9% 94%; /* #EDEEF0 */
+    --muted: 214 20% 16%; /* #212831 */
+    --muted-foreground: 212 8% 59%; /* #8E969F */
+    --accent: 215 18% 20%; /* #2A323D */
+    --accent-foreground: 220 9% 94%; /* #EDEEF0 */
+    --signal: 21 86% 58%; /* #F07A3A */
+    --signal-foreground: 215 21% 11%; /* #161B22 */
+    --signal-soft: 23 45% 16%; /* #3A2416 */
+    --signal-soft-foreground: 21 87% 70%; /* #F5A071 */
+    --success: 148 43% 51%; /* #4CB87E */
+    --success-foreground: 213 21% 8%; /* #11151A */
+    --success-soft: 151 44% 14%; /* #143324 */
+    --success-soft-foreground: 147 50% 66%; /* #7ED4A5 */
+    --warning: 38 73% 55%; /* #E0A33A */
+    --warning-foreground: 213 21% 8%; /* #11151A */
+    --warning-soft: 39 53% 15%; /* #3A2C12 */
+    --warning-soft-foreground: 37 83% 69%; /* #F2C170 */
+    --destructive: 4 81% 69%; /* #F0776F */
+    --destructive-foreground: 213 21% 8%; /* #11151A */
+    --destructive-soft: 3 43% 17%; /* #3F1B19 */
+    --destructive-soft-foreground: 4 83% 79%; /* #F6A39D */
+    --border: 213 17% 21%; /* #2C343E */
+    --input: 214 15% 27%; /* #3A434F */
+    --ring: 213 52% 57%; /* #5A8CCB */
+    --chart-1: 213 52% 57%; /* #5A8CCB */
+    --chart-2: 20 82% 59%; /* #EC7A42 */
+    --chart-3: 148 43% 51%; /* #4CB87E */
+    --chart-4: 38 73% 55%; /* #E0A33A */
+    --chart-5: 48 5% 58%; /* #9A9890 */
+    --sidebar-background: 215 20% 12%; /* #181D24 */
+    --sidebar-foreground: 214 11% 74%; /* #B6BCC4 */
+    --sidebar-primary: 213 52% 57%; /* #5A8CCB */
+    --sidebar-primary-foreground: 214 55% 11%; /* #0D1B2D */
+    --sidebar-accent: 214 42% 19%; /* #1C2E45 */
+    --sidebar-accent-foreground: 213 60% 82%; /* #B4CDEC */
+    --sidebar-border: 213 17% 21%; /* #2C343E */
+    --sidebar-ring: 213 52% 57%; /* #5A8CCB */
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 14px -4px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 24px 48px -20px rgba(0, 0, 0, 0.7);
+  }
+}
+
 @layer base {
   * {
     @apply border-border;
   }
 
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
   body {
-    @apply font-sans antialiased bg-background text-foreground;
+    @apply font-sans bg-background text-foreground;
+  }
+
+  /* Display type: Barlow Condensed for the big statements, Barlow for everything else. */
+  h1, h2 {
+    @apply font-display font-bold tracking-tight;
+    text-wrap: balance;
+  }
+
+  ::selection {
+    background: hsl(var(--signal) / 0.35);
+  }
+}
+
+@layer components {
+  /* Equipment-label tag: tracked condensed caps, 4px corners. */
+  .tag {
+    @apply inline-flex h-[22px] items-center whitespace-nowrap rounded border border-input px-2 font-display text-[11.5px] font-semibold uppercase tracking-[0.1em] text-foreground/80;
+  }
+  .tag-signal {
+    @apply border-signal bg-signal-soft text-signal-soft-foreground;
+  }
+  /* Small caps section label used over cards and groups. */
+  .eyebrow {
+    @apply font-display text-[13px] font-semibold uppercase tracking-[0.12em] text-muted-foreground;
   }
 }
 

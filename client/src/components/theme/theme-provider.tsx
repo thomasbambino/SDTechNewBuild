@@ -25,8 +25,15 @@ interface SettingsData {
   favicon?: string;
 }
 
+// Brand default lives in index.css (--primary). These values mean "no custom color":
+// the token stays in charge and dark mode keeps its own primary.
+export const DEFAULT_PRIMARY_COLOR = "#2B5A94";
+const LEGACY_DEFAULT_PRIMARY_COLORS = ["hsl(222.2 47.4% 11.2%)", "#3b82f6", "#2b5a94"];
+const isDefaultPrimary = (c: string | undefined | null) =>
+  !c || LEGACY_DEFAULT_PRIMARY_COLORS.includes(c.trim().toLowerCase()) || c.trim() === DEFAULT_PRIMARY_COLOR;
+
 const initialState: ThemeProviderState = {
-  primaryColor: "#3b82f6", // Default blue
+  primaryColor: DEFAULT_PRIMARY_COLOR,
   companyName: "SD Tech Pros",
   theme: "light",
   logoUrl: null,
@@ -151,8 +158,14 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       document.documentElement.classList.remove("dark");
     }
     
-    // Apply the primary color
-    applyPrimaryColor(state.primaryColor);
+    // Apply the primary color only when the admin picked a custom one;
+    // otherwise clear any inline override so the CSS tokens (light + dark) apply.
+    if (isDefaultPrimary(state.primaryColor)) {
+      document.documentElement.style.removeProperty("--primary");
+      document.documentElement.style.removeProperty("--primary-foreground");
+    } else {
+      applyPrimaryColor(state.primaryColor);
+    }
     
     // Update document title
     document.title = state.companyName;
