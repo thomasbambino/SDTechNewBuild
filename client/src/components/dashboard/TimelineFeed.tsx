@@ -130,10 +130,10 @@ function EngagementBar({
   });
 
   return (
-    <div className="mt-3 pt-3 border-t">
+    <div className="mt-4 border-t border-border pt-3">
       {/* Counts */}
       {(engagement.likeCount > 0 || engagement.commentCount > 0) && (
-        <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
+        <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
           <div className="flex items-center gap-1">
             {engagement.likeCount > 0 && (
               <>
@@ -186,38 +186,38 @@ function EngagementBar({
       {commentsOpen && (
         <div className="mt-3 space-y-3">
           {commentsLoading ? (
-            <p className="text-xs text-gray-400 text-center py-2">Loading comments…</p>
+            <p className="py-2 text-center text-xs text-muted-foreground">Loading comments…</p>
           ) : comments.length === 0 ? (
-            <p className="text-xs text-gray-400 text-center py-2">Be the first to comment.</p>
+            <p className="py-2 text-center text-xs text-muted-foreground">Be the first to comment.</p>
           ) : (
             <div className="space-y-2">
               {comments.map(c => (
                 <div key={c.id} className="flex gap-2 group">
                   <Avatar className="h-7 w-7 flex-shrink-0">
-                    <AvatarFallback className={c.authorRole === "admin" ? "bg-primary/10 text-primary text-xs" : "bg-neutral-100 text-neutral-700 text-xs"}>
+                    <AvatarFallback className={c.authorRole === "admin" ? "bg-primary-soft text-primary-soft-foreground text-xs" : "bg-muted text-foreground/80 text-xs"}>
                       {initialsOf(c.authorName)}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
-                    <div className="bg-neutral-100 rounded-2xl px-3 py-2">
+                    <div className="rounded-2xl bg-muted px-3 py-2">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-sm font-semibold text-gray-900">{c.authorName}</span>
+                        <span className="text-sm font-semibold">{c.authorName}</span>
                         {c.authorRole === "admin" && (
                           <Badge variant="outline" className="h-4 px-1 text-[10px] gap-0.5">
                             <ShieldCheck className="h-2.5 w-2.5" /> Team
                           </Badge>
                         )}
                       </div>
-                      <p className="text-sm text-gray-800 whitespace-pre-wrap break-words mt-0.5">{c.content}</p>
+                      <p className="mt-0.5 whitespace-pre-wrap break-words text-sm text-foreground/90">{c.content}</p>
                     </div>
                     <div className="flex items-center gap-2 mt-0.5 ml-3">
-                      <span className="text-[11px] text-gray-500">
+                      <span className="text-[11px] text-muted-foreground">
                         {formatDistanceToNow(new Date(c.createdAt), { addSuffix: true })}
                       </span>
                       {(c.userId === user?.id || user?.role === "admin") && (
                         <button
                           type="button"
-                          className="text-[11px] text-gray-500 hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="text-[11px] text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
                           onClick={() => {
                             if (confirm("Delete this comment?")) deleteCommentMutation.mutate(c.id);
                           }}
@@ -235,7 +235,7 @@ function EngagementBar({
           {/* Composer */}
           <div className="flex gap-2 pt-1">
             <Avatar className="h-7 w-7 flex-shrink-0">
-              <AvatarFallback className="bg-primary/10 text-primary text-xs">
+              <AvatarFallback className="bg-primary-soft text-primary-soft-foreground text-xs">
                 {initialsOf(user?.name)}
               </AvatarFallback>
             </Avatar>
@@ -276,7 +276,7 @@ function PostImages({ images, onOpen }: { images: string[]; onOpen: (index: numb
       key={src + index}
       type="button"
       onClick={() => onOpen(index)}
-      className={`relative block overflow-hidden bg-gray-50 ${className}`}
+      className={`relative block overflow-hidden bg-muted ${className}`}
     >
       <img
         src={src}
@@ -289,7 +289,7 @@ function PostImages({ images, onOpen }: { images: string[]; onOpen: (index: numb
 
   if (images.length === 1) {
     return (
-      <div className="mt-3 w-full overflow-hidden rounded-lg border bg-gray-50">
+      <div className="mt-4 w-full overflow-hidden rounded-xl border border-border bg-muted">
         <button
           type="button"
           onClick={() => onOpen(0)}
@@ -308,7 +308,7 @@ function PostImages({ images, onOpen }: { images: string[]; onOpen: (index: numb
 
   if (images.length === 2) {
     return (
-      <div className="mt-3 grid grid-cols-2 gap-1 rounded-lg overflow-hidden border h-80">
+      <div className="mt-4 grid h-80 grid-cols-2 gap-1 overflow-hidden rounded-xl border border-border">
         {tile(images[0], 0, "h-full")}
         {tile(images[1], 1, "h-full")}
       </div>
@@ -318,7 +318,7 @@ function PostImages({ images, onOpen }: { images: string[]; onOpen: (index: numb
   if (images.length === 3) {
     // Big left, two stacked right — the Facebook "3 up" layout.
     return (
-      <div className="mt-3 grid grid-cols-3 grid-rows-2 gap-1 rounded-lg overflow-hidden border h-80">
+      <div className="mt-4 grid h-80 grid-cols-3 grid-rows-2 gap-1 overflow-hidden rounded-xl border border-border">
         {tile(images[0], 0, "col-span-2 row-span-2")}
         {tile(images[1], 1)}
         {tile(images[2], 2)}
@@ -330,13 +330,13 @@ function PostImages({ images, onOpen }: { images: string[]; onOpen: (index: numb
   const visible = images.slice(0, 4);
   const extraCount = images.length - 4;
   return (
-    <div className="mt-3 grid grid-cols-2 gap-1 rounded-lg overflow-hidden border h-96">
+    <div className="mt-4 grid h-96 grid-cols-2 gap-1 overflow-hidden rounded-xl border border-border">
       {visible.map((src, i) => (
         <button
           key={src + i}
           type="button"
           onClick={() => onOpen(i)}
-          className="relative block overflow-hidden bg-gray-50"
+          className="relative block overflow-hidden bg-muted"
         >
           <img
             src={src}
@@ -345,7 +345,7 @@ function PostImages({ images, onOpen }: { images: string[]; onOpen: (index: numb
             loading="lazy"
           />
           {i === 3 && extraCount > 0 && (
-            <div className="absolute inset-0 bg-black/55 flex items-center justify-center text-white text-2xl font-semibold">
+            <div className="absolute inset-0 flex items-center justify-center bg-black/55 font-display text-3xl font-bold text-white">
               +{extraCount}
             </div>
           )}
@@ -452,50 +452,40 @@ export default function TimelineFeed({
 
   if (items.length === 0) {
     return (
-      <Card className="bg-white shadow-sm">
-        <div className="px-5 py-4 border-b">
-          <h3 className="text-base font-semibold text-gray-900">Project Timeline</h3>
-          <p className="text-xs text-gray-500 mt-0.5">Updates from your team will appear here</p>
+      <Card className="rounded-xl border-dashed border-input shadow-none">
+        <div className="flex flex-col items-center gap-2 px-5 py-12 text-center">
+          <p className="font-display text-xl font-semibold">Nothing posted yet</p>
+          <p className="max-w-sm text-sm text-muted-foreground">{emptyMessage}</p>
         </div>
-        <p className="text-sm text-gray-400 text-center py-10">{emptyMessage}</p>
       </Card>
     );
   }
 
   return (
     <>
-      <Card className="bg-white shadow-sm">
-        <div className="px-5 py-4 border-b">
-          <h3 className="text-base font-semibold text-gray-900">Project Timeline</h3>
-          <p className="text-xs text-gray-500 mt-0.5">Progress updates from your team</p>
-        </div>
-        <div className="divide-y">
+      <div className="flex flex-col gap-4">
           {items.map(item => (
-            <article key={item.id} className="px-5 py-5">
+            <article key={item.id} className="rounded-xl border border-border bg-card px-5 py-5 shadow-sm">
               <header className="flex items-start gap-3">
                 <Avatar className="h-10 w-10 flex-shrink-0">
-                  <AvatarFallback className={item.type === "start" ? "bg-primary/10 text-primary" : "bg-indigo-100 text-indigo-700"}>
+                  <AvatarFallback className={item.type === "start" ? "bg-signal-soft text-signal-soft-foreground" : "bg-primary-soft font-display text-sm font-bold tracking-wide text-primary-soft-foreground"}>
                     {item.type === "start" ? <Flag className="h-4 w-4" /> : initialsOf(item.authorName)}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h4 className="font-semibold text-gray-900">{item.title}</h4>
-                    {item.type === "start" && (
-                      <Badge variant="outline" className="text-xs">Project kickoff</Badge>
-                    )}
-                  </div>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    {item.projectName && <span className="font-medium">{item.projectName} · </span>}
-                    {format(new Date(item.date), "MMM d, yyyy · h:mm a")}
-                    {item.authorName && item.type !== "start" && <span> · by {item.authorName}</span>}
+                  <p className="text-[15px] font-semibold leading-tight">
+                    {item.type === "start" ? "Project kickoff" : item.authorName || "Your tech"}
+                  </p>
+                  <p className="mt-0.5 text-[13px] text-muted-foreground">
+                    {format(new Date(item.date), "EEE, MMM d · h:mm a")}
+                    {item.projectName && <span> · {item.projectName}</span>}
                   </p>
                 </div>
                 {item.adminMeta && (onEdit || onDelete) && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button
-                        className="flex-shrink-0 h-8 w-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500"
+                        className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-accent"
                         aria-label="Post options"
                       >
                         <MoreHorizontal className="h-4 w-4" />
@@ -520,8 +510,9 @@ export default function TimelineFeed({
                 )}
               </header>
 
+              <h3 className="mt-3 font-display text-2xl font-semibold leading-[1.1] tracking-tight">{item.title}</h3>
               {item.notes && (
-                <p className="mt-3 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{item.notes}</p>
+                <p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed text-foreground/80">{item.notes}</p>
               )}
 
               <PostImages images={item.images} onOpen={(index) => setLightbox({ images: item.images, index })} />
@@ -534,8 +525,7 @@ export default function TimelineFeed({
               )}
             </article>
           ))}
-        </div>
-      </Card>
+      </div>
 
       {lightbox && (
         <Lightbox images={lightbox.images} startIndex={lightbox.index} onClose={() => setLightbox(null)} />

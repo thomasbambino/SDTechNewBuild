@@ -1,11 +1,7 @@
-import { useState, useEffect } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
-import { Link, useLocation } from "wouter";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Monogram } from "@/components/ui/monogram";
 import {
@@ -18,45 +14,32 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import {
   Menu,
-  X,
   ChevronRight,
-  ExternalLink,
-  Check,
   ArrowRight,
-  Mail,
-  Phone,
-  MapPin,
+  Camera,
+  Wifi,
+  Monitor,
+  Home,
+  Shield,
+  Lock,
   Briefcase,
   Code,
   BarChart,
   Layout,
   Users,
-  Star,
   Globe,
   Database,
-  Shield,
   Zap,
   Settings,
-  Monitor,
   Smartphone,
   Wrench,
+  Clock,
+  Eye,
 } from "lucide-react";
 
-const SERVICE_ICON_MAP: Record<string, React.ReactNode> = {
-  layout:     <Layout className="h-7 w-7" strokeWidth={1.75} />,
-  code:       <Code className="h-7 w-7" strokeWidth={1.75} />,
-  briefcase:  <Briefcase className="h-7 w-7" strokeWidth={1.75} />,
-  barChart:   <BarChart className="h-7 w-7" strokeWidth={1.75} />,
-  globe:      <Globe className="h-7 w-7" strokeWidth={1.75} />,
-  database:   <Database className="h-7 w-7" strokeWidth={1.75} />,
-  shield:     <Shield className="h-7 w-7" strokeWidth={1.75} />,
-  zap:        <Zap className="h-7 w-7" strokeWidth={1.75} />,
-  settings:   <Settings className="h-7 w-7" strokeWidth={1.75} />,
-  monitor:    <Monitor className="h-7 w-7" strokeWidth={1.75} />,
-  users:      <Users className="h-7 w-7" strokeWidth={1.75} />,
-  smartphone: <Smartphone className="h-7 w-7" strokeWidth={1.75} />,
-  wrench:     <Wrench className="h-7 w-7" strokeWidth={1.75} />,
-};
+/* ------------------------------------------------------------------ */
+/* Types                                                               */
+/* ------------------------------------------------------------------ */
 
 interface ContentSection {
   id: number;
@@ -69,645 +52,527 @@ interface ContentSection {
   isActive: boolean;
 }
 
-function QuickInquiryForm() {
-  const { toast } = useToast();
-  const [form, setForm] = useState({ name: "", email: "", phone: "", message: "" });
-  const [submitted, setSubmitted] = useState(false);
+interface PublicSettings {
+  companyName?: string | null;
+  logoPath?: string | null;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+  contactAddress?: string | null;
+}
 
-  const mutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/inquiries", {
-        name: form.name,
-        email: form.email,
-        phone: form.phone,
-        message: form.message,
-      });
-      return res.json();
-    },
-    onSuccess: () => {
-      setSubmitted(true);
-      setForm({ name: "", email: "", phone: "", message: "" });
-    },
-    onError: (err: Error) => {
-      toast({ title: "Submission failed", description: err.message, variant: "destructive" });
-    },
-  });
+/** A "Recent work" CMS row, parsed. subtitle = comma-separated tags, first tag is the kind. */
+interface Job {
+  id: number | string;
+  kind: string;
+  tags: string[];
+  title: string;
+  result: string;
+  photo: string | null;
+}
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.name || !form.email || !form.message) return;
-    mutation.mutate();
+/* ------------------------------------------------------------------ */
+/* Defaults. Used only when the CMS has nothing for a section.         */
+/* ------------------------------------------------------------------ */
+
+const ICON_CLASS = "h-6 w-6";
+const SERVICE_ICON_MAP: Record<string, React.ReactNode> = {
+  wifi: <Wifi className={ICON_CLASS} strokeWidth={1.75} />,
+  camera: <Camera className={ICON_CLASS} strokeWidth={1.75} />,
+  monitor: <Monitor className={ICON_CLASS} strokeWidth={1.75} />,
+  home: <Home className={ICON_CLASS} strokeWidth={1.75} />,
+  shield: <Shield className={ICON_CLASS} strokeWidth={1.75} />,
+  lock: <Lock className={ICON_CLASS} strokeWidth={1.75} />,
+  layout: <Layout className={ICON_CLASS} strokeWidth={1.75} />,
+  code: <Code className={ICON_CLASS} strokeWidth={1.75} />,
+  briefcase: <Briefcase className={ICON_CLASS} strokeWidth={1.75} />,
+  barChart: <BarChart className={ICON_CLASS} strokeWidth={1.75} />,
+  globe: <Globe className={ICON_CLASS} strokeWidth={1.75} />,
+  database: <Database className={ICON_CLASS} strokeWidth={1.75} />,
+  zap: <Zap className={ICON_CLASS} strokeWidth={1.75} />,
+  settings: <Settings className={ICON_CLASS} strokeWidth={1.75} />,
+  users: <Users className={ICON_CLASS} strokeWidth={1.75} />,
+  smartphone: <Smartphone className={ICON_CLASS} strokeWidth={1.75} />,
+  wrench: <Wrench className={ICON_CLASS} strokeWidth={1.75} />,
+};
+
+const DEFAULT_HERO = {
+  title: "The techs you call when the office network dies at 4 PM.",
+  subtitle:
+    "We install and maintain the stuff your business runs on: the network, the Wi-Fi, the cameras, the computers. Every job is documented with photos as we work, and you get those photos in your own portal, not a line item on an invoice.",
+  cta: "Request a quote",
+};
+
+const DEFAULT_JOBS: Job[] = [
+  { id: "d1", kind: "Cameras", tags: ["112 cameras", "PoE", "NVR", "3 buildings"], title: "Camera system for a retirement community", result: "Over a hundred cameras across three buildings, wired back to one NVR, with staff able to pull footage without calling us.", photo: null },
+  { id: "d2", kind: "Network", tags: ["Firewall", "Switching", "Wi-Fi 6", "Rack"], title: "Full office network stack rebuild", result: "Pulled the consumer gear, built a proper rack, segmented guest and staff traffic, and left a VLAN map in the portal.", photo: null },
+  { id: "d3", kind: "Security", tags: ["Incident response", "Cleanup", "Hardening"], title: "Forensics after a hacked work computer", result: "Imaged the machine, traced what got in and when, cleaned it, then locked down the rest of the office so it would not happen again.", photo: null },
+  { id: "d4", kind: "Wi-Fi", tags: ["WAPs", "Smart locks", "Cameras"], title: "Whole-house Wi-Fi and smart home hardware", result: "Access points where the signal actually needed to be, plus locks and cameras that all work from one app.", photo: null },
+  { id: "d5", kind: "Computers", tags: ["Migration", "Backups", "Email"], title: "New computer migration, no lost files", result: "Everything moved, email and printers reconnected, old drive kept as a backup until the client said they were sure.", photo: null },
+  { id: "d6", kind: "Consulting", tags: ["Small business", "Planning", "Vendors"], title: "Straight answers on what to buy and what to skip", result: "A short written plan: what to fix first, what can wait, and what the vendor is overselling you.", photo: null },
+];
+
+const DEFAULT_SERVICES = [
+  { id: "s1", icon: "wifi", title: "Networks & Wi-Fi", lines: ["Firewalls, switching and rack builds", "Wi-Fi 6 access points, placed by survey not guesswork", "Guest and staff networks kept apart"] },
+  { id: "s2", icon: "camera", title: "Camera systems", lines: ["Dome, bullet and PTZ cameras over PoE", "NVR setup with remote viewing for your staff", "Single-building to 100+ camera campuses"] },
+  { id: "s3", icon: "monitor", title: "Small-business IT", lines: ["Computer setup, migration and backups", "Email, printers and the stuff that just stops working", "Hacked? We image, clean and harden"] },
+  { id: "s4", icon: "home", title: "Smart home & low voltage", lines: ["Smart locks, doorbells and hubs that talk to each other", "Whole-house Wi-Fi and wired drops", "Clean, labelled, finished runs"] },
+];
+
+/* ------------------------------------------------------------------ */
+/* Small pieces                                                        */
+/* ------------------------------------------------------------------ */
+
+function parseJob(row: ContentSection): Job {
+  const tags = (row.subtitle ?? "")
+    .split(/[,·|]/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+  return {
+    id: row.id,
+    kind: tags[0] ?? "Job",
+    tags: tags.slice(1),
+    title: row.title ?? "",
+    result: row.content ?? "",
+    photo: row.imagePath,
   };
+}
 
-  if (submitted) {
-    return (
-      <div className="bg-white rounded-lg shadow-md p-6 flex flex-col items-center justify-center text-center h-full min-h-[280px]">
-        <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mb-4">
-          <Check className="h-6 w-6 text-green-600" />
-        </div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">Message Received!</h3>
-        <p className="text-gray-600 text-sm">We'll be in touch within 1–2 business days.</p>
-        <Button variant="outline" size="sm" className="mt-4" onClick={() => setSubmitted(false)}>Send Another</Button>
-      </div>
-    );
-  }
-
+/** Equipment-label tag. `signal` is the orange one, used once per card for the job kind. */
+function Tag({ children, signal = false, className = "" }: { children: React.ReactNode; signal?: boolean; className?: string }) {
   return (
-    <div className="bg-white rounded-lg shadow-md p-6">
-      <h3 className="text-xl font-semibold text-gray-900 mb-4">Quick Inquiry</h3>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <Label htmlFor="qi-name">Name <span className="text-red-500">*</span></Label>
-            <Input id="qi-name" placeholder="Your name" className="mt-1" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required />
-          </div>
-          <div>
-            <Label htmlFor="qi-phone">Phone</Label>
-            <Input id="qi-phone" type="tel" placeholder="(555) 123-4567" className="mt-1" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
-          </div>
-        </div>
-        <div>
-          <Label htmlFor="qi-email">Email <span className="text-red-500">*</span></Label>
-          <Input id="qi-email" type="email" placeholder="you@example.com" className="mt-1" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required />
-        </div>
-        <div>
-          <Label htmlFor="qi-message">Message <span className="text-red-500">*</span></Label>
-          <textarea
-            id="qi-message"
-            placeholder="How can we help you?"
-            className="w-full min-h-[100px] mt-1 px-3 py-2 text-base rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-            value={form.message}
-            onChange={e => setForm(f => ({ ...f, message: e.target.value }))}
-            required
-          />
-        </div>
-        <Button type="submit" className="w-full" disabled={mutation.isPending}>
-          {mutation.isPending ? "Sending…" : "Send Message"}
-        </Button>
-      </form>
+    <span
+      className={`inline-flex h-[22px] items-center whitespace-nowrap rounded border px-2 font-display text-[11.5px] font-semibold uppercase tracking-[0.1em] ${
+        signal ? "border-signal bg-signal-soft text-signal-soft-foreground" : "border-input text-foreground/80"
+      } ${className}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+function Eyebrow({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return (
+    <p className={`font-display text-[13px] font-semibold uppercase tracking-[0.12em] text-muted-foreground ${className}`}>
+      {children}
+    </p>
+  );
+}
+
+/**
+ * A photo slot. With a src it is the photo; without one it is a quiet
+ * textured panel that names the job kind, so the page never looks broken
+ * while photos are still being added in the content editor.
+ */
+function PhotoSlot({ src, alt, fallback, className = "" }: { src: string | null; alt: string; fallback: string; className?: string }) {
+  if (src) {
+    return <img src={src} alt={alt} loading="lazy" className={`block h-full w-full object-cover ${className}`} />;
+  }
+  return (
+    <div
+      aria-hidden="true"
+      className={`flex h-full w-full items-end bg-muted bg-[repeating-linear-gradient(135deg,transparent_0_10px,hsl(var(--foreground)/0.05)_10px_20px)] p-3 ${className}`}
+    >
+      <span className="font-display text-2xl font-bold uppercase tracking-tight text-foreground/30">{fallback}</span>
     </div>
   );
 }
 
+function LogoMark({ companyName, logoPath, light = false }: { companyName: string; logoPath?: string | null; light?: boolean }) {
+  if (logoPath) {
+    return <img src={logoPath} alt={companyName} className={`h-9 max-w-[180px] object-contain ${light ? "brightness-0 invert" : ""}`} />;
+  }
+  return (
+    <span className="flex items-center gap-2.5">
+      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-signal font-display text-lg font-bold text-signal-foreground">SD</span>
+      <span className="flex flex-col leading-none">
+        <span className="font-display text-xl font-bold">{companyName}</span>
+        <span className="hidden font-display text-[10.5px] font-semibold uppercase tracking-[0.14em] text-muted-foreground sm:block">San Diego · Networks · Cameras · IT</span>
+      </span>
+    </span>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Page                                                                */
+/* ------------------------------------------------------------------ */
+
 export default function PublicHome() {
-  const [location, navigate] = useLocation();
+  const [, navigate] = useLocation();
   const { user } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  
-  // Fetch settings
-  const { data: settings } = useQuery({
-    queryKey: ['/api/settings/public']
-  });
-  
-  // Fetch content sections
-  const { data: heroContent = [], isLoading: heroLoading } = useQuery<ContentSection[]>({
-    queryKey: ['/api/content/hero']
-  });
-  const { data: serviceContent = [] } = useQuery<ContentSection[]>({
-    queryKey: ['/api/content/service']
-  });
-  const { data: aboutContent = [] } = useQuery<ContentSection[]>({
-    queryKey: ['/api/content/about']
-  });
-  const { data: testimonialContent = [] } = useQuery<ContentSection[]>({
-    queryKey: ['/api/content/testimonial']
-  });
 
-  // Every service row from the CMS renders as a card — there is no admin UI
-  // for marking a row as a "section header" so we shouldn't silently drop any.
-  const serviceItems = serviceContent ?? [];
+  const { data: settings } = useQuery<PublicSettings>({ queryKey: ["/api/settings/public"] });
+  const { data: heroContent = [], isLoading: heroLoading } = useQuery<ContentSection[]>({ queryKey: ["/api/content/hero"] });
+  const { data: jobContent = [] } = useQuery<ContentSection[]>({ queryKey: ["/api/content/job"] });
+  const { data: serviceContent = [] } = useQuery<ContentSection[]>({ queryKey: ["/api/content/service"] });
+  const { data: aboutContent = [] } = useQuery<ContentSection[]>({ queryKey: ["/api/content/about"] });
+  const { data: testimonialContent = [] } = useQuery<ContentSection[]>({ queryKey: ["/api/content/testimonial"] });
 
-  const allTestimonials = testimonialContent ?? [];
-  const testimonialHasHeader = allTestimonials.length > 0 && !allTestimonials[0].content;
-  const testimonialSectionTitle = testimonialHasHeader ? (allTestimonials[0].title || "What Our Clients Say") : "What Our Clients Say";
-  const testimonialSectionSubtitle = testimonialHasHeader ? (allTestimonials[0].subtitle || "Don't just take our word for it. Hear from some of our satisfied clients.") : "Don't just take our word for it. Hear from some of our satisfied clients.";
-  const testimonialItems = testimonialHasHeader ? allTestimonials.slice(1) : allTestimonials;
-
-
-  // Navigation links
-  const navLinks = [
-    { name: "Home", href: "#home" },
-    { name: "Services", href: "#services" },
-    { name: "About Us", href: "#about" },
-    { name: "Testimonials", href: "#testimonials" },
-    { name: "Contact", href: "#contact" }
-  ];
-
-  const companyInfo = {
-    email: settings?.contactEmail || "contact@sdtechpros.com",
-    phone: settings?.contactPhone || "(555) 123-4567",
-    address: settings?.contactAddress || "123 Tech Street, San Diego, CA 92101",
+  const companyName = settings?.companyName || "SD Tech Pros";
+  const hero = {
+    title: heroContent[0]?.title || DEFAULT_HERO.title,
+    subtitle: heroContent[0]?.subtitle || DEFAULT_HERO.subtitle,
+    cta: heroContent[0]?.content || DEFAULT_HERO.cta,
+    image: heroContent[0]?.imagePath ?? null,
   };
 
-  // Handle scroll to section
-  const scrollToSection = (sectionId: string) => {
-    const element = document.getElementById(sectionId);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' });
-    }
+  const jobs: Job[] = jobContent.length ? jobContent.filter((j) => j.isActive !== false).map(parseJob) : DEFAULT_JOBS;
+  const featuredJob = jobs.find((j) => j.photo) ?? null;
+
+  const services = serviceContent.length
+    ? serviceContent.map((s) => ({
+        id: s.id,
+        icon: s.imagePath?.startsWith("icon:") ? s.imagePath.slice(5) : "briefcase",
+        title: s.title ?? "",
+        lines: (s.content ?? "").split(/\n+/).map((l) => l.replace(/^[-•]\s*/, "").trim()).filter(Boolean),
+      }))
+    : DEFAULT_SERVICES;
+
+  const about = aboutContent[0] ?? null;
+
+  const testimonialHasHeader = testimonialContent.length > 0 && !testimonialContent[0].content;
+  const testimonialTitle = (testimonialHasHeader && testimonialContent[0].title) || "What clients say";
+  const testimonials = testimonialHasHeader ? testimonialContent.slice(1) : testimonialContent;
+
+  const contact = {
+    email: settings?.contactEmail || null,
+    phone: settings?.contactPhone || null,
+    address: settings?.contactAddress || null,
+  };
+
+  const navLinks = [
+    { name: "Recent work", id: "work" },
+    { name: "Services", id: "services" },
+    { name: "How a job works", id: "how" },
+  ];
+
+  const scrollToSection = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
     setIsMenuOpen(false);
   };
 
+  const portalHref = user ? (user.role === "admin" ? "/admin" : "/client") : "/auth";
+  const portalLabel = user ? "Go to dashboard" : "Client login";
+
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
-      <header className="fixed top-0 left-0 right-0 bg-white/80 backdrop-blur-md z-50 border-b border-gray-100">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <div className="flex items-center">
-              <a href="#home" className="flex items-center">
-                {settings?.logoPath ? (
-                  <img
-                    src={settings.logoPath}
-                    alt={settings.companyName || "Logo"}
-                    className="h-8 max-w-[160px] object-contain mr-2"
-                  />
-                ) : (
-                  <>
-                    <span className="bg-primary text-primary-foreground font-bold text-xl px-2 py-1 rounded mr-2">SD</span>
-                    <span className="text-primary font-semibold text-lg hidden md:block">Tech Pros</span>
-                  </>
-                )}
+      <header className="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur-md">
+        <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4 sm:px-6">
+          <a href="#top" onClick={(e) => { e.preventDefault(); scrollToSection("top"); }} className="flex items-center" aria-label={`${companyName} home`}>
+            <LogoMark companyName={companyName} logoPath={settings?.logoPath} />
+          </a>
+
+          <nav className="ml-auto hidden items-center gap-6 md:flex" aria-label="Primary">
+            {navLinks.map((link) => (
+              <a
+                key={link.id}
+                href={`#${link.id}`}
+                onClick={(e) => { e.preventDefault(); scrollToSection(link.id); }}
+                className="text-[15px] font-medium text-foreground/75 hover:text-foreground"
+              >
+                {link.name}
               </a>
-            </div>
-            
-            {/* Desktop Navigation */}
-            <nav className="hidden md:flex space-x-8">
-              {navLinks.map((link) => (
-                <a
-                  key={link.name}
-                  href={link.href}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    scrollToSection(link.href.substring(1));
-                  }}
-                  className="text-gray-600 hover:text-primary font-medium"
-                >
-                  {link.name}
-                </a>
-              ))}
-            </nav>
-            
-            {/* Mobile Menu & Client Portal Button */}
-            <div className="flex items-center space-x-4">
-              {user ? (
-                <Button
-                  onClick={() => navigate(user.role === "admin" ? "/admin" : "/client")}
-                  className="hidden md:inline-flex"
-                >
-                  Go to Dashboard
+            ))}
+            <Button variant="outline" size="sm" onClick={() => navigate(portalHref)}>{portalLabel}</Button>
+            <Button variant="signal" size="sm" onClick={() => navigate("/inquiry")}>Get a quote</Button>
+          </nav>
+
+          <div className="ml-auto flex items-center gap-2 md:hidden">
+            <Button variant="signal" size="sm" onClick={() => navigate("/inquiry")}>Get a quote</Button>
+            <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" aria-label="Open menu">
+                  <Menu className="h-6 w-6" />
                 </Button>
-              ) : (
-                <Button
-                  onClick={() => navigate("/auth")}
-                  variant="default"
-                  className="hidden md:inline-flex"
-                >
-                  Client Portal
-                </Button>
-              )}
-              
-              <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
-                <SheetTrigger asChild>
-                  <Button variant="ghost" size="icon" className="md:hidden" aria-label="Menu">
-                    <Menu className="h-6 w-6" />
-                  </Button>
-                </SheetTrigger>
-                <SheetContent side="right">
-                  <SheetHeader className="text-left">
-                    <SheetTitle>Menu</SheetTitle>
-                  </SheetHeader>
-                  <div className="mt-8 flex flex-col space-y-4">
-                    {navLinks.map((link) => (
-                      <a
-                        key={link.name}
-                        href={link.href}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          scrollToSection(link.href.substring(1));
-                        }}
-                        className="flex items-center py-2 text-lg text-gray-700 hover:text-primary"
-                      >
-                        {link.name}
-                        <ChevronRight className="ml-auto h-5 w-5" />
-                      </a>
-                    ))}
-                    <div className="pt-4 border-t border-gray-100">
-                      {user ? (
-                        <Button
-                          onClick={() => {
-                            setIsMenuOpen(false);
-                            navigate(user.role === "admin" ? "/admin" : "/client");
-                          }}
-                          className="w-full"
-                        >
-                          Go to Dashboard
-                        </Button>
-                      ) : (
-                        <Button
-                          onClick={() => {
-                            setIsMenuOpen(false);
-                            navigate("/auth");
-                          }}
-                          className="w-full"
-                        >
-                          Client Portal
-                        </Button>
-                      )}
-                    </div>
+              </SheetTrigger>
+              <SheetContent side="right">
+                <SheetHeader className="text-left">
+                  <SheetTitle className="font-display text-2xl">Menu</SheetTitle>
+                </SheetHeader>
+                <div className="mt-8 flex flex-col gap-1">
+                  {navLinks.map((link) => (
+                    <a
+                      key={link.id}
+                      href={`#${link.id}`}
+                      onClick={(e) => { e.preventDefault(); scrollToSection(link.id); }}
+                      className="flex min-h-[44px] items-center rounded-md px-2 text-lg font-medium hover:bg-accent"
+                    >
+                      {link.name}
+                      <ChevronRight className="ml-auto h-5 w-5 text-muted-foreground" />
+                    </a>
+                  ))}
+                  <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4">
+                    <Button variant="outline" onClick={() => { setIsMenuOpen(false); navigate(portalHref); }}>{portalLabel}</Button>
+                    <Button variant="signal" onClick={() => { setIsMenuOpen(false); navigate("/inquiry"); }}>Request a quote</Button>
                   </div>
-                </SheetContent>
-              </Sheet>
-            </div>
+                </div>
+              </SheetContent>
+            </Sheet>
           </div>
         </div>
       </header>
 
-      <main>
-        {/* Hero Section */}
-        <section id="home" className="pt-24 pb-16 md:pt-32 md:pb-24">
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
-              <div>
-                {heroLoading ? (
-                  <div className="space-y-4 mb-8">
-                    <Skeleton className="h-12 w-full" />
-                    <Skeleton className="h-12 w-4/5" />
-                    <Skeleton className="h-6 w-full mt-4" />
-                    <Skeleton className="h-6 w-3/4" />
-                  </div>
-                ) : (
-                  <>
-                <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
-                  {heroContent?.[0]?.title}
-                </h1>
-                <p className="text-xl text-gray-600 mb-8">
-                  {heroContent?.[0]?.subtitle}
-                </p>
-                  </>
-                )}
-                <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
-                  <Button
-                    onClick={() => navigate("/inquiry")}
-                    size="lg"
-                    className="text-base"
-                  >
-                    {heroContent?.[0]?.content || "Get Started"}
-                    <ArrowRight className="ml-2 h-5 w-5" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    className="text-base"
-                    onClick={() => scrollToSection("services")}
-                  >
-                    Our Services
-                  </Button>
-                </div>
+      <main id="top" className="scroll-mt-16">
+        {/* Hero */}
+        <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-14 sm:px-6 md:py-20 lg:grid-cols-[1.05fr_1fr] lg:gap-14">
+          <div className="flex flex-col gap-6">
+            <Eyebrow className="text-signal-soft-foreground">Networks · Camera systems · Small-business IT · San Diego County</Eyebrow>
+            {heroLoading ? (
+              <div className="space-y-3">
+                <Skeleton className="h-14 w-full" />
+                <Skeleton className="h-14 w-4/5" />
+                <Skeleton className="mt-4 h-6 w-full" />
+                <Skeleton className="h-6 w-3/4" />
               </div>
-              <div className="hidden md:flex justify-center">
-                {heroContent[0]?.imagePath ? (
-                  <img 
-                    src={heroContent[0].imagePath} 
-                    alt="SD Tech Pros Services" 
-                    className="max-w-md rounded-lg shadow-xl"
-                  />
-                ) : (
-                  <div className="w-full max-w-md aspect-video bg-gradient-to-r from-primary/20 to-primary/10 rounded-lg flex items-center justify-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-primary/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                )}
-              </div>
+            ) : (
+              <>
+                <h1 className="text-[2.75rem] leading-[1] sm:text-6xl lg:text-[4.5rem]">{hero.title}</h1>
+                <p className="max-w-xl text-lg leading-relaxed text-foreground/75">{hero.subtitle}</p>
+              </>
+            )}
+            <div className="flex flex-wrap gap-3">
+              <Button variant="signal" size="lg" onClick={() => navigate("/inquiry")}>
+                {hero.cta}
+                <ArrowRight className="h-5 w-5" />
+              </Button>
+              <Button variant="outline" size="lg" onClick={() => scrollToSection("work")}>See recent work</Button>
             </div>
+            <ul className="flex flex-wrap gap-x-5 gap-y-1 text-[13.5px] font-medium text-muted-foreground">
+              <li>Licensed &amp; insured</li>
+              <li>Replies within one business day</li>
+              <li>Owner on every job</li>
+            </ul>
           </div>
+
+          {/* Hero visual: the latest job with a photo, else the hero image, else a portal preview */}
+          {featuredJob || hero.image ? (
+            <article className="overflow-hidden rounded-xl border border-border bg-card shadow-lg">
+              <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
+                <Tag signal>{featuredJob ? featuredJob.kind : "Recent job"}</Tag>
+                {featuredJob?.tags.slice(0, 2).map((t) => <Tag key={t}>{t}</Tag>)}
+                <span className="ml-auto text-[12.5px] font-medium text-muted-foreground">Posted to the client's portal</span>
+              </div>
+              <div className="aspect-[4/3] bg-muted">
+                <PhotoSlot src={featuredJob?.photo ?? hero.image} alt={featuredJob?.title ?? hero.title} fallback="" />
+              </div>
+              <div className="flex flex-col gap-1.5 px-4 py-4">
+                <p className="text-[17px] font-semibold leading-snug">{featuredJob?.title ?? hero.title}</p>
+                {featuredJob?.result && <p className="text-[13.5px] text-muted-foreground">{featuredJob.result}</p>}
+              </div>
+            </article>
+          ) : (
+            <PortalPreview />
+          )}
         </section>
 
-        {/* Services Section */}
-        <section id="services" className="py-16 bg-gray-50">
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-                Our Services
-              </h2>
-              <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-                We offer a range of technology solutions to help your business grow and succeed.
-              </p>
+        {/* Recent work */}
+        <section id="work" className="scroll-mt-16 border-t border-border bg-card/60">
+          <div className="mx-auto flex max-w-6xl flex-col gap-9 px-4 py-16 sm:px-6 md:py-20">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div className="flex max-w-2xl flex-col gap-3">
+                <Eyebrow>From the field log</Eyebrow>
+                <h2 className="text-4xl sm:text-5xl">Work we've actually done, shown the way we document it.</h2>
+                <p className="text-[16.5px] leading-relaxed text-foreground/75">No stock photos of smiling people in headsets. These are the photos we take on site so you can see what you paid for.</p>
+              </div>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-              {serviceItems.map((service, index) => {
-                const iconKey = service.imagePath?.startsWith('icon:') ? service.imagePath.slice(5) : null;
-                const icon = iconKey
-                  ? (SERVICE_ICON_MAP[iconKey] ?? <Briefcase className="h-7 w-7" strokeWidth={1.75} />)
-                  : <Briefcase className="h-7 w-7" strokeWidth={1.75} />;
-                return (
-                <div
-                  key={service.id || index}
-                  className="bg-white rounded-lg shadow-md p-6 transition-transform hover:scale-105"
-                >
-                  <div className="h-14 w-14 bg-primary/10 rounded-full flex items-center justify-center text-primary mb-4">
-                    {icon}
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {jobs.map((job) => (
+                <article key={job.id} className="flex flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-shadow hover:shadow-md">
+                  <div className="aspect-[4/3]">
+                    <PhotoSlot src={job.photo} alt={job.title} fallback={job.kind} />
                   </div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                    {service.title}
-                  </h3>
-                  <p className="text-gray-600">
-                    {service.content}
-                  </p>
-                </div>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-
-        {/* Features/Benefits Section */}
-        <section className="py-16">
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="bg-primary-50 rounded-2xl p-8 md:p-12">
-              <div className="text-center mb-12">
-                <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-                  Why Choose SD Tech Pros?
-                </h2>
-                <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-                  We deliver exceptional technology solutions with a focus on quality, reliability, and client satisfaction.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <div className="bg-white rounded-lg shadow-sm p-6">
-                  <Check className="h-10 w-10 text-green-500 mb-4" />
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">Expertise & Experience</h3>
-                  <p className="text-gray-600">
-                    Our team of experienced professionals brings years of industry expertise to every project.
-                  </p>
-                </div>
-
-                <div className="bg-white rounded-lg shadow-sm p-6">
-                  <Check className="h-10 w-10 text-green-500 mb-4" />
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">Custom Solutions</h3>
-                  <p className="text-gray-600">
-                    We create tailored technology solutions that address your specific business challenges.
-                  </p>
-                </div>
-
-                <div className="bg-white rounded-lg shadow-sm p-6">
-                  <Check className="h-10 w-10 text-green-500 mb-4" />
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">Client-Focused Approach</h3>
-                  <p className="text-gray-600">
-                    We prioritize your needs and provide exceptional support throughout our partnership.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* About Us Section */}
-        <section id="about" className="py-16 bg-gray-50">
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
-              <div>
-                <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6">
-                  {aboutContent?.[0]?.title || "About SD Tech Pros"}
-                </h2>
-                <div className="prose prose-lg text-gray-600 max-w-none">
-                  <p>{aboutContent?.[0]?.subtitle || "We're a team of passionate technology experts dedicated to helping businesses succeed."}</p>
-                  <p>{aboutContent?.[0]?.content || "Founded in 2015, SD Tech Pros has been providing cutting-edge technology solutions to businesses of all sizes. Our mission is to empower organizations with the tools and expertise they need to thrive in today's digital landscape."}</p>
-                  <p>Our values:</p>
-                  <ul>
-                    <li>Excellence in everything we do</li>
-                    <li>Innovation and continuous improvement</li>
-                    <li>Integrity and transparency</li>
-                    <li>Building lasting client relationships</li>
-                  </ul>
-                </div>
-              </div>
-              <div className="flex justify-center">
-                {aboutContent[0]?.imagePath ? (
-                  <img 
-                    src={aboutContent[0].imagePath} 
-                    alt="About SD Tech Pros" 
-                    className="rounded-lg shadow-xl max-w-md"
-                  />
-                ) : (
-                  <div className="w-full max-w-md aspect-square bg-gradient-to-r from-blue-100 to-indigo-100 rounded-lg flex items-center justify-center">
-                    <Users className="h-24 w-24 text-primary/40" />
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Testimonials Section */}
-        <section id="testimonials" className="py-16">
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-                {testimonialSectionTitle}
-              </h2>
-              <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-                {testimonialSectionSubtitle}
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {testimonialItems.map((testimonial, index) => (
-                <div
-                  key={testimonial.id || index}
-                  className="bg-white rounded-lg shadow-md p-6 border border-gray-100"
-                >
-                  <div className="flex items-center mb-4">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="h-5 w-5 text-yellow-400 fill-current" />
-                    ))}
-                  </div>
-                  <p className="text-gray-600 mb-6">
-                    "{testimonial.content}"
-                  </p>
-                  <div className="flex items-center gap-3">
-                    <Monogram name={testimonial.title || ""} />
-                    <div>
-                      <p className="font-semibold text-gray-900">{testimonial.title}</p>
-                      <p className="text-gray-500 text-sm">{testimonial.subtitle}</p>
+                  <div className="flex flex-1 flex-col gap-2.5 p-5">
+                    <div className="flex flex-wrap gap-1.5">
+                      <Tag signal>{job.kind}</Tag>
+                      {job.tags.slice(0, 3).map((t) => <Tag key={t}>{t}</Tag>)}
                     </div>
+                    <h3 className="text-xl font-semibold leading-tight">{job.title}</h3>
+                    <p className="flex-1 text-[14.5px] leading-relaxed text-foreground/75">{job.result}</p>
                   </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Services */}
+        <section id="services" className="scroll-mt-16 border-t border-border">
+          <div className="mx-auto flex max-w-6xl flex-col gap-9 px-4 py-16 sm:px-6 md:py-20">
+            <div className="flex max-w-2xl flex-col gap-3">
+              <Eyebrow>What we do</Eyebrow>
+              <h2 className="text-4xl sm:text-5xl">{services.length === 4 ? "Four things, done properly." : "What we do, done properly."}</h2>
+            </div>
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+              {services.map((service) => (
+                <div key={service.id} className="flex flex-col gap-4 rounded-xl border border-border bg-card p-6">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary-soft text-primary-soft-foreground">
+                    {SERVICE_ICON_MAP[service.icon] ?? SERVICE_ICON_MAP.briefcase}
+                  </span>
+                  <h3 className="text-xl font-semibold">{service.title}</h3>
+                  {service.lines.length > 1 ? (
+                    <ul className="flex flex-col gap-1.5 pl-[18px] text-[14.5px] leading-snug text-foreground/75 marker:text-muted-foreground" style={{ listStyle: "disc" }}>
+                      {service.lines.map((line) => <li key={line}>{line}</li>)}
+                    </ul>
+                  ) : (
+                    <p className="text-[14.5px] leading-relaxed text-foreground/75">{service.lines[0]}</p>
+                  )}
                 </div>
               ))}
             </div>
           </div>
         </section>
 
-        {/* CTA Section */}
-        <section className="py-16 bg-primary">
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
-              Ready to Transform Your Business?
-            </h2>
-            <p className="text-xl text-white/80 max-w-3xl mx-auto mb-8">
-              Let's discuss how our technology solutions can help you achieve your business goals.
-            </p>
-            <div className="flex flex-col sm:flex-row justify-center space-y-4 sm:space-y-0 sm:space-x-4">
-              <Button
-                onClick={() => navigate("/inquiry")}
-                variant="secondary"
-                size="lg"
-                className="text-base"
-              >
-                Get in Touch
-              </Button>
-              <Button
-                onClick={() => navigate("/auth")}
-                variant="outline"
-                size="lg"
-                className="text-base bg-transparent text-white border-white hover:bg-white/10"
-              >
-                Client Portal
-                <ExternalLink className="ml-2 h-4 w-4" />
-              </Button>
+        {/* How a job works */}
+        <section id="how" className="scroll-mt-16 border-t border-border bg-card/60">
+          <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 py-16 sm:px-6 md:py-20 lg:grid-cols-2">
+            <div className="flex flex-col gap-7">
+              <div className="flex flex-col gap-3">
+                <Eyebrow>How a job works</Eyebrow>
+                <h2 className="text-4xl sm:text-5xl">You'll never wonder what we did.</h2>
+              </div>
+              <ol className="flex flex-col gap-6">
+                <Step n={1} title="Walkthrough and a written quote">We come look at the ceiling, the closet and the wiring before we price anything. The quote lists parts and labor separately.</Step>
+                <Step n={2} title="Install, photographed as we go">Progress posts land in your portal from the job site, so you can check in from your phone instead of walking over.</Step>
+                <Step n={3} title="Handoff you can find later" signal>Wi-Fi passwords, VLANs, camera logins and gate codes live in your Notes, with the invoice next to them. Six months from now it's still there.</Step>
+              </ol>
             </div>
+            <PortalPreview />
           </div>
         </section>
 
-        {/* Contact Section */}
-        <section id="contact" className="py-16 bg-gray-50">
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-              <div>
-                <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6">
-                  Contact Us
-                </h2>
-                <p className="text-xl text-gray-600 mb-8">
-                  Have questions or ready to start a project? Get in touch with our team.
-                </p>
-                
-                <div className="space-y-4">
-                  <div className="flex items-start">
-                    <Mail className="h-6 w-6 text-primary mt-0.5 mr-3" />
-                    <div>
-                      <p className="font-medium text-gray-900">Email</p>
-                      <a href={`mailto:${companyInfo.email}`} className="text-gray-600 hover:text-primary">
-                        {companyInfo.email}
-                      </a>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start">
-                    <Phone className="h-6 w-6 text-primary mt-0.5 mr-3" />
-                    <div>
-                      <p className="font-medium text-gray-900">Phone</p>
-                      <a href={`tel:${companyInfo.phone}`} className="text-gray-600 hover:text-primary">
-                        {companyInfo.phone}
-                      </a>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start">
-                    <MapPin className="h-6 w-6 text-primary mt-0.5 mr-3" />
-                    <div>
-                      <p className="font-medium text-gray-900">Address</p>
-                      <p className="text-gray-600">
-                        {companyInfo.address}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="mt-8">
-                  <Button
-                    onClick={() => navigate("/inquiry")}
-                    size="lg"
-                    className="text-base"
-                  >
-                    Send Us a Message
-                  </Button>
-                </div>
+        {/* About, only when the CMS has it */}
+        {about && (about.title || about.content) && (
+          <section id="about" className="scroll-mt-16 border-t border-border">
+            <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-16 sm:px-6 md:py-20 lg:grid-cols-[1.2fr_1fr]">
+              <div className="flex flex-col gap-4">
+                <Eyebrow>Who you're calling</Eyebrow>
+                <h2 className="text-4xl sm:text-5xl">{about.title || `About ${companyName}`}</h2>
+                {about.subtitle && <p className="text-lg leading-relaxed text-foreground/80">{about.subtitle}</p>}
+                {about.content && <p className="whitespace-pre-line text-[16px] leading-relaxed text-foreground/75">{about.content}</p>}
               </div>
-              
-              <QuickInquiryForm />
+              {about.imagePath && (
+                <div className="overflow-hidden rounded-xl border border-border shadow-md">
+                  <img src={about.imagePath} alt={about.title || companyName} className="block w-full object-cover" />
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* Testimonials, only when there are some */}
+        {testimonials.length > 0 && (
+          <section id="testimonials" className="scroll-mt-16 border-t border-border bg-card/60">
+            <div className="mx-auto flex max-w-6xl flex-col gap-7 px-4 py-16 sm:px-6">
+              <Eyebrow>{testimonialTitle}</Eyebrow>
+              <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+                {testimonials.map((t) => (
+                  <blockquote key={t.id} className="flex flex-col gap-4 rounded-xl border border-border bg-background p-6">
+                    <p className="text-[17px] leading-relaxed">"{t.content}"</p>
+                    <footer className="flex items-center gap-3">
+                      <Monogram name={t.title || ""} className="h-9 w-9 text-xs" />
+                      <div className="text-[13.5px]">
+                        <p className="font-semibold">{t.title}</p>
+                        {t.subtitle && <p className="text-muted-foreground">{t.subtitle}</p>}
+                      </div>
+                    </footer>
+                  </blockquote>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Quote band */}
+        <section id="quote" className="scroll-mt-16 bg-primary-950 text-neutral-100">
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-7 px-4 py-16 sm:px-6 md:py-20">
+            <div className="flex max-w-xl flex-col gap-3">
+              <h2 className="text-4xl text-neutral-50 sm:text-5xl">Network down, or just overdue for an upgrade?</h2>
+              <p className="text-[17px] leading-relaxed text-neutral-300">
+                Tell us what's going on. We'll reply within one business day with next steps
+                {contact.phone ? <>, or call if it's on fire right now.</> : "."}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Button variant="signal" size="lg" onClick={() => navigate("/inquiry")}>Request a quote</Button>
+              {contact.phone && (
+                <Button asChild variant="outline" size="lg" className="border-neutral-700 bg-transparent text-neutral-100 hover:bg-neutral-100/10 hover:text-neutral-50">
+                  <a href={`tel:${contact.phone.replace(/[^\d+]/g, "")}`}>Call {contact.phone}</a>
+                </Button>
+              )}
             </div>
           </div>
         </section>
       </main>
 
       {/* Footer */}
-      <footer className="bg-gray-900 text-white py-12">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-            <div className="md:col-span-2">
-              <div className="flex items-center mb-4">
-                {settings?.logoPath ? (
-                  <img
-                    src={settings.logoPath}
-                    alt={settings.companyName || "Logo"}
-                    className="h-8 max-w-[160px] object-contain brightness-0 invert"
-                  />
-                ) : (
-                  <>
-                    <span className="bg-white text-primary font-bold text-xl px-2 py-1 rounded mr-2">SD</span>
-                    <span className="font-semibold text-lg">Tech Pros</span>
-                  </>
-                )}
-              </div>
-              <p className="text-gray-400 max-w-md">
-                Professional technology solutions for businesses of all sizes. We help you transform through innovative software and strategic IT consulting.
-              </p>
-            </div>
-            
-            <div>
-              <h3 className="text-lg font-semibold mb-4">Quick Links</h3>
-              <ul className="space-y-2">
-                {navLinks.map((link) => (
-                  <li key={link.name}>
-                    <a
-                      href={link.href}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        scrollToSection(link.href.substring(1));
-                      }}
-                      className="text-gray-400 hover:text-white transition-colors"
-                    >
-                      {link.name}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            
-            <div>
-              <h3 className="text-lg font-semibold mb-4">Contact</h3>
-              <ul className="space-y-2 text-gray-400">
-                <li className="flex items-center">
-                  <Mail className="h-4 w-4 mr-2" />
-                  <a href={`mailto:${companyInfo.email}`} className="hover:text-white transition-colors">
-                    {companyInfo.email}
-                  </a>
-                </li>
-                <li className="flex items-center">
-                  <Phone className="h-4 w-4 mr-2" />
-                  <a href={`tel:${companyInfo.phone}`} className="hover:text-white transition-colors">
-                    {companyInfo.phone}
-                  </a>
-                </li>
-                <li className="flex items-start">
-                  <MapPin className="h-4 w-4 mr-2 mt-1" />
-                  <span>{companyInfo.address}</span>
-                </li>
-              </ul>
-            </div>
-          </div>
-          
-          <div className="border-t border-gray-800 mt-8 pt-8 flex flex-col md:flex-row justify-between items-center">
-            <p className="text-gray-500 text-sm">
-              &copy; {new Date().getFullYear()} SD Tech Pros. All rights reserved.
-            </p>
-          </div>
+      <footer className="border-t border-border bg-background">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-7 gap-y-3 px-4 py-7 text-[13.5px] text-muted-foreground sm:px-6">
+          <span className="flex items-center gap-2 font-semibold text-foreground">
+            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-signal font-display text-[13px] font-bold text-signal-foreground">SD</span>
+            {companyName}
+          </span>
+          {contact.address && <span>{contact.address}</span>}
+          {contact.phone && <a href={`tel:${contact.phone.replace(/[^\d+]/g, "")}`} className="hover:text-foreground">{contact.phone}</a>}
+          {contact.email && <a href={`mailto:${contact.email}`} className="hover:text-foreground">{contact.email}</a>}
+          <nav className="ml-auto flex flex-wrap gap-5" aria-label="Footer">
+            <a href={portalHref} onClick={(e) => { e.preventDefault(); navigate(portalHref); }} className="font-medium text-primary hover:underline">{portalLabel}</a>
+            <a href="/pages/privacy" onClick={(e) => { e.preventDefault(); navigate("/pages/privacy"); }} className="font-medium text-primary hover:underline">Privacy</a>
+            <a href="/pages/terms" onClick={(e) => { e.preventDefault(); navigate("/pages/terms"); }} className="font-medium text-primary hover:underline">Terms</a>
+          </nav>
+          <span className="w-full text-[12.5px] sm:w-auto sm:ml-auto">&copy; {new Date().getFullYear()} {companyName}</span>
         </div>
       </footer>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Sub-components used above                                           */
+/* ------------------------------------------------------------------ */
+
+function Step({ n, title, children, signal = false }: { n: number; title: string; children: React.ReactNode; signal?: boolean }) {
+  return (
+    <li className="flex gap-4">
+      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-display text-lg font-bold ${signal ? "bg-signal text-signal-foreground" : "bg-foreground text-background"}`}>{n}</span>
+      <div className="flex flex-col gap-1">
+        <p className="text-[17px] font-semibold">{title}</p>
+        <p className="text-[14.5px] leading-relaxed text-foreground/75">{children}</p>
+      </div>
+    </li>
+  );
+}
+
+/** A static mock of what a client sees in the portal: a photo update and a pinned note. */
+function PortalPreview() {
+  return (
+    <div className="flex flex-col gap-3.5 rounded-xl border border-border bg-card p-4 shadow-lg" aria-label="Example of a client portal update">
+      <div className="flex items-center gap-2.5">
+        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-soft font-display text-xs font-bold text-primary-soft-foreground">SD</span>
+        <div className="flex flex-col leading-tight">
+          <span className="text-sm font-semibold">Your tech posted an update</span>
+          <span className="text-[12.5px] text-muted-foreground">From the job site · today</span>
+        </div>
+        <span className="ml-auto inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-primary-soft px-2.5 py-1 text-xs font-semibold text-primary-soft-foreground"><Clock className="h-3 w-3" />In progress</span>
+      </div>
+      <p className="text-[17px] font-semibold leading-snug">Second-floor cameras online: 38 of 112 done</p>
+      <div className="grid grid-cols-3 gap-1.5">
+        {["Hallway run", "Dome, lobby", "NVR view"].map((label) => (
+          <div key={label} className="aspect-square overflow-hidden rounded-lg">
+            <PhotoSlot src={null} alt="" fallback="" className="!p-2 text-[11px]" />
+          </div>
+        ))}
+      </div>
+      <div className="flex flex-col gap-2 border-t border-border pt-3.5">
+        <Eyebrow className="text-[11.5px]">Important note · pinned</Eyebrow>
+        <div className="flex items-center justify-between gap-3 rounded-lg bg-muted px-3 py-2.5">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[12.5px] font-medium text-foreground/80">Staff Wi-Fi password</span>
+            <span className="font-mono text-sm tracking-[0.2em]">••••••••••</span>
+          </div>
+          <span className="inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-3 text-sm font-semibold"><Eye className="h-4 w-4" />Reveal</span>
+        </div>
+      </div>
     </div>
   );
 }

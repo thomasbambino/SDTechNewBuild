@@ -22,7 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Mail, Phone, MapPin, User, FileText, MessageSquare, Eye, KeyRound } from "lucide-react";
+import { ArrowLeft, Mail, Phone, MapPin, FileText, MessageSquare, Eye, KeyRound, Camera } from "lucide-react";
 import { format } from "date-fns";
 import { Client, Project, Invoice, Document, Message } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -34,6 +34,7 @@ import NoteCard from "@/components/dashboard/NoteCard";
 import NoteEditor, { NoteDraft } from "@/components/admin/NoteEditor";
 import TeamMembers from "@/components/dashboard/TeamMembers";
 import { Plus, Trash2, Pencil } from "lucide-react";
+import { projectStatusMeta } from "@/components/dashboard/ProjectStatus";
 
 interface ClientNote {
   id: number;
@@ -69,6 +70,7 @@ export default function ClientDetailPage() {
   const [noteEditorOpen, setNoteEditorOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<NoteDraft | undefined>(undefined);
   const [editingPost, setEditingPost] = useState<ExistingPost | undefined>(undefined);
+  const [composerOpen, setComposerOpen] = useState(false);
   const clientId = parseInt(params.id as string);
 
   const deleteNoteMutation = useMutation({
@@ -148,7 +150,7 @@ export default function ClientDetailPage() {
       <AppLayout>
         <div className="py-10 text-center">
           <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-primary border-r-transparent" role="status" />
-          <p className="mt-2 text-sm text-gray-500">Loading client…</p>
+          <p className="mt-2 text-sm text-muted-foreground">Loading client…</p>
         </div>
       </AppLayout>
     );
@@ -167,111 +169,137 @@ export default function ClientDetailPage() {
     );
   }
 
-  const statusVariant = (s: string | null | undefined) => {
+  const statusVariant = (s: string | null | undefined): "info" | "success" | "warning" | "danger" | "secondary" => {
     switch (s) {
-      case "completed": return "default";
-      case "in_progress": return "secondary";
-      case "on_hold": return "outline";
-      case "paid": return "default";
-      case "overdue": return "destructive";
+      case "completed": case "paid": return "success";
+      case "in_progress": return "info";
+      case "on_hold": case "pending": return "warning";
+      case "overdue": return "danger";
       default: return "secondary";
     }
   };
 
   const statusLabel = (s: string | null | undefined) => {
     if (!s) return "—";
-    return s.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+    if (s === "in_progress") return "In progress";
+    return s.replace(/_/g, " ").replace(/^\w/, c => c.toUpperCase());
+  };
+
+  const initials = client.name.trim().split(/\s+/).filter(Boolean).map(w => w[0]).join("").slice(0, 2).toUpperCase() || "?";
+  const openComposer = () => {
+    setComposerOpen(true);
+    setTimeout(() => document.getElementById("composer")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
   };
 
   return (
     <AppLayout>
-      <div className="py-6 px-4 sm:px-6 lg:px-8 space-y-6">
-        <div>
-          <Button variant="ghost" onClick={() => setLocation("/admin/clients")} className="mb-2 -ml-3">
-            <ArrowLeft className="h-4 w-4 mr-2" /> Back to Clients
+      <div className="mx-auto flex max-w-[1180px] flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8">
+        <nav className="flex items-center gap-1 text-[13.5px] text-muted-foreground" aria-label="Breadcrumb">
+          <Button variant="ghost" size="sm" onClick={() => setLocation("/admin/clients")} className="-ml-2 h-9 px-2 text-primary">
+            <ArrowLeft className="h-4 w-4" /> Clients
           </Button>
-        </div>
+          <span aria-hidden="true">/</span>
+          <span className="truncate text-foreground/80">{client.name}</span>
+        </nav>
 
-        <Card>
-          <CardHeader>
-            <div className="flex items-start gap-4">
-              <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
-                <User className="h-7 w-7" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <CardTitle className="text-2xl">{client.name}</CardTitle>
-                {client.contactPerson && (
-                  <CardDescription className="mt-1">{client.contactPerson}</CardDescription>
-                )}
-              </div>
-              <div className="flex-shrink-0">
-                {client.userId ? (
-                  <Button
-                    onClick={() => impersonateMutation.mutate(client.userId as number)}
-                    disabled={impersonateMutation.isPending}
-                  >
-                    <Eye className="h-4 w-4 mr-2" />
-                    {impersonateMutation.isPending ? "Opening…" : "View as Client"}
-                  </Button>
-                ) : (
-                  <Button
-                    variant="outline"
-                    onClick={() => createLoginMutation.mutate()}
-                    disabled={createLoginMutation.isPending || !client.email}
-                    title={!client.email ? "Client needs an email address first" : undefined}
-                  >
-                    <KeyRound className="h-4 w-4 mr-2" />
-                    {createLoginMutation.isPending ? "Creating…" : "Create Login"}
-                  </Button>
-                )}
-              </div>
+        <header className="flex flex-wrap items-center gap-4">
+          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[14px] bg-signal-soft font-display text-xl font-bold tracking-wide text-signal-soft-foreground" aria-hidden="true">{initials}</span>
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <h1 className="truncate text-2xl sm:text-3xl">{client.name}</h1>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-[13.5px] text-muted-foreground">
+              {client.contactPerson && <span>{client.contactPerson}</span>}
+              {client.phone && <a href={`tel:${client.phone.replace(/[^\d+]/g, "")}`} className="inline-flex items-center gap-1 hover:text-foreground"><Phone className="h-3.5 w-3.5" />{client.phone}</a>}
+              {client.email && <a href={`mailto:${client.email}`} className="inline-flex items-center gap-1 hover:text-foreground"><Mail className="h-3.5 w-3.5" />{client.email}</a>}
+              {client.createdAt && <span>Client since {format(new Date(client.createdAt), "MMM yyyy")}</span>}
             </div>
-          </CardHeader>
-          <CardContent className="grid gap-2 text-sm">
-            {client.email && (
-              <div className="flex items-center gap-2 text-gray-600">
-                <Mail className="h-4 w-4" /> <a href={`mailto:${client.email}`} className="hover:underline">{client.email}</a>
-              </div>
+          </div>
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+            <Button variant="outline" onClick={() => setLocation("/admin/messages")} className="flex-1 sm:flex-none">
+              <MessageSquare className="h-4 w-4" /> Message
+            </Button>
+            {client.userId ? (
+              <Button
+                variant="outline"
+                className="flex-1 sm:flex-none"
+                onClick={() => impersonateMutation.mutate(client.userId as number)}
+                disabled={impersonateMutation.isPending}
+              >
+                <Eye className="h-4 w-4" />
+                {impersonateMutation.isPending ? "Opening…" : "View as client"}
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                className="flex-1 sm:flex-none"
+                onClick={() => createLoginMutation.mutate()}
+                disabled={createLoginMutation.isPending || !client.email}
+                title={!client.email ? "Client needs an email address first" : undefined}
+              >
+                <KeyRound className="h-4 w-4" />
+                {createLoginMutation.isPending ? "Creating…" : "Create login"}
+              </Button>
             )}
-            {client.phone && (
-              <div className="flex items-center gap-2 text-gray-600">
-                <Phone className="h-4 w-4" /> {client.phone}
-              </div>
-            )}
+            <Button variant="signal" onClick={openComposer} className="w-full sm:w-auto">
+              <Camera className="h-4 w-4" /> Post update
+            </Button>
+          </div>
+        </header>
+
+        {(client.address || client.notes) && (
+          <div className="flex flex-col gap-2 rounded-xl border border-border bg-card px-4 py-3 text-[13.5px] text-foreground/80">
             {client.address && (
-              <div className="flex items-start gap-2 text-gray-600">
-                <MapPin className="h-4 w-4 mt-0.5" /> <span className="whitespace-pre-wrap">{client.address}</span>
-              </div>
+              <div className="flex items-start gap-2"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" /><span className="whitespace-pre-wrap">{client.address}</span></div>
             )}
             {client.notes && (
-              <div className="mt-3 pt-3 border-t">
-                <p className="text-xs uppercase tracking-wide text-gray-400 mb-1">Internal notes</p>
-                <p className="whitespace-pre-wrap text-gray-600">{client.notes}</p>
+              <div className={client.address ? "border-t border-border pt-2" : ""}>
+                <p className="mb-0.5 font-display text-[11.5px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Internal notes · not visible to client</p>
+                <p className="whitespace-pre-wrap">{client.notes}</p>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        )}
 
         <Tabs defaultValue="timeline">
-          <TabsList>
-            <TabsTrigger value="timeline">Timeline ({timeline.length})</TabsTrigger>
-            <TabsTrigger value="projects">Projects ({projects.length})</TabsTrigger>
-            <TabsTrigger value="invoices">Invoices ({invoices.length})</TabsTrigger>
-            <TabsTrigger value="documents">Documents ({documents.length})</TabsTrigger>
-            <TabsTrigger value="notes">Notes ({notes.length})</TabsTrigger>
-            <TabsTrigger value="team">Team</TabsTrigger>
-            <TabsTrigger value="messages">Messages ({messages.length})</TabsTrigger>
+          <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-none border-b border-border bg-transparent p-0 [scrollbar-width:none]">
+            {([
+              ["timeline", "Timeline", timeline.length],
+              ["projects", "Projects", projects.length],
+              ["invoices", "Invoices", invoices.length],
+              ["documents", "Documents", documents.length],
+              ["notes", "Notes", notes.length],
+              ["team", "Team", null],
+              ["messages", "Messages", messages.length],
+            ] as const).map(([value, label, count]) => (
+              <TabsTrigger
+                key={value}
+                value={value}
+                className="h-11 shrink-0 rounded-none border-b-2 border-transparent px-3 text-[14px] font-medium text-foreground/70 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:text-foreground data-[state=active]:shadow-none"
+              >
+                {label}{count !== null && count > 0 && <span className="ml-1.5 text-[12px] font-medium text-muted-foreground">{count}</span>}
+              </TabsTrigger>
+            ))}
           </TabsList>
 
           <TabsContent value="timeline" className="mt-4 space-y-4">
-            <TimelineComposer
-              key={editingPost?.id ?? "new"}
-              projects={projects}
-              clientId={clientId}
-              editing={editingPost}
-              onCancel={() => setEditingPost(undefined)}
-              onSaved={() => setEditingPost(undefined)}
-            />
+            <div id="composer" className="scroll-mt-20">
+              {composerOpen || editingPost ? (
+                <TimelineComposer
+                  key={editingPost?.id ?? "new"}
+                  projects={projects}
+                  clientId={clientId}
+                  editing={editingPost}
+                  onCancel={() => { setEditingPost(undefined); setComposerOpen(false); }}
+                  onSaved={() => { setEditingPost(undefined); setComposerOpen(false); }}
+                />
+              ) : (
+                <Button variant="signal" size="lg" className="w-full sm:w-auto" onClick={openComposer} disabled={projects.length === 0}>
+                  <Camera className="h-5 w-5" /> Post an update with photos
+                </Button>
+              )}
+              {projects.length === 0 && !composerOpen && (
+                <p className="mt-2 text-[13px] text-muted-foreground">Create a project for this client before posting updates.</p>
+              )}
+            </div>
             <TimelineFeed
               items={timeline.map(m => {
                 const images = m.imagePaths ? (JSON.parse(m.imagePaths) as string[]) : [];
@@ -298,7 +326,7 @@ export default function ClientDetailPage() {
                   },
                 };
               }) as TimelineItem[]}
-              emptyMessage="No posts yet. Use the composer above to publish your first update."
+              emptyMessage="Nothing posted for this client yet. The first photo update is the one they'll remember."
               engagementRefreshKeys={[`/api/timeline/admin?clientId=${clientId}`]}
               onEdit={(meta, item) => {
                 setEditingPost({
@@ -309,7 +337,7 @@ export default function ClientDetailPage() {
                   imagePaths: meta.imagePaths,
                   createdAt: meta.createdAt,
                 });
-                window.scrollTo({ top: 0, behavior: "smooth" });
+                openComposer();
               }}
               onDelete={(meta, item) => {
                 if (confirm(`Delete post "${item.title}"?`)) deleteMilestoneMutation.mutate(meta.milestoneId);
@@ -321,7 +349,7 @@ export default function ClientDetailPage() {
             <Card>
               <CardContent className="p-0">
                 {projects.length === 0 ? (
-                  <p className="p-6 text-sm text-gray-500 text-center">No projects for this client yet.</p>
+                  <p className="p-6 text-sm text-muted-foreground text-center">No projects for this client yet.</p>
                 ) : (
                   <Table>
                     <TableHeader>
@@ -338,7 +366,7 @@ export default function ClientDetailPage() {
                           <TableCell className="font-medium">
                             <Link href="/admin/projects" className="hover:underline">{p.name}</Link>
                           </TableCell>
-                          <TableCell><Badge variant={statusVariant(p.status)}>{statusLabel(p.status)}</Badge></TableCell>
+                          <TableCell><Badge variant={projectStatusMeta(p.status ?? "").variant}>{projectStatusMeta(p.status ?? "").label}</Badge></TableCell>
                           <TableCell>{p.progress ?? 0}%</TableCell>
                           <TableCell>{p.dueDate ? format(new Date(p.dueDate), "MMM d, yyyy") : "—"}</TableCell>
                         </TableRow>
@@ -354,7 +382,7 @@ export default function ClientDetailPage() {
             <Card>
               <CardContent className="p-0">
                 {invoices.length === 0 ? (
-                  <p className="p-6 text-sm text-gray-500 text-center">No invoices for this client.</p>
+                  <p className="p-6 text-sm text-muted-foreground text-center">No invoices for this client.</p>
                 ) : (
                   <Table>
                     <TableHeader>
@@ -369,7 +397,7 @@ export default function ClientDetailPage() {
                       {invoices.map(i => (
                         <TableRow key={i.id}>
                           <TableCell className="font-medium">{i.invoiceNumber}</TableCell>
-                          <TableCell>${i.amount.toFixed(2)}</TableCell>
+                          <TableCell className="font-mono">${i.amount.toFixed(2)}</TableCell>
                           <TableCell><Badge variant={statusVariant(i.status)}>{statusLabel(i.status)}</Badge></TableCell>
                           <TableCell>{i.dueDate ? format(new Date(i.dueDate), "MMM d, yyyy") : "—"}</TableCell>
                         </TableRow>
@@ -385,7 +413,7 @@ export default function ClientDetailPage() {
             <Card>
               <CardContent className="p-0">
                 {documents.length === 0 ? (
-                  <p className="p-6 text-sm text-gray-500 text-center">No documents for this client.</p>
+                  <p className="p-6 text-sm text-muted-foreground text-center">No documents for this client.</p>
                 ) : (
                   <Table>
                     <TableHeader>
@@ -401,11 +429,11 @@ export default function ClientDetailPage() {
                         <TableRow key={d.id}>
                           <TableCell className="font-medium">
                             <div className="flex items-center gap-2">
-                              <FileText className="h-4 w-4 text-gray-400" />{d.name}
+                              <FileText className="h-4 w-4 text-muted-foreground" />{d.name}
                             </div>
                           </TableCell>
-                          <TableCell className="text-gray-500 text-sm">{d.type || "—"}</TableCell>
-                          <TableCell className="text-gray-500 text-sm">
+                          <TableCell className="text-muted-foreground text-sm">{d.type || "—"}</TableCell>
+                          <TableCell className="text-muted-foreground text-sm">
                             {d.createdAt ? format(new Date(d.createdAt), "MMM d, yyyy") : "—"}
                           </TableCell>
                           <TableCell className="text-right">
@@ -421,22 +449,21 @@ export default function ClientDetailPage() {
           </TabsContent>
 
           <TabsContent value="notes" className="mt-4 space-y-4">
-            <div className="flex justify-end">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-[13.5px] text-muted-foreground">Everything here is visible to the client under Notes. Lock a value to hide it until they reveal it.</p>
               <Button onClick={() => { setEditingNote(undefined); setNoteEditorOpen(true); }}>
-                <Plus className="h-4 w-4 mr-2" /> Add Note
+                <Plus className="h-4 w-4" /> Add note
               </Button>
             </div>
             {notes.length === 0 ? (
-              <Card>
-                <CardContent className="p-6">
-                  <p className="text-sm text-gray-500 text-center py-4">No client-visible notes yet.</p>
-                  <p className="text-xs text-gray-400 text-center">
-                    Use notes for Wi-Fi credentials, VLAN assignments, access codes, and anything the client should be able to reference.
-                  </p>
-                </CardContent>
-              </Card>
+              <div className="rounded-xl border border-dashed border-input bg-card px-6 py-10 text-center">
+                <p className="font-display text-xl font-semibold">No notes yet.</p>
+                <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
+                  Wi-Fi credentials, VLAN assignments, camera logins, door codes. Anything the client should be able to find six months from now.
+                </p>
+              </div>
             ) : (
-              <div className="space-y-3">
+              <div className="grid gap-4 md:grid-cols-2">
                 {notes.map(note => {
                   let parsedFields: any[] = [];
                   if (note.fields) {
@@ -449,9 +476,9 @@ export default function ClientDetailPage() {
                       action={
                         <div className="flex gap-1">
                           <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
-                            className="h-7 w-7 p-0"
+                            className="h-9 w-9 p-0"
                             onClick={() => {
                               setEditingNote({
                                 id: note.id,
@@ -468,10 +495,10 @@ export default function ClientDetailPage() {
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
                           <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
-                            className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
-                            onClick={() => deleteNoteMutation.mutate(note.id)}
+                            className="h-9 w-9 p-0 text-destructive hover:bg-destructive-soft"
+                            onClick={() => { if (confirm(`Delete "${note.title}"? The client loses it too.`)) deleteNoteMutation.mutate(note.id); }}
                             aria-label="Delete"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -501,15 +528,15 @@ export default function ClientDetailPage() {
             <Card>
               <CardContent className="p-0">
                 {messages.length === 0 ? (
-                  <p className="p-6 text-sm text-gray-500 text-center">No messages with this client.</p>
+                  <p className="p-6 text-sm text-muted-foreground text-center">No messages with this client.</p>
                 ) : (
                   <div className="divide-y">
                     {messages.map(m => (
                       <div key={m.id} className="p-4 flex gap-3 items-start">
-                        <MessageSquare className="h-4 w-4 text-gray-400 mt-1 flex-shrink-0" />
+                        <MessageSquare className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm whitespace-pre-wrap">{m.content}</p>
-                          <p className="text-xs text-gray-400 mt-1">
+                          <p className="text-xs text-muted-foreground mt-1">
                             {m.createdAt ? format(new Date(m.createdAt), "MMM d, yyyy h:mm a") : ""}
                           </p>
                         </div>

@@ -1,25 +1,22 @@
-import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { format, formatDistanceToNow, isPast } from "date-fns";
 import AppLayout from "@/components/layout/AppLayout";
-import StatsCard from "@/components/dashboard/StatsCard";
-import ActivityFeed, { Activity } from "@/components/dashboard/ActivityFeed";
-import InquiriesList, { Inquiry } from "@/components/dashboard/InquiriesList";
-import ProjectsTable, { Project } from "@/components/dashboard/ProjectsTable";
+import { Activity } from "@/components/dashboard/ActivityFeed";
+import { Inquiry } from "@/components/dashboard/InquiriesList";
+import { Project } from "@/components/dashboard/ProjectsTable";
+import { projectStatusMeta } from "@/components/dashboard/ProjectStatus";
+import { formatCurrency } from "@/components/dashboard/InvoicesTable";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { 
-  Briefcase, 
-  Users, 
-  FileText, 
-  Inbox, 
-  RefreshCw, 
-  Plus 
-} from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
+import { Inbox, FileText, MessageSquare, ChevronRight, Camera, RefreshCw } from "lucide-react";
 
-interface DashboardData {
+/* ------------------------------------------------------------------ */
+/* Types                                                               */
+/* ------------------------------------------------------------------ */
+
+export interface AdminDashboardData {
   stats: {
     activeProjects: number;
     totalClients: number;
@@ -31,230 +28,244 @@ interface DashboardData {
   recentProjects: Project[];
 }
 
+/* ------------------------------------------------------------------ */
+/* Container                                                           */
+/* ------------------------------------------------------------------ */
+
 export default function AdminDashboard() {
-  const [_, navigate] = useLocation();
-  const { toast } = useToast();
-
-  // Fetch dashboard data
-  const { data, isLoading, isError, refetch } = useQuery<DashboardData>({
-    queryKey: ['/api/dashboard/admin'],
-  });
-
-  const handleApproveInquiry = async (inquiryId: number) => {
-    try {
-      await apiRequest('PUT', `/api/inquiries/${inquiryId}`, {
-        status: 'approved'
-      });
-      
-      toast({
-        title: "Inquiry approved",
-        description: "The inquiry has been successfully approved.",
-      });
-      
-      // Refetch dashboard data
-      refetch();
-    } catch (error) {
-      toast({
-        title: "Failed to approve inquiry",
-        description: error instanceof Error ? error.message : "An unknown error occurred",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // Navigation handlers
-  const navigateToClients = () => navigate("/admin/clients");
-  const navigateToProjects = () => navigate("/admin/projects");
-  const navigateToInvoices = () => navigate("/admin/invoices");
-  const navigateToInquiries = () => navigate("/admin/inquiries");
-  const navigateToProjectDetails = (projectId: number) => navigate(`/admin/projects/${projectId}`);
-
-  // Format currency for display
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount);
-  };
+  const { data, isLoading, isError, refetch, isFetching } = useQuery<AdminDashboardData>({ queryKey: ["/api/dashboard/admin"] });
+  const { data: unread } = useQuery<{ count: number }>({ queryKey: ["/api/messages/unread-count"], refetchInterval: 30000 });
 
   return (
     <AppLayout>
-      <div className="py-6 px-4 sm:px-6 lg:px-8">
-        <div className="md:flex md:items-center md:justify-between mb-6">
-          <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl sm:truncate">
-              Dashboard
-            </h1>
-          </div>
-          <div className="mt-4 flex md:mt-0 md:ml-4 space-x-2">
-            <Button variant="outline" onClick={() => refetch()} className="flex items-center">
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh Data
+      {isLoading ? (
+        <AdminHomeSkeleton />
+      ) : isError || !data ? (
+        <div className="mx-auto flex max-w-md flex-col items-center gap-4 px-4 py-20 text-center">
+          <p className="font-display text-2xl font-semibold">Couldn't load the dashboard.</p>
+          <Button onClick={() => refetch()}>Try again</Button>
+        </div>
+      ) : (
+        <AdminHomeView data={data} unreadMessages={unread?.count ?? 0} onRefresh={() => refetch()} refreshing={isFetching} />
+      )}
+    </AppLayout>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* View                                                                */
+/* ------------------------------------------------------------------ */
+
+export function AdminHomeView({ data, unreadMessages, onRefresh, refreshing = false, userName }: {
+  data: AdminDashboardData;
+  unreadMessages: number;
+  onRefresh?: () => void;
+  refreshing?: boolean;
+  userName?: string;
+}) {
+  const [, navigate] = useLocation();
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Morning" : hour < 17 ? "Afternoon" : "Evening";
+  const firstName = userName?.split(" ")[0];
+
+  const needs: { key: string; icon: React.ReactNode; tone: string; title: string; detail: string; count?: number; to: string }[] = [];
+  if (data.pendingInquiries.length > 0) {
+    needs.push({
+      key: "inq", icon: <Inbox className="h-5 w-5" />, tone: "bg-signal-soft text-signal-soft-foreground",
+      title: `${data.pendingInquiries.length} new quote request${data.pendingInquiries.length === 1 ? "" : "s"}`,
+      detail: data.pendingInquiries.slice(0, 2).map(i => i.name).join(" · "),
+      to: "/admin/inquiries",
+    });
+  }
+  if (data.stats.outstandingInvoices > 0) {
+    needs.push({
+      key: "inv", icon: <FileText className="h-5 w-5" />, tone: "bg-warning-soft text-warning-soft-foreground",
+      title: `${formatCurrency(data.stats.outstandingInvoices)} outstanding`,
+      detail: "Across pending and overdue invoices",
+      to: "/admin/invoices",
+    });
+  }
+  if (unreadMessages > 0) {
+    needs.push({
+      key: "msg", icon: <MessageSquare className="h-5 w-5" />, tone: "bg-primary-soft text-primary-soft-foreground",
+      title: `${unreadMessages} unread message${unreadMessages === 1 ? "" : "s"}`,
+      detail: "Clients are waiting on a reply",
+      count: unreadMessages,
+      to: "/admin/messages",
+    });
+  }
+
+  const active = data.recentProjects.filter(p => p.status.toLowerCase().replace(/\s+/g, "_") !== "completed");
+
+  return (
+    <div className="mx-auto flex max-w-[1180px] flex-col gap-7 px-4 py-6 sm:px-6 lg:px-8">
+      {/* Header */}
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <p className="font-display text-[13px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{format(new Date(), "EEE MMM d")} · Admin</p>
+          <h1 className="text-3xl sm:text-4xl">{greeting}{firstName ? `, ${firstName}` : ""}.</h1>
+        </div>
+        <div className="flex gap-2">
+          {onRefresh && (
+            <Button variant="outline" size="icon" onClick={onRefresh} aria-label="Refresh" disabled={refreshing}>
+              <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
             </Button>
-            <Button onClick={() => navigate("/admin/projects/new")} className="flex items-center">
-              <Plus className="h-4 w-4 mr-2" />
-              New Project
-            </Button>
-          </div>
+          )}
+          <Button variant="signal" onClick={() => navigate("/admin/clients")}>
+            <Camera className="h-4 w-4" />
+            Post an update
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid gap-7 lg:grid-cols-[1.1fr_1fr]">
+        <div className="flex flex-col gap-7">
+          {/* Needs you */}
+          <section className="flex flex-col gap-2.5" aria-label="Needs you">
+            <SectionLabel>{needs.length > 0 ? `Needs you · ${needs.length}` : "Needs you"}</SectionLabel>
+            {needs.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-input bg-card px-5 py-6 text-[14.5px] text-foreground/75">
+                Nothing waiting on you. Quote requests, unread messages and unpaid invoices show up here.
+              </div>
+            ) : (
+              needs.map(n => (
+                <button
+                  key={n.key}
+                  type="button"
+                  onClick={() => navigate(n.to)}
+                  className="flex min-h-[64px] items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-left shadow-sm hover:bg-accent/60"
+                >
+                  <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${n.tone}`}>{n.icon}</span>
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="text-[15px] font-semibold leading-tight">{n.title}</span>
+                    <span className="truncate text-[13px] text-muted-foreground">{n.detail}</span>
+                  </span>
+                  {n.count ? (
+                    <Badge className="h-5 px-2">{n.count}</Badge>
+                  ) : (
+                    <ChevronRight className="h-[18px] w-[18px] shrink-0 text-muted-foreground" />
+                  )}
+                </button>
+              ))
+            )}
+          </section>
+
+          {/* Active jobs */}
+          <section className="flex flex-col gap-2.5" aria-label="Active jobs">
+            <div className="flex items-center justify-between">
+              <SectionLabel>Active jobs · {data.stats.activeProjects}</SectionLabel>
+              <button type="button" onClick={() => navigate("/admin/projects")} className="text-[13px] font-semibold text-primary hover:underline">All projects</button>
+            </div>
+            {active.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-input bg-card px-5 py-6 text-[14.5px] text-foreground/75">
+                No open jobs. New projects appear here with their progress.
+              </div>
+            ) : (
+              active.slice(0, 5).map(p => {
+                const meta = projectStatusMeta(p.status);
+                const progress = Math.max(0, Math.min(100, p.progress ?? 0));
+                const due = p.dueDate ? new Date(p.dueDate) : null;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => navigate(`/admin/projects/${p.id}`)}
+                    className="flex flex-col gap-2.5 rounded-xl border border-border bg-card px-4 py-3.5 text-left shadow-sm hover:bg-accent/60"
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span className="truncate text-[15px] font-semibold">{p.name}</span>
+                        {p.clientName && <span className="truncate text-[12.5px] text-muted-foreground">{p.clientName}</span>}
+                      </span>
+                      <Badge variant={meta.variant}>{meta.label}</Badge>
+                    </span>
+                    <span className="flex items-center gap-3">
+                      <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
+                        <span className="block h-full rounded-full bg-primary" style={{ width: `${progress}%` }} />
+                      </span>
+                      <span className="font-mono text-[12px] text-muted-foreground">{progress}%</span>
+                      {due && (
+                        <span className={`text-[12.5px] ${isPast(due) && progress < 100 ? "font-semibold text-destructive" : "text-muted-foreground"}`}>
+                          Due {format(due, "MMM d")}
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                );
+              })
+            )}
+          </section>
         </div>
 
-        {isLoading ? (
-          <>
-            {/* Stats skeletons */}
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-6">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="bg-card rounded-lg border p-5">
-                  <div className="flex items-center">
-                    <Skeleton className="h-12 w-12 rounded-md flex-shrink-0" />
-                    <div className="ml-5 flex-1 space-y-2">
-                      <Skeleton className="h-4 w-24" />
-                      <Skeleton className="h-6 w-16" />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Activity + Inquiries skeletons */}
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 mb-6">
-              <div className="bg-card rounded-lg border">
-                <div className="px-5 py-4 border-b"><Skeleton className="h-6 w-36" /></div>
-                <div className="p-5 space-y-6">
-                  {Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="flex items-start space-x-3">
-                      <Skeleton className="h-10 w-10 rounded-full flex-shrink-0" />
-                      <div className="flex-1 space-y-2">
-                        <Skeleton className="h-4 w-28" />
-                        <Skeleton className="h-3 w-48" />
-                        <Skeleton className="h-3 w-20" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="bg-card rounded-lg border">
-                <div className="px-5 py-4 border-b"><Skeleton className="h-6 w-40" /></div>
-                <div className="p-5 space-y-1 divide-y divide-border">
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <div key={i} className="py-4 flex items-start space-x-4">
-                      <Skeleton className="h-10 w-10 rounded-full flex-shrink-0" />
-                      <div className="flex-1 space-y-2">
-                        <Skeleton className="h-4 w-32" />
-                        <Skeleton className="h-3 w-48" />
-                      </div>
-                      <Skeleton className="h-8 w-20 rounded flex-shrink-0" />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Projects table skeleton */}
-            <div className="bg-card rounded-lg border">
-              <div className="px-5 py-4 border-b"><Skeleton className="h-6 w-36" /></div>
-              <div className="p-4 space-y-3">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="flex items-center gap-4">
-                    <Skeleton className="h-10 w-10 rounded-md flex-shrink-0" />
-                    <div className="flex-1 space-y-1.5">
-                      <Skeleton className="h-4 w-40" />
-                      <Skeleton className="h-3 w-20" />
-                    </div>
-                    <Skeleton className="h-4 w-24" />
-                    <Skeleton className="h-6 w-20 rounded-full" />
-                    <Skeleton className="h-4 w-20" />
-                    <Skeleton className="h-4 w-16" />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </>
-        ) : isError ? (
-          <div className="text-center py-10">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 text-red-600 mb-4">
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-              </svg>
-            </div>
-            <p className="text-lg font-medium text-gray-900">Error loading dashboard data</p>
-            <p className="mt-1 text-sm text-gray-500">Please try refreshing the page</p>
-            <Button onClick={() => refetch()} className="mt-4">
-              Try Again
-            </Button>
+        {/* Recent activity */}
+        <section className="flex flex-col gap-2.5" aria-label="Recent activity">
+          <div className="flex items-center justify-between">
+            <SectionLabel>Recent activity</SectionLabel>
+            <button type="button" onClick={() => navigate("/admin/activities")} className="text-[13px] font-semibold text-primary hover:underline">Audit log</button>
           </div>
-        ) : (
-          <>
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-6">
-              <StatsCard
-                title="Active Projects"
-                value={data?.stats.activeProjects || 0}
-                icon={<Briefcase className="h-6 w-6" />}
-                iconBgColor="bg-primary-100"
-                iconColor="text-primary-600"
-                linkText="View all projects"
-                onClick={navigateToProjects}
-              />
-              
-              <StatsCard
-                title="Total Clients"
-                value={data?.stats.totalClients || 0}
-                icon={<Users className="h-6 w-6" />}
-                iconBgColor="bg-green-100"
-                iconColor="text-green-600"
-                linkText="View all clients"
-                onClick={navigateToClients}
-              />
-              
-              <StatsCard
-                title="Outstanding Invoices"
-                value={formatCurrency(data?.stats.outstandingInvoices || 0)}
-                icon={<FileText className="h-6 w-6" />}
-                iconBgColor="bg-yellow-100"
-                iconColor="text-yellow-600"
-                linkText="View invoices"
-                onClick={navigateToInvoices}
-              />
-              
-              <StatsCard
-                title="New Inquiries"
-                value={data?.stats.newInquiriesCount || 0}
-                icon={<Inbox className="h-6 w-6" />}
-                iconBgColor="bg-red-100"
-                iconColor="text-red-600"
-                linkText="Manage inquiries"
-                onClick={navigateToInquiries}
-              />
-            </div>
+          <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+            {data.recentActivities.length === 0 ? (
+              <p className="px-4 py-6 text-[14.5px] text-foreground/75">Quiet so far.</p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {data.recentActivities.map(a => (
+                  <li key={a.id} className="flex gap-3 px-4 py-3 text-[13.5px]">
+                    <span className="w-[72px] shrink-0 pt-px text-[12.5px] text-muted-foreground">
+                      {formatDistanceToNow(new Date(a.createdAt), { addSuffix: false }).replace("about ", "").replace("less than a minute", "now")}
+                    </span>
+                    <span className="min-w-0 text-foreground/85">
+                      {a.userName && <span className="font-semibold text-foreground">{a.userName} </span>}
+                      <span>{humanizeAction(a.action)}</span>
+                      {a.details && <span className="text-muted-foreground"> · {a.details}</span>}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
 
-            {/* Recent Activity & Pending Inquiries */}
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 mb-6">
-              <ActivityFeed 
-                activities={data?.recentActivities || []} 
-                viewAllLink="/admin/activities"
-                onViewAll={() => navigate("/admin/activities")}
-              />
-              
-              <InquiriesList 
-                inquiries={data?.pendingInquiries || []}
-                onApprove={handleApproveInquiry}
-                onViewDetails={(inquiry) => navigate(`/admin/inquiries/${inquiry.id}`)}
-                viewAllLink="/admin/inquiries"
-                onViewAll={navigateToInquiries}
-              />
-            </div>
-
-            {/* Recent Projects */}
-            <ProjectsTable 
-              projects={data?.recentProjects || []}
-              onView={navigateToProjectDetails}
-              onEdit={(id) => navigate(`/admin/projects/${id}/edit`)}
-              viewAllLink="/admin/projects"
-              onViewAll={navigateToProjects}
-            />
-          </>
-        )}
+          {/* Totals, quietly */}
+          <div className="mt-2 grid grid-cols-2 gap-2.5">
+            <Stat label="Clients" value={String(data.stats.totalClients)} onClick={() => navigate("/admin/clients")} />
+            <Stat label="Open quote requests" value={String(data.stats.newInquiriesCount)} onClick={() => navigate("/admin/inquiries")} />
+          </div>
+        </section>
       </div>
-    </AppLayout>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Pieces                                                              */
+/* ------------------------------------------------------------------ */
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return <h2 className="font-display text-[13px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{children}</h2>;
+}
+
+function Stat({ label, value, onClick }: { label: string; value: string; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className="flex flex-col items-start gap-0.5 rounded-xl border border-border bg-card px-4 py-3 text-left shadow-sm hover:bg-accent/60">
+      <span className="font-display text-3xl font-bold leading-none">{value}</span>
+      <span className="text-[12.5px] text-muted-foreground">{label}</span>
+    </button>
+  );
+}
+
+function humanizeAction(action: string): string {
+  return action.replace(/[_-]+/g, " ").replace(/^\w/, c => c.toLowerCase());
+}
+
+function AdminHomeSkeleton() {
+  return (
+    <div className="mx-auto flex max-w-[1180px] flex-col gap-7 px-4 py-6 sm:px-6 lg:px-8">
+      <div className="flex flex-col gap-2"><Skeleton className="h-3.5 w-28" /><Skeleton className="h-9 w-64" /></div>
+      <div className="grid gap-7 lg:grid-cols-[1.1fr_1fr]">
+        <div className="flex flex-col gap-3">
+          {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
+        </div>
+        <Skeleton className="h-64 w-full rounded-xl" />
+      </div>
+    </div>
   );
 }

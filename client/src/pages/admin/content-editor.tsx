@@ -44,8 +44,7 @@ import {
   Settings,
   Monitor,
   Smartphone,
-  Wrench,
-} from "lucide-react";
+  Wrench, Camera } from "lucide-react";
 
 const SERVICE_ICON_OPTIONS = [
   { key: "layout",     label: "Layout",     Icon: Layout },
@@ -104,6 +103,7 @@ export default function ContentEditorPage() {
 
   const contentTypes = [
     { value: "hero", label: "Hero Section", icon: <Home className="mr-2 h-4 w-4" /> },
+    { value: "job", label: "Recent Work", icon: <Camera className="mr-2 h-4 w-4" /> },
     { value: "service", label: "Services", icon: <LayoutGrid className="mr-2 h-4 w-4" /> },
     { value: "about", label: "About Us", icon: <Users className="mr-2 h-4 w-4" /> },
     { value: "testimonial", label: "Testimonials", icon: <MessageSquare className="mr-2 h-4 w-4" /> },
@@ -213,7 +213,7 @@ export default function ContentEditorPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/contents"] });
-      ["hero", "service", "about", "testimonial", "content"].forEach((type) =>
+      ["hero", "job", "service", "about", "testimonial", "content"].forEach((type) =>
         queryClient.invalidateQueries({ queryKey: [`/api/content/${type}`] })
       );
       toast({ title: "Content deleted" });
@@ -568,11 +568,11 @@ export default function ContentEditorPage() {
                       </div>
                       <div className="space-y-1">
                         <Label htmlFor="subtitle">Subtitle</Label>
-                        <Input id="subtitle" name="subtitle" value={editingContent.subtitle || ""} onChange={handleContentChange} placeholder="Subtitle" />
+                        <Input id="subtitle" name="subtitle" value={editingContent.subtitle || ""} onChange={handleContentChange} placeholder={editingContent.type === "job" ? "Tags, comma-separated. First one is the job kind: Cameras, 112 cameras, PoE, NVR" : "Subtitle"} />
                       </div>
                       <div className="space-y-1">
                         <Label htmlFor="content">Content</Label>
-                        <Textarea id="content" name="content" value={editingContent.content || ""} onChange={handleContentChange} placeholder="Content" rows={4} />
+                        <Textarea id="content" name="content" value={editingContent.content || ""} onChange={handleContentChange} placeholder={editingContent.type === "job" ? "One or two sentences on what changed for the client." : editingContent.type === "service" ? "One line per bullet." : "Content"} rows={4} />
                       </div>
 
                       {/* Icon selector for service type */}

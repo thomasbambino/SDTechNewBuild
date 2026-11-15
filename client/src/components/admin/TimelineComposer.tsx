@@ -5,9 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Upload, X, Send, Star, ArrowLeft, ArrowRight, Loader2, Image as ImageIcon } from "lucide-react";
+import { X, Send, Star, ArrowLeft, ArrowRight, Loader2, Camera, Images, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -47,6 +45,7 @@ export default function TimelineComposer({ projects, clientId, defaultProjectId,
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const [projectId, setProjectId] = useState<number | undefined>(editing?.projectId ?? defaultProjectId ?? projects[0]?.id);
   const [title, setTitle] = useState(editing?.title ?? "");
@@ -195,196 +194,175 @@ export default function TimelineComposer({ projects, clientId, defaultProjectId,
 
   if (projects.length === 0) {
     return (
-      <Card className="p-5 bg-muted/30">
-        <p className="text-sm text-muted-foreground text-center">
-          Create a project for this client before posting updates.
-        </p>
-      </Card>
+      <div className="rounded-xl border border-dashed border-input bg-card px-5 py-6 text-center text-sm text-muted-foreground">
+        Create a project for this client before posting updates.
+      </div>
     );
   }
 
+  const tile = "relative aspect-square overflow-hidden rounded-[10px] border border-border bg-muted";
+
   return (
-    <Card className="p-4 space-y-3">
-      <div className="flex items-center gap-2">
-        <label className="text-sm font-medium flex-shrink-0">Project:</label>
-        <Select value={projectId?.toString()} onValueChange={(v) => setProjectId(parseInt(v))}>
-          <SelectTrigger className="h-9">
-            <SelectValue placeholder="Select a project…" />
-          </SelectTrigger>
-          <SelectContent>
-            {projects.map(p => (
-              <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+    <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-4 shadow-md sm:p-5" aria-label={editing ? "Edit update" : "New update"}>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="font-display text-2xl font-semibold">{editing ? "Edit update" : "New update"}</h2>
+        {projects.length === 1 ? (
+          <span className="truncate text-[13px] text-muted-foreground">{projects[0].name}</span>
+        ) : (
+          <Select value={projectId?.toString()} onValueChange={(v) => setProjectId(parseInt(v))}>
+            <SelectTrigger className="h-10 w-auto max-w-[60%] gap-2 border-input text-[13.5px]" aria-label="Project">
+              <SelectValue placeholder="Pick a project" />
+            </SelectTrigger>
+            <SelectContent>
+              {projects.map(p => (
+                <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
-      <Input
-        value={title}
-        onChange={e => setTitle(e.target.value)}
-        placeholder="Headline — e.g. Rack installed, cables run"
-        className="font-medium"
-      />
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="composer-title" className="text-[13px] font-semibold text-foreground/80">Headline</label>
+        <Input
+          id="composer-title"
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          placeholder="Building C cameras online: 38 of 112 done"
+          className="h-12 font-display text-[22px] font-semibold tracking-tight placeholder:font-sans placeholder:text-base placeholder:font-normal"
+        />
+        <p className="text-[12px] text-muted-foreground">Say what changed. Numbers help: "38 of 112" beats "making progress".</p>
+      </div>
 
-      <Textarea
-        value={body}
-        onChange={e => setBody(e.target.value)}
-        placeholder="Describe what happened on site, what's next, anything the client should know…"
-        rows={4}
-        className="resize-none"
-      />
-
-      {imagePaths.length > 0 && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs text-gray-500">
-              <ImageIcon className="h-3.5 w-3.5" />
-              {imagePaths.length} photo{imagePaths.length === 1 ? "" : "s"}
-            </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs text-destructive hover:bg-destructive/10"
-              onClick={() => setImagePaths([])}
-            >
-              Clear all
-            </Button>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-            {imagePaths.map((src, i) => (
-              <div key={src + i} className="relative group aspect-square rounded-md overflow-hidden border bg-gray-50">
-                <img src={src} alt="" className="w-full h-full object-cover" />
-                {i === 0 && (
-                  <Badge className="absolute top-1.5 left-1.5 bg-primary text-white text-xs gap-1 shadow">
-                    <Star className="h-3 w-3" /> Lead
-                  </Badge>
-                )}
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                  <div className="flex gap-1">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      className="h-8 w-8 p-0"
-                      onClick={() => moveImage(i, -1)}
-                      disabled={i === 0}
-                      aria-label="Move left"
-                    >
-                      <ArrowLeft className="h-4 w-4" />
-                    </Button>
-                    {i !== 0 && (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        className="h-8 w-8 p-0"
-                        onClick={() => makePrimary(i)}
-                        aria-label="Make lead photo"
-                        title="Make lead photo"
-                      >
-                        <Star className="h-4 w-4" />
-                      </Button>
-                    )}
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      className="h-8 w-8 p-0"
-                      onClick={() => moveImage(i, 1)}
-                      disabled={i === imagePaths.length - 1}
-                      aria-label="Move right"
-                    >
-                      <ArrowRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => removeImage(i)}
-                  className="absolute top-1.5 right-1.5 bg-black/70 hover:bg-black text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                  aria-label="Remove image"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            ))}
-          </div>
-          <p className="text-xs text-gray-400">
-            Hover a photo to reorder, remove, or make it the lead (the big one that shows first in the feed).
-          </p>
-        </div>
-      )}
-
-      <div
-        className="border-2 border-dashed border-muted rounded-lg p-6 text-center cursor-pointer hover:bg-muted/30 hover:border-muted-foreground/30 transition-colors"
-        onClick={() => !uploading && fileInputRef.current?.click()}
-        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-        onDrop={(e) => { e.preventDefault(); e.stopPropagation(); if (!uploading && e.dataTransfer.files?.length) uploadFiles(e.dataTransfer.files); }}
-      >
-        {uploading ? (
-          <>
-            <Loader2 className="h-6 w-6 mx-auto text-primary animate-spin" />
-            <p className="text-sm text-gray-600 mt-2">
-              Uploading {uploadProgress!.done + 1} of {uploadProgress!.total}…
-            </p>
-          </>
-        ) : (
-          <>
-            <Upload className="h-6 w-6 mx-auto text-muted-foreground" />
-            <p className="text-sm text-gray-600 mt-2 font-medium">Drop photos here or click to upload</p>
-            <p className="text-xs text-gray-400 mt-1">JPEG · PNG · HEIC · GIF · WebP</p>
-            <p className="text-xs text-gray-400 mt-0.5">Select multiple with Shift-click or Cmd-click</p>
-          </>
-        )}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*,.heic,.heif"
-          multiple
-          className="hidden"
-          onChange={(e) => { if (e.target.files) uploadFiles(e.target.files); e.target.value = ""; }}
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="composer-body" className="text-[13px] font-semibold text-foreground/80">What happened</label>
+        <Textarea
+          id="composer-body"
+          value={body}
+          onChange={e => setBody(e.target.value)}
+          placeholder="What you did, what's next, anything the client should expect to see or hear."
+          rows={4}
+          className="resize-none text-[15px] leading-relaxed"
         />
       </div>
 
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <label className="flex items-center gap-2 text-sm text-gray-600">
-          <input
-            type="checkbox"
-            className="rounded"
-            checked={customTime}
-            onChange={e => {
-              setCustomTime(e.target.checked);
-              if (e.target.checked) setPostedAt(toLocalInputValue(new Date()));
-            }}
-          />
-          Set custom date & time
-        </label>
-        {customTime && (
-          <input
-            type="datetime-local"
-            value={postedAt}
-            onChange={e => setPostedAt(e.target.value)}
-            className="h-9 border rounded-md px-2 text-sm"
-          />
-        )}
-        <div className="ml-auto flex gap-2">
-          {editing && (
-            <Button variant="outline" onClick={() => onCancel?.()} disabled={saveMutation.isPending}>
-              Cancel
-            </Button>
-          )}
-          <Button
-            onClick={() => saveMutation.mutate()}
-            disabled={saveMutation.isPending || uploading || !title.trim() || !projectId}
-          >
-            <Send className="h-4 w-4 mr-2" />
-            {saveMutation.isPending
-              ? (editing ? "Saving…" : "Posting…")
-              : (editing ? "Save Changes" : "Post Update")}
-          </Button>
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <span className="text-[13px] font-semibold text-foreground/80">
+            Photos{imagePaths.length > 0 ? ` · ${imagePaths.length}` : ""}
+          </span>
+          <span className="text-[12px] text-muted-foreground">HEIC is fine · up to 15 MB each</span>
         </div>
+        <div
+          className="grid grid-cols-3 gap-1.5 sm:grid-cols-4 md:grid-cols-5"
+          onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+          onDrop={(e) => { e.preventDefault(); e.stopPropagation(); if (!uploading && e.dataTransfer.files?.length) uploadFiles(e.dataTransfer.files); }}
+        >
+          <button
+            type="button"
+            onClick={() => !uploading && cameraInputRef.current?.click()}
+            disabled={uploading}
+            className={`${tile} flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-input bg-card text-[13px] font-semibold text-primary hover:bg-accent/60 disabled:opacity-60 sm:hidden`}
+          >
+            <Camera className="h-6 w-6" /> Camera
+          </button>
+          <button
+            type="button"
+            onClick={() => !uploading && fileInputRef.current?.click()}
+            disabled={uploading}
+            className={`${tile} flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-input bg-card text-[13px] font-semibold text-primary hover:bg-accent/60 disabled:opacity-60`}
+          >
+            {uploading ? (
+              <>
+                <Loader2 className="h-6 w-6 animate-spin" />
+                <span className="text-[11.5px] font-medium text-muted-foreground">{uploadProgress!.done + 1} of {uploadProgress!.total}</span>
+              </>
+            ) : (
+              <>
+                <Images className="h-6 w-6" />
+                <span className="sm:hidden">Library</span>
+                <span className="hidden sm:inline">Add photos</span>
+              </>
+            )}
+          </button>
+          {imagePaths.map((src, i) => (
+            <div key={src + i} className={`${tile} group`}>
+              <img src={src} alt="" className="h-full w-full object-cover" />
+              {i === 0 && (
+                <span className="absolute left-1.5 top-1.5 inline-flex h-5 items-center gap-1 rounded bg-signal px-1.5 font-display text-[10.5px] font-semibold uppercase tracking-[0.08em] text-signal-foreground shadow">
+                  <Star className="h-2.5 w-2.5" /> Cover
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => removeImage(i)}
+                className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-full bg-black/70 text-white hover:bg-black"
+                aria-label="Remove photo"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+              <div className="absolute inset-x-1 bottom-1 flex justify-between gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                <button type="button" onClick={() => moveImage(i, -1)} disabled={i === 0} className="flex h-7 w-7 items-center justify-center rounded-md bg-black/60 text-white disabled:opacity-30" aria-label="Move earlier"><ArrowLeft className="h-3.5 w-3.5" /></button>
+                {i !== 0 && (
+                  <button type="button" onClick={() => makePrimary(i)} className="flex h-7 items-center justify-center rounded-md bg-black/60 px-1.5 text-[11px] font-semibold text-white" aria-label="Make cover photo">Cover</button>
+                )}
+                <button type="button" onClick={() => moveImage(i, 1)} disabled={i === imagePaths.length - 1} className="flex h-7 w-7 items-center justify-center rounded-md bg-black/60 text-white disabled:opacity-30" aria-label="Move later"><ArrowRight className="h-3.5 w-3.5" /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+        {imagePaths.length > 1 && (
+          <p className="text-[12px] text-muted-foreground">The cover photo shows first in the feed. Use the arrows to reorder.</p>
+        )}
+        <input ref={fileInputRef} type="file" accept="image/*,.heic,.heif" multiple className="hidden" onChange={(e) => { if (e.target.files) uploadFiles(e.target.files); e.target.value = ""; }} />
+        <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { if (e.target.files) uploadFiles(e.target.files); e.target.value = ""; }} />
       </div>
-    </Card>
+
+      <div className="flex flex-col divide-y divide-border rounded-xl border border-border">
+        <button
+          type="button"
+          onClick={() => {
+            const next = !customTime;
+            setCustomTime(next);
+            if (next) setPostedAt(toLocalInputValue(editing ? new Date(editing.createdAt) : new Date()));
+          }}
+          className="flex min-h-[48px] items-center justify-between gap-3 px-3.5 text-left text-[14px]"
+          aria-expanded={customTime}
+        >
+          <span className="flex items-center gap-2.5 font-medium text-foreground/80"><Clock className="h-4 w-4 text-muted-foreground" />Timestamp</span>
+          <span className="font-semibold">{customTime ? "Custom" : editing ? "Keep original" : "Now"}</span>
+        </button>
+        {customTime && (
+          <div className="flex flex-wrap items-center gap-2 px-3.5 py-3">
+            <input
+              type="datetime-local"
+              value={postedAt}
+              onChange={e => setPostedAt(e.target.value)}
+              aria-label="Posted at"
+              className="h-11 flex-1 rounded-md border border-input bg-background px-3 text-[14px]"
+            />
+            <span className="text-[12px] text-muted-foreground">Backdating a post you took photos for earlier is fine.</span>
+          </div>
+        )}
+      </div>
+
+      <div className="flex gap-2.5 pt-1">
+        {(editing || onCancel) && (
+          <Button variant="outline" size="lg" className="flex-1 sm:flex-none" onClick={() => onCancel?.()} disabled={saveMutation.isPending}>
+            Cancel
+          </Button>
+        )}
+        <Button
+          variant="signal"
+          size="lg"
+          className="flex-[2] sm:flex-none"
+          onClick={() => saveMutation.mutate()}
+          disabled={saveMutation.isPending || uploading || !title.trim() || !projectId}
+        >
+          <Send className="h-4 w-4" />
+          {saveMutation.isPending ? (editing ? "Saving…" : "Posting…") : (editing ? "Save changes" : "Post update")}
+        </Button>
+      </div>
+    </section>
   );
 }

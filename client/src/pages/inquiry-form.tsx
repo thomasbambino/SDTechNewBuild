@@ -1,515 +1,317 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import {
-  ArrowLeft,
-  Mail,
-  Phone,
-  User,
-  MapPin,
-  RefreshCw,
-  CheckCircle
-} from "lucide-react";
+import { ArrowLeft, Check, Loader2 } from "lucide-react";
 
-// Inquiry form schema
+/* ------------------------------------------------------------------ */
+/* Schema                                                              */
+/* ------------------------------------------------------------------ */
+
 const inquirySchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters"),
-  email: z.string().email("Please enter a valid email address"),
+  name: z.string().min(2, "Your name, so we know who to ask for."),
+  business: z.string().optional(),
+  email: z.string().email("That doesn't look like a full email address."),
   phone: z.string().optional(),
-  address: z.string().optional(),
-  city: z.string().optional(),
-  state: z.string().optional(),
-  zip: z.string().optional(),
-  service: z.string().min(1, "Please select a service"),
+  services: z.array(z.string()).min(1, "Pick at least one so we send the right person."),
   budget: z.string().optional(),
-  message: z.string().min(10, "Message must be at least 10 characters"),
+  urgency: z.string().optional(),
+  address: z.string().optional(),
+  message: z.string().min(10, "A sentence or two is plenty, but we need a little more than that."),
 });
 
 type InquiryFormValues = z.infer<typeof inquirySchema>;
 
+const DEFAULT_SERVICES = [
+  { id: "network", label: "Network / Wi-Fi" },
+  { id: "cameras", label: "Cameras" },
+  { id: "it", label: "Computers / IT help" },
+  { id: "security", label: "Hacked or security worry" },
+  { id: "smart-home", label: "Smart home" },
+  { id: "consulting", label: "Consulting / planning" },
+];
+
+const BUDGETS = [
+  { value: "not_sure", label: "Not sure yet, tell me" },
+  { value: "under_2500", label: "Under $2,500" },
+  { value: "2500_10000", label: "$2,500 to $10,000" },
+  { value: "10000_50000", label: "$10,000 to $50,000" },
+  { value: "over_50000", label: "Over $50,000" },
+];
+
+const URGENCY = [
+  { value: "down_now", label: "Something is down now" },
+  { value: "this_month", label: "This month" },
+  { value: "few_months", label: "Next few months" },
+  { value: "planning", label: "Just planning" },
+];
+
+/* ------------------------------------------------------------------ */
+/* Page                                                                */
+/* ------------------------------------------------------------------ */
+
 export default function InquiryForm() {
-  const [_, navigate] = useLocation();
+  const [, navigate] = useLocation();
   const { toast } = useToast();
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  const { data: settings } = useQuery<{ logoPath?: string; companyName?: string; contactEmail?: string; contactPhone?: string }>({
+  const [submitted, setSubmitted] = useState(false);
+
+  const { data: settings } = useQuery<{ logoPath?: string | null; companyName?: string | null; contactEmail?: string | null; contactPhone?: string | null }>({
     queryKey: ["/api/settings/public"],
   });
+  const { data: cmsServices = [] } = useQuery<{ id: number; title: string | null }[]>({ queryKey: ["/api/content/service"] });
 
-  // Pull services from CMS; fall back to defaults
-  const { data: cmsServices = [] } = useQuery<{ id: number; title: string | null; content: string | null; imagePath: string | null }[]>({
-    queryKey: ["/api/content/service"],
-  });
-
-  const defaultServiceOptions = [
-    { value: "web_development", label: "Web Development" },
-    { value: "custom_software", label: "Custom Software" },
-    { value: "it_consulting", label: "IT Consulting" },
-    { value: "data_analytics", label: "Data Analytics" },
-  ];
-
-  const serviceOptions = [
+  const companyName = settings?.companyName || "SD Tech Pros";
+  const phone = settings?.contactPhone || null;
+  const services = [
     ...(cmsServices.length > 0
-      ? cmsServices.map(s => ({ value: s.title?.toLowerCase().replace(/\s+/g, "_") ?? "service", label: s.title ?? "Service" }))
-      : defaultServiceOptions),
-    { value: "other", label: "Other" },
+      ? cmsServices.filter(s => s.title).map(s => ({ id: s.title!.toLowerCase().replace(/[^a-z0-9]+/g, "-"), label: s.title! }))
+      : DEFAULT_SERVICES),
+    { id: "other", label: "Something else" },
   ];
-  
-  // Budget options
-  const budgetOptions = [
-    { value: "less_than_5k", label: "Less than $5,000" },
-    { value: "5k_to_10k", label: "$ 5,000 - $ 10,000" },
-    { value: "10k_to_25k", label: "$ 10,000 - $ 25,000" },
-    { value: "25k_to_50k", label: "$ 25,000 - $ 50,000" },
-    { value: "more_than_50k", label: "More than $ 50,000" },
-    { value: "not_sure", label: "Not sure yet" },
-  ];
-  
-  // Form hook
+
   const form = useForm<InquiryFormValues>({
     resolver: zodResolver(inquirySchema),
-    defaultValues: {
-      name: "",
-      email: "",
-      phone: "",
-      address: "",
-      city: "",
-      state: "",
-      zip: "",
-      service: "",
-      budget: "not_sure",
-      message: "",
-    },
+    defaultValues: { name: "", business: "", email: "", phone: "", services: [], budget: "not_sure", urgency: "this_month", address: "", message: "" },
   });
-  
-  // Submit inquiry mutation
-  const submitInquiryMutation = useMutation({
+
+  const submit = useMutation({
     mutationFn: async (data: InquiryFormValues) => {
+      const labelFor = (id: string) => services.find(s => s.id === id)?.label ?? id;
+      const lines = [
+        `Needs: ${data.services.map(labelFor).join(", ")}`,
+        `Urgency: ${URGENCY.find(u => u.value === data.urgency)?.label ?? "not given"}`,
+        `Budget: ${BUDGETS.find(b => b.value === data.budget)?.label ?? "not given"}`,
+        data.business ? `Business: ${data.business}` : null,
+        "",
+        data.message,
+      ].filter(l => l !== null);
       const res = await apiRequest("POST", "/api/inquiries", {
         name: data.name,
         email: data.email,
         phone: data.phone || "",
         address: data.address || "",
-        city: data.city || "",
-        state: data.state || "",
-        zip: data.zip || "",
-        message: `Service: ${data.service}\nBudget: ${data.budget || "not specified"}\n\n${data.message}`,
+        message: lines.join("\n"),
       });
       return res.json();
     },
     onSuccess: () => {
-      setIsSubmitted(true);
+      setSubmitted(true);
       form.reset();
-      toast({
-        title: "Inquiry submitted successfully",
-        description: "We'll get back to you as soon as possible.",
-      });
+      window.scrollTo({ top: 0, behavior: "smooth" });
     },
     onError: (error) => {
-      toast({
-        title: "Submission failed",
-        description: error instanceof Error ? error.message : "An unknown error occurred",
-        variant: "destructive",
-      });
+      toast({ title: "That didn't send", description: error instanceof Error ? error.message : "Try again, or call us.", variant: "destructive" });
     },
   });
-  
-  // Handle form submission
-  const onSubmit = (data: InquiryFormValues) => {
-    submitInquiryMutation.mutate(data);
-  };
-  
+
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Header */}
-      <header className="bg-white shadow-sm py-4">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center">
-            <Button 
-              variant="ghost" 
-              onClick={() => navigate("/")}
-              className="flex items-center text-gray-600 hover:text-gray-900"
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Home
-            </Button>
-            <div className="mx-auto flex items-center">
-              {settings?.logoPath ? (
-                <img
-                  src={settings.logoPath}
-                  alt={settings.companyName || "Logo"}
-                  className="h-8 max-w-[160px] object-contain"
-                />
-              ) : (
-                <>
-                  <span className="bg-primary text-primary-foreground font-bold text-xl px-2 py-1 rounded mr-2">SD</span>
-                  <span className="text-primary font-semibold text-lg">Tech Pros</span>
-                </>
-              )}
-            </div>
-            <div className="w-20"></div> {/* Spacer for centering */}
-          </div>
+    <div className="flex min-h-screen flex-col bg-background text-foreground">
+      <header className="border-b border-border bg-background">
+        <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4 sm:px-6">
+          <a href="/" onClick={(e) => { e.preventDefault(); navigate("/"); }} className="flex items-center gap-2.5" aria-label={`${companyName} home`}>
+            {settings?.logoPath ? (
+              <img src={settings.logoPath} alt={companyName} className="h-9 max-w-[180px] object-contain" />
+            ) : (
+              <>
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-signal font-display text-lg font-bold text-signal-foreground">SD</span>
+                <span className="hidden font-display text-xl font-bold sm:inline">{companyName}</span>
+              </>
+            )}
+          </a>
+          <nav className="ml-auto flex items-center gap-2 sm:gap-3">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/")}><ArrowLeft className="h-4 w-4" /> Back to site</Button>
+            <Button variant="outline" size="sm" onClick={() => navigate("/auth")}>Client login</Button>
+          </nav>
         </div>
       </header>
-      
-      <main className="flex-1 py-12">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-4xl">
-          {isSubmitted ? (
-            <Card className="border-green-100">
-              <CardHeader className="text-center">
-                <div className="mx-auto w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mb-4">
-                  <CheckCircle className="h-6 w-6 text-green-600" />
-                </div>
-                <CardTitle className="text-2xl">Inquiry Submitted Successfully!</CardTitle>
-                <CardDescription>Thank you for reaching out to SD Tech Pros</CardDescription>
-              </CardHeader>
-              <CardContent className="text-center space-y-4">
-                <p className="text-gray-600">
-                  We've received your inquiry and our team will review it shortly. You can expect to hear from us within 1-2 business days.
-                </p>
-                <div className="py-4">
-                  <div className="h-px bg-gray-200 w-full"></div>
-                </div>
-                <p className="text-gray-500">
-                  In the meantime, feel free to explore our website for more information about our services.
-                </p>
-              </CardContent>
-              <CardFooter className="flex justify-center space-x-4">
-                <Button 
-                  variant="outline" 
-                  onClick={() => navigate("/")}
-                >
-                  Return to Home
-                </Button>
-                <Button 
-                  onClick={() => setIsSubmitted(false)}
-                >
-                  Submit Another Inquiry
-                </Button>
-              </CardFooter>
-            </Card>
-          ) : (
-            <div className="space-y-8">
-              {/* Main form — full width */}
-              <div>
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-2xl">Get in Touch</CardTitle>
-                    <CardDescription>
-                      Fill out the form below to discuss your project with our team
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Form {...form}>
-                      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <FormField
-                            control={form.control}
-                            name="name"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Full Name</FormLabel>
-                                <FormControl>
-                                  <div className="relative">
-                                    <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                                      <User className="text-gray-400 h-5 w-5" />
-                                    </div>
-                                    <Input placeholder="John Doe" className="pl-10" {...field} />
-                                  </div>
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          
-                          <FormField
-                            control={form.control}
-                            name="email"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Email Address</FormLabel>
-                                <FormControl>
-                                  <div className="relative">
-                                    <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                                      <Mail className="text-gray-400 h-5 w-5" />
-                                    </div>
-                                    <Input type="email" placeholder="you@example.com" className="pl-10" {...field} />
-                                  </div>
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <FormField
-                            control={form.control}
-                            name="phone"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Phone Number (Optional)</FormLabel>
-                                <FormControl>
-                                  <div className="relative">
-                                    <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                                      <Phone className="text-gray-400 h-5 w-5" />
-                                    </div>
-                                    <Input placeholder="(555) 123-4567" className="pl-10" {...field} />
-                                  </div>
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
 
-                          <FormField
-                            control={form.control}
-                            name="service"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Service Interested In</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                  <FormControl>
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Select a service" />
-                                    </SelectTrigger>
-                                  </FormControl>
-                                  <SelectContent>
-                                    {serviceOptions.map((option) => (
-                                      <SelectItem key={option.value} value={option.value}>
-                                        {option.label}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-                        
-                        {/* Address fields */}
-                        <FormField
-                          control={form.control}
-                          name="address"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Street Address (Optional)</FormLabel>
-                              <FormControl>
-                                <div className="relative">
-                                  <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                                    <MapPin className="text-gray-400 h-5 w-5" />
-                                  </div>
-                                  <Input placeholder="123 Main St" className="pl-10" {...field} />
-                                </div>
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
+      <main className="mx-auto grid w-full max-w-6xl flex-1 gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[1fr_1.15fr] lg:gap-14 lg:py-14">
+        {/* Left: why and what happens next */}
+        <div className="flex flex-col gap-7 lg:max-w-md">
+          <div className="flex flex-col gap-3">
+            <p className="font-display text-[13px] font-semibold uppercase tracking-[0.12em] text-signal-soft-foreground">Request a quote</p>
+            <h1 className="text-4xl sm:text-5xl lg:text-[3.5rem] lg:leading-none">Tell us what's going on. We'll come look.</h1>
+            <p className="text-[17px] leading-relaxed text-foreground/75">
+              Two minutes here saves a round of phone tag.
+              {phone ? <> If something is down right now, skip the form and <a href={`tel:${phone.replace(/[^\d+]/g, "")}`} className="font-semibold text-primary hover:underline">call {phone}</a>.</> : " If something is down right now, say so in the urgency field and we'll jump on it."}
+            </p>
+          </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                          <FormField
-                            control={form.control}
-                            name="city"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>City</FormLabel>
-                                <FormControl>
-                                  <Input placeholder="San Diego" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name="state"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>State</FormLabel>
-                                <FormControl>
-                                  <Input placeholder="CA" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name="zip"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>ZIP Code</FormLabel>
-                                <FormControl>
-                                  <Input placeholder="92101" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
+          <div className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
+            <p className="font-display text-[13px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">What happens next</p>
+            <ol className="flex flex-col gap-3.5">
+              <Step n={1}><strong className="text-foreground">We reply within one business day</strong> with a couple of questions or a time to come by.</Step>
+              <Step n={2}><strong className="text-foreground">Free walkthrough.</strong> We look at the closet, the ceiling and the wiring before pricing anything.</Step>
+              <Step n={3} signal><strong className="text-foreground">Written quote,</strong> parts and labor separated, good for 30 days.</Step>
+            </ol>
+          </div>
 
-                        <FormField
-                          control={form.control}
-                          name="budget"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Estimated Budget</FormLabel>
-                              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Select a budget range" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  {budgetOptions.map((option) => (
-                                    <SelectItem key={option.value} value={option.value}>
-                                      {option.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <FormDescription>
-                                This helps us understand the scope of your project
-                              </FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        
-                        <FormField
-                          control={form.control}
-                          name="message"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Message</FormLabel>
-                              <FormControl>
-                                <Textarea 
-                                  placeholder="Tell us about your project and requirements..." 
-                                  className="resize-none min-h-[120px]" 
-                                  {...field}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        
-                        <Button 
-                          type="submit" 
-                          className="w-full"
-                          disabled={submitInquiryMutation.isPending}
-                        >
-                          {submitInquiryMutation.isPending ? (
-                            <>
-                              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                              Submitting...
-                            </>
-                          ) : (
-                            "Submit Inquiry"
-                          )}
-                        </Button>
-                      </form>
-                    </Form>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Info cards — side by side below the form */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Contact Information</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex items-start">
-                      <Mail className="h-5 w-5 text-primary mt-0.5 mr-3 flex-shrink-0" />
-                      <div>
-                        <p className="font-medium">Email</p>
-                        <a href={`mailto:${settings?.contactEmail || "contact@sdtechpros.com"}`} className="text-gray-600 hover:text-primary break-all">
-                          {settings?.contactEmail || "contact@sdtechpros.com"}
-                        </a>
-                      </div>
-                    </div>
-                    <div className="flex items-start">
-                      <Phone className="h-5 w-5 text-primary mt-0.5 mr-3 flex-shrink-0" />
-                      <div>
-                        <p className="font-medium">Phone</p>
-                        <a href={`tel:${settings?.contactPhone || "(555) 123-4567"}`} className="text-gray-600 hover:text-primary">
-                          {settings?.contactPhone || "(555) 123-4567"}
-                        </a>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle>How It Works</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ol className="space-y-3">
-                      {[
-                        ["Submit your inquiry", "with details about your project"],
-                        ["Initial consultation", "with our team to discuss your needs"],
-                        ["Receive a proposal", "with timeline and pricing details"],
-                        ["Start your project", "with our experienced team"],
-                      ].map(([title, desc], i) => (
-                        <li key={i} className="flex">
-                          <div className="flex-shrink-0 h-6 w-6 bg-primary rounded-full flex items-center justify-center text-white font-medium text-sm mr-3">
-                            {i + 1}
-                          </div>
-                          <p className="text-gray-600 text-sm">
-                            <span className="font-medium text-gray-900">{title}</span> {desc}
-                          </p>
-                        </li>
-                      ))}
-                    </ol>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-          )}
+          <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+            Every quote comes from someone who has done the job, not a sales rep. Photos of similar jobs are on the{" "}
+            <a href="/#work" onClick={(e) => { e.preventDefault(); navigate("/"); }} className="font-medium text-primary hover:underline">recent work</a> section.
+          </p>
         </div>
+
+        {/* Right: the form or the confirmation */}
+        {submitted ? (
+          <div className="flex flex-col items-center gap-5 self-start rounded-xl border border-border bg-card px-6 py-12 text-center shadow-md">
+            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-success-soft text-success-soft-foreground">
+              <Check className="h-8 w-8" strokeWidth={2.5} />
+            </span>
+            <div className="flex max-w-md flex-col gap-2">
+              <h2 className="text-3xl">Got it. We'll be in touch within one business day.</h2>
+              <p className="text-[15px] leading-relaxed text-foreground/75">
+                Expect a short reply with a couple of questions or a time for the walkthrough. If it's urgent and you haven't heard back by tomorrow{phone ? `, call ${phone}` : ", give us a call"}.
+              </p>
+            </div>
+            <div className="flex flex-wrap justify-center gap-2.5">
+              <Button variant="outline" onClick={() => navigate("/")}>Back to the site</Button>
+              <Button variant="ghost" onClick={() => setSubmitted(false)}>Send another</Button>
+            </div>
+          </div>
+        ) : (
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(d => submit.mutate(d))} className="flex flex-col gap-6 rounded-xl border border-border bg-card p-5 shadow-md sm:p-7" noValidate>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <FormField control={form.control} name="name" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Your name</FormLabel>
+                    <FormControl><Input placeholder="First and last" autoComplete="name" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="business" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Business <span className="font-normal text-muted-foreground">(optional)</span></FormLabel>
+                    <FormControl><Input placeholder="Harbor View Senior Living" autoComplete="organization" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="email" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl><Input type="email" placeholder="you@company.com" autoComplete="email" inputMode="email" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="phone" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Phone <span className="font-normal text-muted-foreground">(optional)</span></FormLabel>
+                    <FormControl><Input type="tel" placeholder="(619) 555-0100" autoComplete="tel" inputMode="tel" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+
+              <FormField control={form.control} name="services" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>What do you need? Pick all that apply.</FormLabel>
+                  <FormControl>
+                    <div className="flex flex-wrap gap-2 pt-1" role="group" aria-label="Services">
+                      {services.map(s => {
+                        const on = field.value.includes(s.id);
+                        return (
+                          <button
+                            key={s.id}
+                            type="button"
+                            aria-pressed={on}
+                            onClick={() => field.onChange(on ? field.value.filter(v => v !== s.id) : [...field.value, s.id])}
+                            className={`inline-flex h-10 items-center gap-2 rounded-full border px-3.5 text-[14px] font-semibold transition-colors ${
+                              on ? "border-primary bg-primary-soft text-primary-soft-foreground" : "border-input bg-background text-foreground/80 hover:bg-accent"
+                            }`}
+                          >
+                            {on && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
+                            {s.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <FormField control={form.control} name="urgency" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>How urgent</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl><SelectTrigger className="h-11"><SelectValue /></SelectTrigger></FormControl>
+                      <SelectContent>{URGENCY.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="budget" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Rough budget</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl><SelectTrigger className="h-11"><SelectValue /></SelectTrigger></FormControl>
+                      <SelectContent>{BUDGETS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </FormItem>
+                )} />
+              </div>
+
+              <FormField control={form.control} name="address" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Site address <span className="font-normal text-muted-foreground">(optional)</span></FormLabel>
+                  <FormControl><Input placeholder="Street, city, ZIP" autoComplete="street-address" {...field} /></FormControl>
+                  <FormDescription>So we can tell you if it's in our service area before you wait a day.</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <FormField control={form.control} name="message" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>What's going on?</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      rows={5}
+                      className="resize-y text-[15px] leading-relaxed"
+                      placeholder="Example: Two-story office, about 20 people. Wi-Fi drops in the back half every afternoon. We also want cameras on the loading dock."
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5">
+                <p className="max-w-xs text-[13px] leading-snug text-muted-foreground">We only use this to get back to you. No list, no newsletter.</p>
+                <Button type="submit" variant="signal" size="lg" disabled={submit.isPending} className="w-full sm:w-auto">
+                  {submit.isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> Sending…</> : "Send my request"}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        )}
       </main>
-      
-      <footer className="py-6 bg-white border-t border-gray-200">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 text-center text-gray-500 text-sm">
-          &copy; {new Date().getFullYear()} SD Tech Pros. All rights reserved.
+
+      <footer className="border-t border-border">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-5 text-[13px] text-muted-foreground sm:px-6">
+          <span>&copy; {new Date().getFullYear()} {companyName}</span>
+          {settings?.contactEmail && <a href={`mailto:${settings.contactEmail}`} className="hover:text-foreground">{settings.contactEmail}</a>}
+          {phone && <a href={`tel:${phone.replace(/[^\d+]/g, "")}`} className="hover:text-foreground">{phone}</a>}
         </div>
       </footer>
     </div>
+  );
+}
+
+function Step({ n, children, signal = false }: { n: number; children: React.ReactNode; signal?: boolean }) {
+  return (
+    <li className="flex items-start gap-3">
+      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-display text-sm font-bold ${signal ? "bg-signal text-signal-foreground" : "bg-foreground text-background"}`}>{n}</span>
+      <p className="text-[14.5px] leading-relaxed text-foreground/75">{children}</p>
+    </li>
   );
 }

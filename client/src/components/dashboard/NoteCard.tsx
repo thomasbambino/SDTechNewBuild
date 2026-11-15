@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { format } from "date-fns";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Pin, Eye, EyeOff, Copy, KeyRound, Wifi, Shield, StickyNote } from "lucide-react";
+import { Pin, Eye, EyeOff, Copy, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export interface NoteField {
@@ -24,9 +23,11 @@ export interface NoteData {
 interface NoteCardProps {
   note: NoteData;
   action?: React.ReactNode; // optional trailing admin action, e.g. delete button
+  /** Rail layout: tighter, body text clamped. */
+  compact?: boolean;
 }
 
-function parseFields(raw: string | null | undefined): NoteField[] {
+export function parseNoteFields(raw: string | null | undefined): NoteField[] {
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
@@ -36,74 +37,92 @@ function parseFields(raw: string | null | undefined): NoteField[] {
   }
 }
 
-function categoryMeta(category: string | null | undefined) {
+export function noteCategoryLabel(category: string | null | undefined): string {
   switch (category) {
-    case "credentials": return { label: "Credentials", icon: <KeyRound className="h-3.5 w-3.5" />, color: "bg-amber-50 text-amber-800 border-amber-200" };
-    case "network": return { label: "Network", icon: <Wifi className="h-3.5 w-3.5" />, color: "bg-blue-50 text-blue-800 border-blue-200" };
-    case "access": return { label: "Access", icon: <Shield className="h-3.5 w-3.5" />, color: "bg-purple-50 text-purple-800 border-purple-200" };
-    default: return { label: "Note", icon: <StickyNote className="h-3.5 w-3.5" />, color: "bg-gray-50 text-gray-700 border-gray-200" };
+    case "credentials": return "Login";
+    case "network": return "Network";
+    case "access": return "Access";
+    default: return "Note";
   }
 }
 
-function FieldRow({ field }: { field: NoteField }) {
+/** One label/value row. Secret values show dots until revealed, and re-hide after 30 s. */
+export function NoteFieldRow({ field, compact = false }: { field: NoteField; compact?: boolean }) {
   const [revealed, setRevealed] = useState(!field.isSecret);
+  const [copied, setCopied] = useState(false);
   const { toast } = useToast();
-  const copy = () => {
-    navigator.clipboard?.writeText(field.value);
-    toast({ title: "Copied" });
+
+  const toggle = () => {
+    const next = !revealed;
+    setRevealed(next);
+    if (next && field.isSecret) setTimeout(() => setRevealed(false), 30_000);
   };
+  const copy = async () => {
+    try {
+      await navigator.clipboard?.writeText(field.value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      toast({ title: "Couldn't copy", description: "Select the value and copy it by hand.", variant: "destructive" });
+    }
+  };
+
   return (
-    <div className="flex items-start gap-2 py-1.5">
-      <div className="text-xs font-medium text-gray-500 w-32 flex-shrink-0 pt-0.5">{field.label}</div>
-      <div className="flex-1 min-w-0">
-        <div className={`text-sm font-mono break-all ${!revealed ? "tracking-widest" : ""}`}>
-          {revealed ? field.value : "•".repeat(Math.min(field.value.length, 16))}
-        </div>
+    <div className={`flex items-center gap-2 rounded-lg bg-muted ${compact ? "min-h-[44px] px-3 py-1.5" : "min-h-[48px] px-3 py-2"}`}>
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="text-[12.5px] font-medium text-foreground/70">{field.label}</span>
+        <span className={`truncate font-mono text-[14px] font-medium ${!revealed ? "tracking-[0.18em]" : ""}`}>
+          {revealed ? field.value : "•".repeat(compact ? 8 : Math.min(Math.max(field.value.length, 8), 14))}
+        </span>
       </div>
-      <div className="flex gap-1 flex-shrink-0">
-        {field.isSecret && (
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setRevealed(v => !v)} aria-label={revealed ? "Hide" : "Reveal"}>
-            {revealed ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-          </Button>
-        )}
-        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={copy} aria-label="Copy">
-          <Copy className="h-3.5 w-3.5" />
+      {field.isSecret && (
+        <Button variant="outline" size="sm" className="h-8 px-2.5 text-[13px]" onClick={toggle}>
+          {revealed ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+          {revealed ? "Hide" : "Reveal"}
         </Button>
-      </div>
+      )}
+      <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={copy} aria-label={`Copy ${field.label}`}>
+        {copied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+      </Button>
     </div>
   );
 }
 
-export default function NoteCard({ note, action }: NoteCardProps) {
-  const meta = categoryMeta(note.category);
-  const fields = parseFields(note.fields);
+export default function NoteCard({ note, action, compact = false }: NoteCardProps) {
+  const fields = parseNoteFields(note.fields);
 
   return (
-    <div className="border rounded-lg bg-white">
-      <div className="px-4 py-3 border-b bg-gray-50 flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            {note.isPinned && <Pin className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" />}
-            <p className="font-semibold text-sm text-gray-900">{note.title}</p>
-            <Badge variant="outline" className={`text-xs gap-1 ${meta.color}`}>
-              {meta.icon}
-              {meta.label}
-            </Badge>
+    <div className={`flex flex-col gap-3 rounded-xl border bg-card ${note.isPinned ? "border-signal" : "border-border"} ${compact ? "p-4" : "p-5"}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="inline-flex h-[22px] items-center rounded border border-input px-2 font-display text-[11.5px] font-semibold uppercase tracking-[0.1em] text-foreground/80">
+              {noteCategoryLabel(note.category)}
+            </span>
+            {note.isPinned && (
+              <span className="inline-flex h-[22px] items-center gap-1 rounded-full bg-signal-soft px-2 text-[11.5px] font-semibold text-signal-soft-foreground">
+                <Pin className="h-3 w-3" /> Pinned
+              </span>
+            )}
           </div>
-          <p className="text-xs text-gray-400 mt-0.5">{format(new Date(note.createdAt), "MMM d, yyyy")}</p>
+          <p className={`font-semibold leading-tight ${compact ? "text-[15px]" : "text-[17px]"}`}>{note.title}</p>
         </div>
         {action}
       </div>
-      <div className="px-4 py-3 space-y-2">
-        {note.content && (
-          <p className="text-sm text-gray-700 whitespace-pre-wrap">{note.content}</p>
-        )}
-        {fields.length > 0 && (
-          <div className="divide-y rounded-md border bg-gray-50/50">
-            {fields.map((f, i) => <div key={i} className="px-3"><FieldRow field={f} /></div>)}
-          </div>
-        )}
-      </div>
+
+      {fields.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          {fields.map((f, i) => <NoteFieldRow key={i} field={f} compact={compact} />)}
+        </div>
+      )}
+
+      {note.content && (
+        <p className={`whitespace-pre-line text-[14px] leading-relaxed text-foreground/80 ${compact ? "line-clamp-3" : ""}`}>{note.content}</p>
+      )}
+
+      <p className="border-t border-border pt-2.5 text-[12.5px] text-muted-foreground">
+        Left {format(new Date(note.createdAt), "MMM d, yyyy")}
+      </p>
     </div>
   );
 }

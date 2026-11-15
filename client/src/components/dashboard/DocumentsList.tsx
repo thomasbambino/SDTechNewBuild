@@ -1,11 +1,5 @@
-import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
-import {
-  FileText,
-  FileSpreadsheet,
-  FileImage,
-  Download
-} from "lucide-react";
+import { FileText, FileSpreadsheet, FileImage, Download } from "lucide-react";
 
 export interface Document {
   id: number;
@@ -28,6 +22,21 @@ interface DocumentsListProps {
   viewAllLink?: string;
   onViewAll?: () => void;
   onDownload?: (document: Document) => void;
+  /** Rail layout: no card chrome, short list. */
+  compact?: boolean;
+  limit?: number;
+}
+
+function iconFor(name: string) {
+  const n = name.toLowerCase();
+  if (/\.(xlsx|xls|csv)$/.test(n)) return <FileSpreadsheet className="h-4 w-4" />;
+  if (/\.(jpe?g|png|gif|svg|heic|webp)$/.test(n)) return <FileImage className="h-4 w-4" />;
+  return <FileText className="h-4 w-4" />;
+}
+
+function kindOf(name: string) {
+  const ext = name.split(".").pop();
+  return ext && ext.length <= 5 ? ext.toUpperCase() : "File";
 }
 
 export default function DocumentsList({
@@ -35,79 +44,57 @@ export default function DocumentsList({
   title = "Project Documents",
   viewAllLink,
   onViewAll,
-  onDownload
+  onDownload,
+  compact = false,
+  limit = 4,
 }: DocumentsListProps) {
-  // Get document icon based on type
-  const getDocumentIcon = (document: Document) => {
-    const fileName = document.name.toLowerCase();
-    
-    if (fileName.endsWith('.pdf')) {
-      return <FileText className="text-red-600 text-xl" />;
-    } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls') || fileName.endsWith('.csv')) {
-      return <FileSpreadsheet className="text-green-600 text-xl" />;
-    } else if (fileName.endsWith('.jpg') || fileName.endsWith('.jpeg') || fileName.endsWith('.png') || fileName.endsWith('.gif') || fileName.endsWith('.svg')) {
-      return <FileImage className="text-purple-600 text-xl" />;
-    } else {
-      return <FileText className="text-blue-600 text-xl" />;
-    }
-  };
-  
-  // Format uploaded date
-  const formatUploadedDate = (dateString: string) => {
-    return `Uploaded on ${format(new Date(dateString), "MMMM d, yyyy")}`;
-  };
-  
+  const shown = compact ? documents.slice(0, limit) : documents;
+
+  const list = shown.length === 0 ? (
+    <p className="text-[14px] leading-relaxed text-foreground/75">
+      {compact ? "Quotes, camera maps and manuals land here as the job goes." : "No documents yet."}
+    </p>
+  ) : (
+    <ul className="flex flex-col gap-1">
+      {shown.map((document) => (
+        <li key={document.id}>
+          <button
+            type="button"
+            onClick={() => onDownload && onDownload(document)}
+            className="flex min-h-[44px] w-full items-center gap-3 rounded-lg px-1 py-1.5 text-left hover:bg-accent"
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground/70">
+              {iconFor(document.name)}
+            </span>
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span className="truncate text-[14px] font-semibold">{document.name}</span>
+              <span className="text-[12.5px] text-muted-foreground">
+                {kindOf(document.name)} · {format(new Date(document.createdAt), "MMM d")}
+                {!compact && document.projectName ? ` · ${document.projectName}` : ""}
+              </span>
+            </span>
+            <Download className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+
+  if (compact) return list;
+
   return (
-    <div className="bg-white shadow rounded-lg">
-      <div className="px-5 py-4 border-b border-gray-200">
-        <h3 className="text-lg leading-6 font-medium text-gray-900">{title}</h3>
+    <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+      <div className="border-b border-border px-5 py-4">
+        <h3 className="font-display text-xl font-semibold">{title}</h3>
       </div>
-      <div className="p-5">
-        {documents.length === 0 ? (
-          <div className="text-center py-8">
-            <p className="text-sm text-gray-500">No documents found</p>
-          </div>
-        ) : (
-          <ul className="divide-y divide-gray-200">
-            {documents.map((document) => (
-              <li key={document.id} className="py-3 flex items-center justify-between">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0 bg-blue-100 rounded-md p-2">
-                    {getDocumentIcon(document)}
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm font-medium text-gray-900">{document.name}</p>
-                    <p className="text-xs text-gray-500">{formatUploadedDate(document.createdAt)}</p>
-                    {document.projectName && (
-                      <p className="text-xs text-gray-500">Project: {document.projectName}</p>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <Button 
-                    variant="link" 
-                    size="sm" 
-                    className="text-primary-600 hover:text-primary-900"
-                    onClick={() => onDownload && onDownload(document)}
-                  >
-                    <Download className="h-4 w-4 mr-1" /> Download
-                  </Button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+      <div className="p-4">
+        {list}
         {viewAllLink && (
-          <div className="mt-6">
-            <a 
+          <div className="mt-4 px-1">
+            <a
               href={viewAllLink}
-              onClick={(e) => {
-                if (onViewAll) {
-                  e.preventDefault();
-                  onViewAll();
-                }
-              }}
-              className="text-sm font-medium text-primary-600 hover:text-primary-500"
+              onClick={(e) => { if (onViewAll) { e.preventDefault(); onViewAll(); } }}
+              className="text-sm font-semibold text-primary hover:underline"
             >
               View all documents <span aria-hidden="true">&rarr;</span>
             </a>

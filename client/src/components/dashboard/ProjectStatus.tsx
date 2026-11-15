@@ -1,5 +1,4 @@
-import { Progress } from "@/components/ui/progress";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { ArrowRight } from "lucide-react";
 
@@ -23,76 +22,66 @@ interface ProjectStatusProps {
   onViewDetails?: (projectId: number) => void;
 }
 
+/** Status → label + badge tint. Blue is "happening", green is "done", grey is "not yet". */
+export function projectStatusMeta(status: string): { label: string; variant: "info" | "success" | "warning" | "secondary" } {
+  switch (status.toLowerCase().replace(/\s+/g, "_")) {
+    case "in_progress": return { label: "In progress", variant: "info" };
+    case "completed": return { label: "Complete", variant: "success" };
+    case "on_hold": return { label: "On hold", variant: "warning" };
+    case "planning": return { label: "Scheduled", variant: "secondary" };
+    default: return { label: status, variant: "secondary" };
+  }
+}
+
+const fmtDate = (d: string | null) => (d ? format(new Date(d), "MMM d") : null);
+
 export default function ProjectStatus({ project, onViewDetails }: ProjectStatusProps) {
-  // Format date
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return "Not set";
-    return format(new Date(dateString), "MMM d, yyyy");
-  };
-  
-  // Format currency
-  const formatCurrency = (amount: number | null) => {
-    if (amount === null) return "Not set";
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
-  };
-  
-  // Get status text with color
-  const getStatusText = (status: string) => {
-    switch (status.toLowerCase()) {
-      case "in_progress":
-      case "in progress":
-        return <span className="text-green-600">In Progress</span>;
-      case "planning":
-        return <span className="text-yellow-600">Planning</span>;
-      case "on_hold":
-      case "on hold":
-        return <span className="text-blue-600">On Hold</span>;
-      case "completed":
-        return <span className="text-gray-600">Completed</span>;
-      default:
-        return <span>{status}</span>;
-    }
-  };
-  
+  const meta = projectStatusMeta(project.status);
+  const progress = Math.max(0, Math.min(100, project.progress ?? 0));
+  const start = fmtDate(project.startDate);
+  const due = fmtDate(project.dueDate);
+  const isDone = meta.variant === "success";
+
+  const whenLine = isDone
+    ? due ? `Finished ${due}` : "Finished"
+    : progress === 0 && start
+      ? `Starts ${start}`
+      : due
+        ? `Due ${due}`
+        : start
+          ? `Started ${start}`
+          : null;
+
   return (
-    <div className={project.id !== 1 ? "border-t border-gray-200 pt-6" : ""}>
-      <h4 className="text-base font-medium text-gray-900 mb-2">{project.name}</h4>
+    <div className="flex flex-col gap-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-[16px] font-semibold leading-tight">{project.name}</p>
+          {whenLine && <p className="mt-0.5 text-[13px] text-muted-foreground">{whenLine}</p>}
+        </div>
+        <Badge variant={meta.variant} className="shrink-0">{meta.label}</Badge>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center justify-between text-[13px]">
+          <span className="font-semibold">{isDone ? "All done" : progress === 0 ? "Not started" : "Progress"}</span>
+          <span className="text-muted-foreground">{progress}%</span>
+        </div>
+        <div className="h-2 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
+          <div className={`h-full rounded-full ${isDone ? "bg-success" : "bg-primary"}`} style={{ width: `${progress}%` }} />
+        </div>
+      </div>
       {project.description && (
-        <p className="text-sm text-gray-500 mb-3">{project.description}</p>
+        <p className="line-clamp-2 text-[13.5px] leading-snug text-foreground/75">{project.description}</p>
       )}
-      <div className="mb-1 flex justify-between">
-        <span className="text-sm font-medium text-gray-700">Progress</span>
-        <span className="text-sm font-medium text-gray-700">{project.progress}%</span>
-      </div>
-      <Progress value={project.progress} className="h-2.5 mb-3" />
-      <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-        <div className="bg-gray-50 rounded-lg p-3">
-          <p className="text-xs text-gray-500">Start Date</p>
-          <p className="text-sm font-medium">{formatDate(project.startDate)}</p>
-        </div>
-        <div className="bg-gray-50 rounded-lg p-3">
-          <p className="text-xs text-gray-500">Due Date</p>
-          <p className="text-sm font-medium">{formatDate(project.dueDate)}</p>
-        </div>
-        <div className="bg-gray-50 rounded-lg p-3">
-          <p className="text-xs text-gray-500">Budget</p>
-          <p className="text-sm font-medium">{formatCurrency(project.budget)}</p>
-        </div>
-        <div className="bg-gray-50 rounded-lg p-3">
-          <p className="text-xs text-gray-500">Status</p>
-          <p className="text-sm font-medium">{getStatusText(project.status)}</p>
-        </div>
-      </div>
-      <div className="mt-4">
-        <Button 
-          variant="link" 
-          className="text-primary-600 hover:text-primary-700 p-0"
-          onClick={() => onViewDetails && onViewDetails(project.id)}
+      {onViewDetails && (
+        <button
+          type="button"
+          onClick={() => onViewDetails(project.id)}
+          className="inline-flex min-h-[32px] items-center gap-1 self-start text-[13.5px] font-semibold text-primary hover:underline"
         >
-          View project details
-          <ArrowRight className="ml-1 h-4 w-4" />
-        </Button>
-      </div>
+          Details <ArrowRight className="h-3.5 w-3.5" />
+        </button>
+      )}
     </div>
   );
 }

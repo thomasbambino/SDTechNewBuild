@@ -128,8 +128,13 @@ export default function Header({ sidebarOpen, setSidebarOpen, themeMode, setThem
                 </div>
               ) : (
                 <>
-                  <span className="bg-primary text-primary-foreground font-bold text-xl px-2 py-1 rounded mr-2">SD</span>
-                  <span className="text-primary font-semibold text-lg hidden md:block">Tech Pros</span>
+                  <span className="mr-2.5 flex h-9 w-9 items-center justify-center rounded-lg bg-signal font-display text-lg font-bold text-signal-foreground">SD</span>
+                  <span className="hidden flex-col leading-none md:flex">
+                    <span className="font-display text-xl font-bold">{publicSettings?.companyName || "SD Tech Pros"}</span>
+                    <span className="font-display text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                      {user?.role === "admin" ? "Admin" : "Client portal"}
+                    </span>
+                  </span>
                 </>
               )}
             </Link>
@@ -161,7 +166,7 @@ export default function Header({ sidebarOpen, setSidebarOpen, themeMode, setThem
             <DropdownMenu open={userMenuOpen} onOpenChange={setUserMenuOpen}>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="flex items-center space-x-2 px-1">
-                  <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-white">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-soft font-display text-[13px] font-bold tracking-wide text-primary-soft-foreground">
                     <span>{user ? getInitials(user.name) : "U"}</span>
                   </div>
                   <span className="hidden md:block font-medium">{user?.name || "User"}</span>
