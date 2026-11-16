@@ -150,6 +150,10 @@ export const contents = pgTable("contents", {
   subtitle: text("subtitle"),
   content: text("content"),
   imagePath: text("image_path"),
+  // Optional "before" photo — used today by Recent Work (type=job) to drive
+  // the before/after toggle on the public card. Null-safe for other content
+  // types that don't need a second image.
+  imagePathBefore: text("image_path_before"),
   order: integer("order").default(0),
   isActive: boolean("is_active").default(true),
   updatedAt: timestamp("updated_at").defaultNow(),

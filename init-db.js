@@ -222,6 +222,9 @@ const createTables = async () => {
     await client.query(`ALTER TABLE client_notes ADD COLUMN IF NOT EXISTS fields TEXT;`);
     await client.query(`ALTER TABLE client_notes ALTER COLUMN content SET DEFAULT '';`);
 
+    // Recent Work before/after: optional second image per content row.
+    await client.query(`ALTER TABLE contents ADD COLUMN IF NOT EXISTS image_path_before TEXT;`);
+
     // Per-project tasks ("What's next").
     await client.query(`
       CREATE TABLE IF NOT EXISTS project_tasks (

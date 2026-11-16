@@ -49,6 +49,7 @@ interface ContentSection {
   subtitle: string | null;
   content: string | null;
   imagePath: string | null;
+  imagePathBefore: string | null;
   order: number;
   isActive: boolean;
 }
@@ -69,6 +70,7 @@ interface Job {
   title: string;
   result: string;
   photo: string | null;
+  photoBefore: string | null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -104,12 +106,12 @@ const DEFAULT_HERO = {
 };
 
 const DEFAULT_JOBS: Job[] = [
-  { id: "d1", kind: "Cameras", tags: ["112 cameras", "PoE", "NVR", "3 buildings"], title: "Camera system for a retirement community", result: "112 PoE cameras across three buildings on a single NVR. Staff can review and export footage themselves.", photo: null },
-  { id: "d2", kind: "Network", tags: ["Firewall", "Switching", "Wi-Fi 6", "Rack"], title: "Full office network stack rebuild", result: "Replaced consumer gear with a rack-mounted firewall, managed switching and Wi-Fi 6, with guest and staff traffic on separate VLANs.", photo: null },
-  { id: "d3", kind: "Security", tags: ["Incident response", "Cleanup", "Hardening"], title: "Forensics after a hacked work computer", result: "Imaged the drive, identified how and when it was compromised, cleaned the machine and hardened the rest of the office.", photo: null },
-  { id: "d4", kind: "Wi-Fi", tags: ["WAPs", "Smart locks", "Cameras"], title: "Whole-house Wi-Fi and smart home hardware", result: "Ceiling-mounted access points for full coverage, plus smart locks and cameras on one app.", photo: null },
-  { id: "d5", kind: "Computers", tags: ["Migration", "Backups", "Email"], title: "New computer migration, no lost files", result: "Files, email and printers moved to the new machine. The old drive was kept as a backup.", photo: null },
-  { id: "d6", kind: "Consulting", tags: ["Small business", "Planning", "Vendors"], title: "Straight answers on what to buy and what to skip", result: "A written plan covering what to fix first, what can wait, and what to buy.", photo: null },
+  { id: "d1", kind: "Cameras", tags: ["112 cameras", "PoE", "NVR", "3 buildings"], title: "Camera system for a retirement community", result: "112 PoE cameras across three buildings on a single NVR. Staff can review and export footage themselves.", photo: null, photoBefore: null },
+  { id: "d2", kind: "Network", tags: ["Firewall", "Switching", "Wi-Fi 6", "Rack"], title: "Full office network stack rebuild", result: "Replaced consumer gear with a rack-mounted firewall, managed switching and Wi-Fi 6, with guest and staff traffic on separate VLANs.", photo: null, photoBefore: null },
+  { id: "d3", kind: "Security", tags: ["Incident response", "Cleanup", "Hardening"], title: "Forensics after a hacked work computer", result: "Imaged the drive, identified how and when it was compromised, cleaned the machine and hardened the rest of the office.", photo: null, photoBefore: null },
+  { id: "d4", kind: "Wi-Fi", tags: ["WAPs", "Smart locks", "Cameras"], title: "Whole-house Wi-Fi and smart home hardware", result: "Ceiling-mounted access points for full coverage, plus smart locks and cameras on one app.", photo: null, photoBefore: null },
+  { id: "d5", kind: "Computers", tags: ["Migration", "Backups", "Email"], title: "New computer migration, no lost files", result: "Files, email and printers moved to the new machine. The old drive was kept as a backup.", photo: null, photoBefore: null },
+  { id: "d6", kind: "Consulting", tags: ["Small business", "Planning", "Vendors"], title: "Straight answers on what to buy and what to skip", result: "A written plan covering what to fix first, what can wait, and what to buy.", photo: null, photoBefore: null },
 ];
 
 const DEFAULT_SERVICES = [
@@ -135,6 +137,7 @@ function parseJob(row: ContentSection): Job {
     title: row.title ?? "",
     result: row.content ?? "",
     photo: row.imagePath,
+    photoBefore: row.imagePathBefore ?? null,
   };
 }
 
@@ -174,6 +177,44 @@ function PhotoSlot({ src, alt, fallback, className = "" }: { src: string | null;
       className={`flex h-full w-full items-end bg-muted bg-[repeating-linear-gradient(135deg,transparent_0_10px,hsl(var(--foreground)/0.05)_10px_20px)] p-3 ${className}`}
     >
       <span className="font-display text-2xl font-bold uppercase tracking-tight text-foreground/30">{fallback}</span>
+    </div>
+  );
+}
+
+/**
+ * Job card photo. If the job has both a `photo` (after) and a `photoBefore`,
+ * render a small segmented control over the image to toggle. Otherwise render
+ * the single photo or the hatched fallback.
+ */
+function JobPhoto({ job }: { job: Job }) {
+  const hasBoth = !!job.photo && !!job.photoBefore;
+  const [mode, setMode] = useState<"after" | "before">("after");
+  const src = hasBoth ? (mode === "after" ? job.photo : job.photoBefore) : job.photo;
+  return (
+    <div className="relative aspect-[4/3] overflow-hidden">
+      <PhotoSlot src={src} alt={job.title} fallback={job.kind} />
+      {hasBoth && (
+        <div
+          className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-0.5 rounded-full bg-black/70 backdrop-blur p-0.5 text-[12px] font-semibold text-white shadow-lg"
+          role="group"
+          aria-label="Compare before and after"
+        >
+          <button
+            type="button"
+            onClick={() => setMode("before")}
+            className={`px-3 py-1 rounded-full transition-colors ${mode === "before" ? "bg-white text-foreground" : "text-white/80 hover:text-white"}`}
+          >
+            Before
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("after")}
+            className={`px-3 py-1 rounded-full transition-colors ${mode === "after" ? "bg-white text-foreground" : "text-white/80 hover:text-white"}`}
+          >
+            After
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -403,9 +444,7 @@ export default function PublicHome() {
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {jobs.map((job) => (
                 <article key={job.id} className="flex flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-shadow hover:shadow-md">
-                  <div className="aspect-[4/3]">
-                    <PhotoSlot src={job.photo} alt={job.title} fallback={job.kind} />
-                  </div>
+                  <JobPhoto job={job} />
                   <div className="flex flex-1 flex-col gap-2.5 p-5">
                     <div className="flex flex-wrap gap-1.5">
                       <Tag accent>{job.kind}</Tag>

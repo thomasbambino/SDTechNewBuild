@@ -63,6 +63,7 @@ const SERVICE_ICON_OPTIONS = [
 ];
 import Cropper from "react-easy-crop";
 import heic2any from "heic2any";
+import ImageUploadField from "@/components/admin/ImageUploadField";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Content } from "@shared/schema";
@@ -266,6 +267,7 @@ export default function ContentEditorPage() {
       subtitle: "",
       content: "",
       imagePath: null,
+      imagePathBefore: null,
       order: contents[activeTab].length,
       isActive: true,
       updatedAt: new Date().toISOString(),
@@ -598,9 +600,21 @@ export default function ContentEditorPage() {
                         </div>
                       )}
 
+                      {/* Before/after photos for Recent Work (type=job) */}
+                      {editingContent.type === 'job' && (
+                        <div className="space-y-2">
+                          <Label>Before photo <span className="text-xs text-muted-foreground font-normal">(optional — enables before/after toggle)</span></Label>
+                          <ImageUploadField
+                            value={editingContent.imagePathBefore ?? ""}
+                            onChange={(url) => setEditingContent({ ...editingContent, imagePathBefore: url || null })}
+                            aspect={4 / 3}
+                          />
+                        </div>
+                      )}
+
                       {/* Image upload with crop (non-service types only) */}
                       {editingContent.type !== 'service' && <div className="space-y-2">
-                        <Label>Image</Label>
+                        <Label>{editingContent.type === 'job' ? 'After photo' : 'Image'}</Label>
                         <div className="flex items-start gap-4">
                           {imagePreview ? (
                             <div className="relative w-28 h-20 rounded-md overflow-hidden border bg-gray-100 flex-shrink-0">
