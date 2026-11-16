@@ -16,6 +16,7 @@ import {
   postComments, PostComment, InsertPostComment,
   clientNotes, ClientNote, InsertClientNote,
   customPages, CustomPage, InsertCustomPage,
+  siteStrings, SiteString,
 } from "@shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
@@ -123,6 +124,10 @@ export interface IStorage {
   createClientNote(note: InsertClientNote): Promise<ClientNote>;
   updateClientNote(id: number, note: Partial<ClientNote>): Promise<ClientNote | undefined>;
   deleteClientNote(id: number): Promise<boolean>;
+
+  // Site string operations
+  getAllSiteStrings(): Promise<SiteString[]>;
+  upsertSiteStrings(entries: { key: string; value: string }[]): Promise<void>;
 
   // Custom page operations
   getAllCustomPages(): Promise<CustomPage[]>;
@@ -1182,6 +1187,23 @@ export class DatabaseStorage implements IStorage {
   async deleteClientNote(id: number): Promise<boolean> {
     const deleted = await this.db.delete(clientNotes).where(eq(clientNotes.id, id)).returning({ id: clientNotes.id });
     return deleted.length > 0;
+  }
+
+  async getAllSiteStrings(): Promise<SiteString[]> {
+    return await this.db.select().from(siteStrings);
+  }
+
+  async upsertSiteStrings(entries: { key: string; value: string }[]): Promise<void> {
+    if (entries.length === 0) return;
+    // Postgres ON CONFLICT upsert per row. One round-trip per key is fine
+    // for this low-volume admin action; keeps the SQL readable.
+    for (const { key, value } of entries) {
+      await this.client`
+        INSERT INTO site_strings (key, value, updated_at)
+        VALUES (${key}, ${value}, NOW())
+        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+      `;
+    }
   }
 
   async getAllCustomPages(): Promise<CustomPage[]> {

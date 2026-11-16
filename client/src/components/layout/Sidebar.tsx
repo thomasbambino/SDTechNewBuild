@@ -187,6 +187,21 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen, offsetTop }: Side
                   </a>
                 </Link>
 
+                <Link href="/admin/site-text">
+                  <a
+                    className={cn(
+                      "flex items-center px-3 py-2 text-sm font-medium rounded-md",
+                      isActive("/admin/site-text")
+                        ? "bg-primary/10 text-primary"
+                        : "text-foreground hover:bg-muted"
+                    )}
+                    onClick={handleLinkClick}
+                  >
+                    <Layout className="h-5 w-5 mr-3" />
+                    <span>Site Text</span>
+                  </a>
+                </Link>
+
                 <Link href="/admin/branding">
                   <a
                     className={cn(

@@ -21,6 +21,7 @@ import AdminInvoices from "@/pages/admin/invoices";
 import AdminInquiries from "@/pages/admin/inquiries";
 import AdminActivities from "@/pages/admin/activities";
 import AdminContentEditor from "@/pages/admin/content-editor";
+import AdminSiteText from "@/pages/admin/site-text";
 import AdminBranding from "@/pages/admin/branding";
 import AdminApiConnections from "@/pages/admin/api-connections";
 import AdminProfile from "@/pages/admin/profile";
@@ -55,6 +56,7 @@ function Router() {
       <ProtectedRoute path="/admin/inquiries" role="admin" component={AdminInquiries} />
       <ProtectedRoute path="/admin/activities" role="admin" component={AdminActivities} />
       <ProtectedRoute path="/admin/content-editor" role="admin" component={AdminContentEditor} />
+      <ProtectedRoute path="/admin/site-text" role="admin" component={AdminSiteText} />
       <ProtectedRoute path="/admin/branding" role="admin" component={AdminBranding} />
       <ProtectedRoute path="/admin/api-connections" role="admin" component={AdminApiConnections} />
       <ProtectedRoute path="/admin/users" role="admin" component={AdminUsers} />

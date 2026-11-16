@@ -12,6 +12,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { useAuth } from "@/hooks/use-auth";
+import { useSiteStrings } from "@/lib/siteStrings";
 import {
   Menu,
   ChevronRight,
@@ -200,6 +201,7 @@ export default function PublicHome() {
   const [, navigate] = useLocation();
   const { user } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const txt = useSiteStrings();
 
   const { data: settings } = useQuery<PublicSettings>({ queryKey: ["/api/settings/public"] });
   const { data: heroContent = [], isLoading: heroLoading } = useQuery<ContentSection[]>({ queryKey: ["/api/content/hero"] });
@@ -210,15 +212,21 @@ export default function PublicHome() {
 
   const companyName = settings?.companyName || "SD Tech Pros";
   const hero = {
-    title: heroContent[0]?.title || DEFAULT_HERO.title,
-    subtitle: heroContent[0]?.subtitle || DEFAULT_HERO.subtitle,
-    cta: heroContent[0]?.content || DEFAULT_HERO.cta,
+    title: heroContent[0]?.title || txt("hero_default_title"),
+    subtitle: heroContent[0]?.subtitle || txt("hero_default_subtitle"),
+    cta: heroContent[0]?.content || txt("hero_default_cta"),
     image: heroContent[0]?.imagePath ?? null,
   };
 
   const jobs: Job[] = jobContent.length ? jobContent.filter((j) => j.isActive !== false).map(parseJob) : DEFAULT_JOBS;
   const featuredJob = jobs.find((j) => j.photo) ?? null;
 
+  const serviceDefaults = [
+    { id: "s1", icon: "wifi", title: txt("default_service_1"), lines: ["Firewalls, switching and rack builds", "Wi-Fi 6 access points", "Separate guest and staff networks"] },
+    { id: "s2", icon: "camera", title: txt("default_service_2"), lines: ["Dome, bullet and PTZ cameras over PoE", "NVR setup with remote viewing", "Single buildings to 100+ camera sites"] },
+    { id: "s3", icon: "monitor", title: txt("default_service_3"), lines: ["Computer setup, migration and backups", "Email and printer support", "Security incident response"] },
+    { id: "s4", icon: "home", title: txt("default_service_4"), lines: ["Smart locks, doorbells and hubs", "Whole-house Wi-Fi and wired drops", "Clean, labelled cable runs"] },
+  ];
   const services = serviceContent.length
     ? serviceContent.map((s) => ({
         id: s.id,
@@ -226,12 +234,12 @@ export default function PublicHome() {
         title: s.title ?? "",
         lines: (s.content ?? "").split(/\n+/).map((l) => l.replace(/^[-•]\s*/, "").trim()).filter(Boolean),
       }))
-    : DEFAULT_SERVICES;
+    : serviceDefaults;
 
   const about = aboutContent[0] ?? null;
 
   const testimonialHasHeader = testimonialContent.length > 0 && !testimonialContent[0].content;
-  const testimonialTitle = (testimonialHasHeader && testimonialContent[0].title) || "What clients say";
+  const testimonialTitle = (testimonialHasHeader && testimonialContent[0].title) || txt("testimonials_default_title");
   const testimonials = testimonialHasHeader ? testimonialContent.slice(1) : testimonialContent;
 
   const contact = {
@@ -241,9 +249,9 @@ export default function PublicHome() {
   };
 
   const navLinks = [
-    { name: "Recent work", id: "work" },
-    { name: "Services", id: "services" },
-    { name: "How it works", id: "how" },
+    { name: txt("nav_recent_work"), id: "work" },
+    { name: txt("nav_services"), id: "services" },
+    { name: txt("nav_how_it_works"), id: "how" },
   ];
 
   const scrollToSection = (id: string) => {
@@ -252,7 +260,7 @@ export default function PublicHome() {
   };
 
   const portalHref = user ? (user.role === "admin" ? "/admin" : "/client") : "/auth";
-  const portalLabel = user ? "Go to dashboard" : "Client login";
+  const portalLabel = user ? txt("nav_portal_authenticated") : txt("nav_portal_guest");
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -275,20 +283,20 @@ export default function PublicHome() {
               </a>
             ))}
             <Button variant="outline" size="sm" onClick={() => navigate(portalHref)}>{portalLabel}</Button>
-            <Button size="sm" onClick={() => navigate("/inquiry")}>Get a quote</Button>
+            <Button size="sm" onClick={() => navigate("/inquiry")}>{txt("nav_cta_button")}</Button>
           </nav>
 
           <div className="ml-auto flex items-center gap-2 md:hidden">
-            <Button size="sm" onClick={() => navigate("/inquiry")}>Get a quote</Button>
+            <Button size="sm" onClick={() => navigate("/inquiry")}>{txt("nav_cta_button")}</Button>
             <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" aria-label="Open menu">
+                <Button variant="ghost" size="icon" aria-label={txt("nav_menu_title")}>
                   <Menu className="h-6 w-6" />
                 </Button>
               </SheetTrigger>
               <SheetContent side="right">
                 <SheetHeader className="text-left">
-                  <SheetTitle className="font-display text-2xl">Menu</SheetTitle>
+                  <SheetTitle className="font-display text-2xl">{txt("nav_menu_title")}</SheetTitle>
                 </SheetHeader>
                 <div className="mt-8 flex flex-col gap-1">
                   {navLinks.map((link) => (
@@ -304,7 +312,7 @@ export default function PublicHome() {
                   ))}
                   <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4">
                     <Button variant="outline" onClick={() => { setIsMenuOpen(false); navigate(portalHref); }}>{portalLabel}</Button>
-                    <Button onClick={() => { setIsMenuOpen(false); navigate("/inquiry"); }}>Request a quote</Button>
+                    <Button onClick={() => { setIsMenuOpen(false); navigate("/inquiry"); }}>{txt("nav_mobile_cta")}</Button>
                   </div>
                 </div>
               </SheetContent>
@@ -317,7 +325,7 @@ export default function PublicHome() {
         {/* Hero */}
         <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-14 sm:px-6 md:py-20 lg:grid-cols-[1.05fr_1fr] lg:gap-14">
           <div className="flex flex-col gap-6">
-            <Eyebrow>Networks · Cameras · IT · San Diego County</Eyebrow>
+            <Eyebrow>{txt("hero_eyebrow")}</Eyebrow>
             {heroLoading ? (
               <div className="space-y-3">
                 <Skeleton className="h-14 w-full" />
@@ -336,7 +344,7 @@ export default function PublicHome() {
                 {hero.cta}
                 <ArrowRight className="h-5 w-5" />
               </Button>
-              <Button variant="outline" size="lg" onClick={() => scrollToSection("work")}>See recent work</Button>
+              <Button variant="outline" size="lg" onClick={() => scrollToSection("work")}>{txt("hero_secondary_button")}</Button>
             </div>
           </div>
 
@@ -344,9 +352,9 @@ export default function PublicHome() {
           {featuredJob || hero.image ? (
             <article className="overflow-hidden rounded-xl border border-border bg-card shadow-lg">
               <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
-                <Tag accent>{featuredJob ? featuredJob.kind : "Recent job"}</Tag>
+                <Tag accent>{featuredJob ? featuredJob.kind : txt("recent_work_card_fallback")}</Tag>
                 {featuredJob?.tags.slice(0, 2).map((t) => <Tag key={t}>{t}</Tag>)}
-                <span className="ml-auto text-[12.5px] font-medium text-muted-foreground">From the client portal</span>
+                <span className="ml-auto text-[12.5px] font-medium text-muted-foreground">{txt("recent_work_card_label")}</span>
               </div>
               <div className="aspect-[4/3] bg-muted">
                 <PhotoSlot src={featuredJob?.photo ?? hero.image} alt={featuredJob?.title ?? hero.title} fallback="" />
@@ -366,9 +374,9 @@ export default function PublicHome() {
           <div className="mx-auto flex max-w-6xl flex-col gap-9 px-4 py-16 sm:px-6 md:py-20">
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div className="flex max-w-2xl flex-col gap-3">
-                <Eyebrow>Recent work</Eyebrow>
-                <h2 className="text-4xl sm:text-5xl">Recent jobs</h2>
-                <p className="text-[16.5px] leading-relaxed text-foreground/75">Photos from the job site.</p>
+                <Eyebrow>{txt("recent_work_eyebrow")}</Eyebrow>
+                <h2 className="text-4xl sm:text-5xl">{txt("recent_work_heading")}</h2>
+                <p className="text-[16.5px] leading-relaxed text-foreground/75">{txt("recent_work_subtitle")}</p>
               </div>
             </div>
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -395,8 +403,8 @@ export default function PublicHome() {
         <section id="services" className="scroll-mt-16 border-t border-border">
           <div className="mx-auto flex max-w-6xl flex-col gap-9 px-4 py-16 sm:px-6 md:py-20">
             <div className="flex max-w-2xl flex-col gap-3">
-              <Eyebrow>Services</Eyebrow>
-              <h2 className="text-4xl sm:text-5xl">What we do</h2>
+              <Eyebrow>{txt("services_eyebrow")}</Eyebrow>
+              <h2 className="text-4xl sm:text-5xl">{txt("services_heading")}</h2>
             </div>
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
               {services.map((service) => (
@@ -423,13 +431,13 @@ export default function PublicHome() {
           <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 py-16 sm:px-6 md:py-20 lg:grid-cols-2">
             <div className="flex flex-col gap-7">
               <div className="flex flex-col gap-3">
-                <Eyebrow>Process</Eyebrow>
-                <h2 className="text-4xl sm:text-5xl">How it works</h2>
+                <Eyebrow>{txt("process_eyebrow")}</Eyebrow>
+                <h2 className="text-4xl sm:text-5xl">{txt("process_heading")}</h2>
               </div>
               <ol className="flex flex-col gap-6">
-                <Step n={1} title="Walkthrough and quote">We come out, look at the space, and send a written quote.</Step>
-                <Step n={2} title="Install">We do the work and post photo updates to your portal as we go.</Step>
-                <Step n={3} title="Handoff">Passwords, network details and logins go in your portal so you can find them later.</Step>
+                <Step n={1} title={txt("step_1_title")}>{txt("step_1_body")}</Step>
+                <Step n={2} title={txt("step_2_title")}>{txt("step_2_body")}</Step>
+                <Step n={3} title={txt("step_3_title")}>{txt("step_3_body")}</Step>
               </ol>
             </div>
             <PortalPreview />
@@ -441,8 +449,8 @@ export default function PublicHome() {
           <section id="about" className="scroll-mt-16 border-t border-border">
             <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-16 sm:px-6 md:py-20 lg:grid-cols-[1.2fr_1fr]">
               <div className="flex flex-col gap-4">
-                <Eyebrow>Who you're calling</Eyebrow>
-                <h2 className="text-4xl sm:text-5xl">{about.title || `About ${companyName}`}</h2>
+                <Eyebrow>{txt("about_eyebrow")}</Eyebrow>
+                <h2 className="text-4xl sm:text-5xl">{about.title || `${txt("about_heading_prefix")} ${companyName}`}</h2>
                 {about.subtitle && <p className="text-lg leading-relaxed text-foreground/80">{about.subtitle}</p>}
                 {about.content && <p className="whitespace-pre-line text-[16px] leading-relaxed text-foreground/75">{about.content}</p>}
               </div>
@@ -482,16 +490,16 @@ export default function PublicHome() {
         <section id="quote" className="scroll-mt-16 bg-primary-950 text-neutral-100">
           <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-7 px-4 py-16 sm:px-6 md:py-20">
             <div className="flex max-w-xl flex-col gap-3">
-              <h2 className="text-4xl text-neutral-50 sm:text-5xl">Need a quote?</h2>
+              <h2 className="text-4xl text-neutral-50 sm:text-5xl">{txt("quote_heading")}</h2>
               <p className="text-[17px] leading-relaxed text-neutral-300">
-                Tell us what you need and we'll get back to you within one business day.
+                {txt("quote_subtitle")}
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
-              <Button size="lg" onClick={() => navigate("/inquiry")}>Request a quote</Button>
+              <Button size="lg" onClick={() => navigate("/inquiry")}>{txt("quote_cta_button")}</Button>
               {contact.phone && (
                 <Button asChild variant="outline" size="lg" className="border-neutral-700 bg-transparent text-neutral-100 hover:bg-neutral-100/10 hover:text-neutral-50">
-                  <a href={`tel:${contact.phone.replace(/[^\d+]/g, "")}`}>Call {contact.phone}</a>
+                  <a href={`tel:${contact.phone.replace(/[^\d+]/g, "")}`}>{txt("quote_phone_prefix")} {contact.phone}</a>
                 </Button>
               )}
             </div>
@@ -511,8 +519,8 @@ export default function PublicHome() {
           {contact.email && <a href={`mailto:${contact.email}`} className="hover:text-foreground">{contact.email}</a>}
           <nav className="ml-auto flex flex-wrap gap-5" aria-label="Footer">
             <a href={portalHref} onClick={(e) => { e.preventDefault(); navigate(portalHref); }} className="font-medium text-primary hover:underline">{portalLabel}</a>
-            <a href="/pages/privacy" onClick={(e) => { e.preventDefault(); navigate("/pages/privacy"); }} className="font-medium text-primary hover:underline">Privacy</a>
-            <a href="/pages/terms" onClick={(e) => { e.preventDefault(); navigate("/pages/terms"); }} className="font-medium text-primary hover:underline">Terms</a>
+            <a href="/pages/privacy" onClick={(e) => { e.preventDefault(); navigate("/pages/privacy"); }} className="font-medium text-primary hover:underline">{txt("footer_privacy_link")}</a>
+            <a href="/pages/terms" onClick={(e) => { e.preventDefault(); navigate("/pages/terms"); }} className="font-medium text-primary hover:underline">{txt("footer_terms_link")}</a>
           </nav>
           <span className="w-full text-[12.5px] sm:w-auto sm:ml-auto">&copy; {new Date().getFullYear()} {companyName}</span>
         </div>
@@ -539,32 +547,34 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
 
 /** A static mock of what a client sees in the portal: a photo update and a pinned note. */
 function PortalPreview() {
+  const txt = useSiteStrings();
+  const photoLabels = [txt("portal_photo_label_1"), txt("portal_photo_label_2"), txt("portal_photo_label_3")];
   return (
     <div className="flex flex-col gap-3.5 rounded-xl border border-border bg-card p-4 shadow-lg" aria-label="Example of a client portal update">
       <div className="flex items-center gap-2.5">
         <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-soft font-display text-xs font-bold text-primary-soft-foreground">SD</span>
         <div className="flex flex-col leading-tight">
-          <span className="text-sm font-semibold">New update</span>
-          <span className="text-[12.5px] text-muted-foreground">Today</span>
+          <span className="text-sm font-semibold">{txt("portal_update_label")}</span>
+          <span className="text-[12.5px] text-muted-foreground">{txt("portal_timestamp")}</span>
         </div>
-        <span className="ml-auto inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-primary-soft px-2.5 py-1 text-xs font-semibold text-primary-soft-foreground"><Clock className="h-3 w-3" />In progress</span>
+        <span className="ml-auto inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-primary-soft px-2.5 py-1 text-xs font-semibold text-primary-soft-foreground"><Clock className="h-3 w-3" />{txt("portal_status")}</span>
       </div>
-      <p className="text-[17px] font-semibold leading-snug">Second-floor cameras online: 38 of 112 done</p>
+      <p className="text-[17px] font-semibold leading-snug">{txt("portal_title")}</p>
       <div className="grid grid-cols-3 gap-1.5">
-        {["Hallway run", "Dome, lobby", "NVR view"].map((label) => (
+        {photoLabels.map((label) => (
           <div key={label} className="aspect-square overflow-hidden rounded-lg">
             <PhotoSlot src={null} alt="" fallback="" className="!p-2 text-[11px]" />
           </div>
         ))}
       </div>
       <div className="flex flex-col gap-2 border-t border-border pt-3.5">
-        <Eyebrow className="text-[11.5px]">Important note · pinned</Eyebrow>
+        <Eyebrow className="text-[11.5px]">{txt("portal_pinned_note")}</Eyebrow>
         <div className="flex items-center justify-between gap-3 rounded-lg bg-muted px-3 py-2.5">
           <div className="flex flex-col gap-0.5">
-            <span className="text-[12.5px] font-medium text-foreground/80">Staff Wi-Fi password</span>
+            <span className="text-[12.5px] font-medium text-foreground/80">{txt("portal_password_label")}</span>
             <span className="font-mono text-sm tracking-[0.2em]">••••••••••</span>
           </div>
-          <span className="inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-3 text-sm font-semibold"><Eye className="h-4 w-4" />Reveal</span>
+          <span className="inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-3 text-sm font-semibold"><Eye className="h-4 w-4" />{txt("portal_reveal_button")}</span>
         </div>
       </div>
     </div>

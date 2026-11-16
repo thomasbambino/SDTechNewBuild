@@ -310,6 +310,22 @@ export const insertClientNoteSchema = createInsertSchema(clientNotes)
 export type ClientNote = typeof clientNotes.$inferSelect;
 export type InsertClientNote = z.infer<typeof insertClientNoteSchema>;
 
+// Freeform key/value store for editable UI strings (eyebrows, CTAs,
+// nav labels, etc.). One row per key; the code registers defaults that
+// win when no row exists, so the UI never shows blank text.
+export const siteStrings = pgTable("site_strings", {
+  id: serial("id").primaryKey(),
+  key: text("key").notNull().unique(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertSiteStringSchema = createInsertSchema(siteStrings)
+  .omit({ id: true, updatedAt: true });
+
+export type SiteString = typeof siteStrings.$inferSelect;
+export type InsertSiteString = z.infer<typeof insertSiteStringSchema>;
+
 // Custom hidden pages (e.g. privacy policy, terms)
 export const customPages = pgTable("custom_pages", {
   id: serial("id").primaryKey(),

@@ -222,6 +222,16 @@ const createTables = async () => {
     await client.query(`ALTER TABLE client_notes ADD COLUMN IF NOT EXISTS fields TEXT;`);
     await client.query(`ALTER TABLE client_notes ALTER COLUMN content SET DEFAULT '';`);
 
+    // Editable UI strings for the public site + portal shell.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS site_strings (
+        id SERIAL PRIMARY KEY,
+        key TEXT NOT NULL UNIQUE,
+        value TEXT NOT NULL,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     // Timeline post engagement: likes + comments.
     await client.query(`
       CREATE TABLE IF NOT EXISTS post_likes (

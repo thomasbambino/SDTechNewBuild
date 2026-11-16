@@ -296,6 +296,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Editable UI strings — public read, admin write. Returns the overrides
+  // as a { key: value } dict so the client can look up with a cheap O(1).
+  app.get("/api/site-strings", async (req, res, next) => {
+    try {
+      const rows = await storage.getAllSiteStrings();
+      const dict: Record<string, string> = {};
+      for (const row of rows) dict[row.key] = row.value;
+      res.json(dict);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.put("/api/site-strings", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+    try {
+      const body = req.body;
+      if (!body || typeof body !== "object") {
+        return res.status(400).json({ message: "Body must be an object of { key: value }" });
+      }
+      const entries: { key: string; value: string }[] = [];
+      for (const [key, value] of Object.entries(body)) {
+        if (typeof key !== "string" || !key) continue;
+        if (typeof value !== "string") {
+          return res.status(400).json({ message: `Value for "${key}" must be a string` });
+        }
+        if (key.length > 128) return res.status(400).json({ message: `Key too long: ${key}` });
+        if (value.length > 4000) return res.status(400).json({ message: `Value too long for "${key}"` });
+        entries.push({ key, value });
+      }
+      await storage.upsertSiteStrings(entries);
+      await storage.createActivity({
+        userId: req.user?.id,
+        action: "Site Text Updated",
+        details: `Updated ${entries.length} UI string${entries.length === 1 ? "" : "s"}`,
+        entityType: "settings",
+        entityId: 0,
+      });
+      res.json({ updated: entries.length });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.get("/api/settings/public", async (req, res, next) => {
     try {
       const settings = await storage.getSettings();
