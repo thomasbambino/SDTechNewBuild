@@ -10,33 +10,32 @@
 
   Roles:
     primary  = "Patch blue"     anything you can click or that is selected
-    signal   = "Signal orange"  the logo mark, job tags, before/after labels,
-                                the single quote CTA. Text on it is ink, never white.
-    neutral  = warm greys       backgrounds, borders, text
+    signal   = alias of primary (kept so older class names still resolve)
+    neutral  = cool greys       backgrounds, borders, text
   Dark mode is the .dark class on <html>.
 */
 @layer base {
   :root {
-    --background: 48 22% 95%; /* #F6F5F1 */
-    --foreground: 215 21% 11%; /* #161B22 */
+    --background: 220 20% 97%; /* #F6F7F9 */
+    --foreground: 213 22% 10%; /* #14191F */
     --card: 0 0% 100%; /* #FFFFFF */
-    --card-foreground: 215 21% 11%; /* #161B22 */
+    --card-foreground: 213 22% 10%; /* #14191F */
     --popover: 0 0% 100%; /* #FFFFFF */
-    --popover-foreground: 215 21% 11%; /* #161B22 */
+    --popover-foreground: 213 22% 10%; /* #14191F */
     --primary: 213 55% 37%; /* #2B5A94 */
     --primary-foreground: 0 0% 100%; /* #FFFFFF */
     --primary-soft: 212 62% 96%; /* #EEF4FB */
     --primary-soft-foreground: 213 54% 24%; /* #1C3A5F */
-    --secondary: 45 19% 92%; /* #EEECE6 */
-    --secondary-foreground: 215 21% 11%; /* #161B22 */
-    --muted: 45 19% 92%; /* #EEECE6 */
-    --muted-foreground: 212 8% 44%; /* #687079 */
-    --accent: 44 17% 87%; /* #E4E1D9 */
-    --accent-foreground: 215 21% 11%; /* #161B22 */
-    --signal: 19 79% 48%; /* #D9571A */
-    --signal-foreground: 215 21% 11%; /* #161B22 */
-    --signal-soft: 25 83% 95%; /* #FDF2EA */
-    --signal-soft-foreground: 19 85% 38%; /* #B5440F */
+    --secondary: 210 21% 95%; /* #EEF1F4 */
+    --secondary-foreground: 213 22% 10%; /* #14191F */
+    --muted: 210 21% 95%; /* #EEF1F4 */
+    --muted-foreground: 211 9% 44%; /* #66707B */
+    --accent: 213 19% 91%; /* #E3E7EC */
+    --accent-foreground: 213 22% 10%; /* #14191F */
+    --signal: 213 55% 37%; /* #2B5A94 */
+    --signal-foreground: 0 0% 100%; /* #FFFFFF */
+    --signal-soft: 212 62% 96%; /* #EEF4FB */
+    --signal-soft-foreground: 213 54% 24%; /* #1C3A5F */
     --success: 150 59% 30%; /* #1F7A4D */
     --success-foreground: 0 0% 100%; /* #FFFFFF */
     --success-soft: 146 40% 92%; /* #E3F3EA */
@@ -49,21 +48,21 @@
     --destructive-foreground: 0 0% 100%; /* #FFFFFF */
     --destructive-soft: 5 76% 94%; /* #FBE4E2 */
     --destructive-soft-foreground: 3 71% 33%; /* #8F1E18 */
-    --border: 44 14% 84%; /* #DCD9D1 */
-    --input: 43 11% 76%; /* #C9C5BB */
+    --border: 213 19% 89%; /* #DDE2E8 */
+    --input: 212 15% 81%; /* #C7CED6 */
     --ring: 213 55% 37%; /* #2B5A94 */
     --chart-1: 213 55% 37%; /* #2B5A94 */
-    --chart-2: 19 79% 48%; /* #D9571A */
+    --chart-2: 213 52% 57%; /* #5A8CCB */
     --chart-3: 151 59% 37%; /* #27955F */
     --chart-4: 35 92% 40%; /* #C47508 */
     --chart-5: 48 5% 58%; /* #9A9890 */
     --sidebar-background: 0 0% 100%; /* #FFFFFF */
-    --sidebar-foreground: 214 9% 32%; /* #4A5058 */
+    --sidebar-foreground: 210 11% 31%; /* #475059 */
     --sidebar-primary: 213 55% 37%; /* #2B5A94 */
     --sidebar-primary-foreground: 0 0% 100%; /* #FFFFFF */
     --sidebar-accent: 212 62% 96%; /* #EEF4FB */
     --sidebar-accent-foreground: 213 54% 24%; /* #1C3A5F */
-    --sidebar-border: 44 14% 84%; /* #DCD9D1 */
+    --sidebar-border: 213 19% 89%; /* #DDE2E8 */
     --sidebar-ring: 213 55% 37%; /* #2B5A94 */
 
     --radius: 0.75rem;
@@ -85,27 +84,27 @@
     --primary-900: #152C48;
     --primary-950: #0D1B2D;
     /* signal scale (hex, for one-off use and the Tailwind signal-* utilities) */
-    --signal-50: #FDF2EA;
-    --signal-100: #FBE3D2;
-    --signal-200: #F7C5A6;
-    --signal-300: #F3A071;
-    --signal-400: #EC7A42;
-    --signal-500: #D9571A;
-    --signal-600: #B5440F;
-    --signal-700: #90360D;
-    --signal-800: #6E2A0C;
-    --signal-900: #4D1E0A;
-    --signal-950: #2E1206;
+    --signal-50: #EEF4FB;
+    --signal-100: #D9E6F6;
+    --signal-200: #B4CDEC;
+    --signal-300: #86ADDE;
+    --signal-400: #5A8CCB;
+    --signal-500: #3A6FB0;
+    --signal-600: #2B5A94;
+    --signal-700: #234A79;
+    --signal-800: #1C3A5F;
+    --signal-900: #152C48;
+    --signal-950: #0D1B2D;
     /* neutral scale (hex, for one-off use and the Tailwind neutral-* utilities) */
     --neutral-0: #FFFFFF;
-    --neutral-50: #F6F5F1;
-    --neutral-100: #EEECE6;
-    --neutral-200: #E4E1D9;
-    --neutral-300: #DCD9D1;
-    --neutral-400: #C9C5BB;
-    --neutral-500: #9A9890;
-    --neutral-600: #687079;
-    --neutral-700: #4A5058;
+    --neutral-50: #F6F7F9;
+    --neutral-100: #EEF1F4;
+    --neutral-200: #E3E7EC;
+    --neutral-300: #DDE2E8;
+    --neutral-400: #C7CED6;
+    --neutral-500: #98A1AB;
+    --neutral-600: #66707B;
+    --neutral-700: #475059;
     --neutral-800: #2C343E;
     --neutral-900: #181D24;
     --neutral-950: #11151A;
@@ -128,10 +127,10 @@
     --muted-foreground: 212 8% 59%; /* #8E969F */
     --accent: 215 18% 20%; /* #2A323D */
     --accent-foreground: 220 9% 94%; /* #EDEEF0 */
-    --signal: 21 86% 58%; /* #F07A3A */
-    --signal-foreground: 215 21% 11%; /* #161B22 */
-    --signal-soft: 23 45% 16%; /* #3A2416 */
-    --signal-soft-foreground: 21 87% 70%; /* #F5A071 */
+    --signal: 213 52% 57%; /* #5A8CCB */
+    --signal-foreground: 214 55% 11%; /* #0D1B2D */
+    --signal-soft: 214 42% 19%; /* #1C2E45 */
+    --signal-soft-foreground: 213 60% 82%; /* #B4CDEC */
     --success: 148 43% 51%; /* #4CB87E */
     --success-foreground: 213 21% 8%; /* #11151A */
     --success-soft: 151 44% 14%; /* #143324 */
@@ -148,7 +147,7 @@
     --input: 214 15% 27%; /* #3A434F */
     --ring: 213 52% 57%; /* #5A8CCB */
     --chart-1: 213 52% 57%; /* #5A8CCB */
-    --chart-2: 20 82% 59%; /* #EC7A42 */
+    --chart-2: 213 57% 70%; /* #86ADDE */
     --chart-3: 148 43% 51%; /* #4CB87E */
     --chart-4: 38 73% 55%; /* #E0A33A */
     --chart-5: 48 5% 58%; /* #9A9890 */
@@ -188,7 +187,7 @@
   }
 
   ::selection {
-    background: hsl(var(--signal) / 0.35);
+    background: hsl(var(--primary) / 0.2);
   }
 }
 
@@ -198,7 +197,7 @@
     @apply inline-flex h-[22px] items-center whitespace-nowrap rounded border border-input px-2 font-display text-[11.5px] font-semibold uppercase tracking-[0.1em] text-foreground/80;
   }
   .tag-signal {
-    @apply border-signal bg-signal-soft text-signal-soft-foreground;
+    @apply border-primary bg-primary-soft text-primary-soft-foreground;
   }
   /* Small caps section label used over cards and groups. */
   .eyebrow {

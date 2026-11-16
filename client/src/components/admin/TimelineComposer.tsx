@@ -231,7 +231,7 @@ export default function TimelineComposer({ projects, clientId, defaultProjectId,
           placeholder="Building C cameras online: 38 of 112 done"
           className="h-12 font-display text-[22px] font-semibold tracking-tight placeholder:font-sans placeholder:text-base placeholder:font-normal"
         />
-        <p className="text-[12px] text-muted-foreground">Say what changed. Numbers help: "38 of 112" beats "making progress".</p>
+        <p className="text-[12px] text-muted-foreground">Short and specific. Numbers help.</p>
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -240,7 +240,7 @@ export default function TimelineComposer({ projects, clientId, defaultProjectId,
           id="composer-body"
           value={body}
           onChange={e => setBody(e.target.value)}
-          placeholder="What you did, what's next, anything the client should expect to see or hear."
+          placeholder="What was done and what's next."
           rows={4}
           className="resize-none text-[15px] leading-relaxed"
         />
@@ -289,7 +289,7 @@ export default function TimelineComposer({ projects, clientId, defaultProjectId,
             <div key={src + i} className={`${tile} group`}>
               <img src={src} alt="" className="h-full w-full object-cover" />
               {i === 0 && (
-                <span className="absolute left-1.5 top-1.5 inline-flex h-5 items-center gap-1 rounded bg-signal px-1.5 font-display text-[10.5px] font-semibold uppercase tracking-[0.08em] text-signal-foreground shadow">
+                <span className="absolute left-1.5 top-1.5 inline-flex h-5 items-center gap-1 rounded bg-primary px-1.5 font-display text-[10.5px] font-semibold uppercase tracking-[0.08em] text-primary-foreground shadow">
                   <Star className="h-2.5 w-2.5" /> Cover
                 </span>
               )}
@@ -341,7 +341,7 @@ export default function TimelineComposer({ projects, clientId, defaultProjectId,
               aria-label="Posted at"
               className="h-11 flex-1 rounded-md border border-input bg-background px-3 text-[14px]"
             />
-            <span className="text-[12px] text-muted-foreground">Backdating a post you took photos for earlier is fine.</span>
+            <span className="text-[12px] text-muted-foreground">Use this to backdate a post.</span>
           </div>
         )}
       </div>
@@ -353,7 +353,7 @@ export default function TimelineComposer({ projects, clientId, defaultProjectId,
           </Button>
         )}
         <Button
-          variant="signal"
+         
           size="lg"
           className="flex-[2] sm:flex-none"
           onClick={() => saveMutation.mutate()}

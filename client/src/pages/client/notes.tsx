@@ -71,7 +71,7 @@ export function ClientNotesView({ notes }: { notes: NoteData[] }) {
           <p className="font-display text-[13px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Reference</p>
           <h1 className="text-3xl sm:text-4xl lg:text-[2.75rem] lg:leading-none">Important notes</h1>
           <p className="mt-1 text-[15px] leading-relaxed text-foreground/75">
-            Everything your tech left for you: Wi-Fi, logins, codes and how-tos. Secret values stay hidden until you reveal them, and hide again after 30 seconds.
+            Reference info left for you: Wi-Fi, logins, codes and instructions. Hidden values stay hidden until you reveal them.
           </p>
         </div>
         {notes.length > 0 && (
@@ -118,7 +118,7 @@ export function ClientNotesView({ notes }: { notes: NoteData[] }) {
           {visible.length === 0 ? (
             <div className="rounded-xl border border-dashed border-input bg-card px-6 py-12 text-center">
               <p className="font-display text-xl font-semibold">Nothing matches.</p>
-              <p className="mt-1 text-sm text-muted-foreground">Try a different word, or clear the filter.</p>
+              <p className="mt-1 text-sm text-muted-foreground">Try a different search, or clear the filter.</p>
               <Button variant="outline" size="sm" className="mt-4" onClick={() => { setQuery(""); setFilter("all"); }}>Show all notes</Button>
             </div>
           ) : (
@@ -158,16 +158,16 @@ function NoteGroup({ title, count, notes }: { title: string; count: number; note
 function NotesZeroState({ onMessage }: { onMessage: () => void }) {
   return (
     <div className="flex flex-col items-center gap-5 rounded-xl border border-dashed border-input bg-card px-6 py-12 text-center">
-      <span className="flex h-[72px] w-[72px] items-center justify-center rounded-[20px] bg-signal-soft text-signal-soft-foreground">
+      <span className="flex h-[72px] w-[72px] items-center justify-center rounded-[20px] bg-primary-soft text-primary-soft-foreground">
         <KeyRound className="h-8 w-8" strokeWidth={1.8} />
       </span>
       <div className="flex max-w-md flex-col gap-2">
-        <h2 className="text-3xl">Nothing to find yet.</h2>
+        <h2 className="text-3xl">No notes yet</h2>
         <p className="text-[15px] leading-relaxed text-foreground/75">
-          After install, this is where your tech leaves the Wi-Fi password, VLAN map, camera logins and door codes, so six months from now they're still one tap away. Want something recorded? Just ask.
+          Wi-Fi passwords, network details, logins and access codes left for you will show up here.
         </p>
       </div>
-      <Button onClick={onMessage}><MessageSquare className="h-4 w-4" />Message your tech</Button>
+      <Button onClick={onMessage}><MessageSquare className="h-4 w-4" />Send a message</Button>
     </div>
   );
 }

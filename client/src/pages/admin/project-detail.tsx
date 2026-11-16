@@ -205,7 +205,7 @@ export default function AdminProjectDetailPage() {
             <Button variant="outline" onClick={() => setLocation("/admin/projects")} className="flex-1 sm:flex-none">
               <Pencil className="h-4 w-4" /> Edit
             </Button>
-            <Button variant="signal" onClick={openComposer} disabled={!client} className="flex-[2] sm:flex-none">
+            <Button onClick={openComposer} disabled={!client} className="flex-[2] sm:flex-none">
               <Camera className="h-4 w-4" /> Post update
             </Button>
           </div>
@@ -219,7 +219,7 @@ export default function AdminProjectDetailPage() {
           <div className="h-2.5 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
             <div className={`h-full rounded-full ${isDone ? "bg-success" : "bg-primary"}`} style={{ width: `${progress}%` }} />
           </div>
-          <p className="text-[12.5px] text-muted-foreground">Progress is set on the project; the client sees this same bar on their dashboard.</p>
+          <p className="text-[12.5px] text-muted-foreground">The client sees this same progress on their dashboard.</p>
         </div>
 
         <Tabs defaultValue="timeline">
@@ -252,14 +252,14 @@ export default function AdminProjectDetailPage() {
                   onSaved={() => { setEditingPost(undefined); setComposerOpen(false); }}
                 />
               ) : (
-                <Button variant="signal" size="lg" className="w-full sm:w-auto" onClick={openComposer} disabled={!client}>
+                <Button size="lg" className="w-full sm:w-auto" onClick={openComposer} disabled={!client}>
                   <Camera className="h-5 w-5" /> Post an update with photos
                 </Button>
               )}
             </div>
             <TimelineFeed
               items={timelineItems}
-              emptyMessage="Nothing posted on this project yet. The first photo update is the one the client remembers."
+              emptyMessage="No posts on this project yet."
               engagementRefreshKeys={[`/api/projects/${projectId}/milestones`]}
               onEdit={(meta, item) => {
                 setEditingPost({

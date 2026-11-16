@@ -75,7 +75,7 @@ export default function InvoicesTable({
       <div className="flex flex-col gap-3">
         {shown.length === 0 ? (
           <p className="text-[14px] leading-relaxed text-foreground/75">
-            Nothing due. Invoices appear here when work is billed.
+            No invoices yet.
           </p>
         ) : (
           <ul className="flex flex-col gap-2.5">

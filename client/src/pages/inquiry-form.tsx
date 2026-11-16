@@ -18,15 +18,15 @@ import { ArrowLeft, Check, Loader2 } from "lucide-react";
 /* ------------------------------------------------------------------ */
 
 const inquirySchema = z.object({
-  name: z.string().min(2, "Your name, so we know who to ask for."),
+  name: z.string().min(2, "Enter your name."),
   business: z.string().optional(),
-  email: z.string().email("That doesn't look like a full email address."),
+  email: z.string().email("Enter a valid email address."),
   phone: z.string().optional(),
-  services: z.array(z.string()).min(1, "Pick at least one so we send the right person."),
+  services: z.array(z.string()).min(1, "Pick at least one."),
   budget: z.string().optional(),
   urgency: z.string().optional(),
   address: z.string().optional(),
-  message: z.string().min(10, "A sentence or two is plenty, but we need a little more than that."),
+  message: z.string().min(10, "Add a few details about the job."),
 });
 
 type InquiryFormValues = z.infer<typeof inquirySchema>;
@@ -122,7 +122,7 @@ export default function InquiryForm() {
               <img src={settings.logoPath} alt={companyName} className="h-9 max-w-[180px] object-contain" />
             ) : (
               <>
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-signal font-display text-lg font-bold text-signal-foreground">SD</span>
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-foreground font-display text-lg font-bold text-background">SD</span>
                 <span className="hidden font-display text-xl font-bold sm:inline">{companyName}</span>
               </>
             )}
@@ -138,27 +138,23 @@ export default function InquiryForm() {
         {/* Left: why and what happens next */}
         <div className="flex flex-col gap-7 lg:max-w-md">
           <div className="flex flex-col gap-3">
-            <p className="font-display text-[13px] font-semibold uppercase tracking-[0.12em] text-signal-soft-foreground">Request a quote</p>
-            <h1 className="text-4xl sm:text-5xl lg:text-[3.5rem] lg:leading-none">Tell us what's going on. We'll come look.</h1>
+            <p className="font-display text-[13px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Contact</p>
+            <h1 className="text-4xl sm:text-5xl lg:text-[3.5rem] lg:leading-none">Request a quote</h1>
             <p className="text-[17px] leading-relaxed text-foreground/75">
-              Two minutes here saves a round of phone tag.
-              {phone ? <> If something is down right now, skip the form and <a href={`tel:${phone.replace(/[^\d+]/g, "")}`} className="font-semibold text-primary hover:underline">call {phone}</a>.</> : " If something is down right now, say so in the urgency field and we'll jump on it."}
+              Fill this out and we'll get back to you within one business day.
+              {phone && <> If something is down right now, call <a href={`tel:${phone.replace(/[^\d+]/g, "")}`} className="font-semibold text-primary hover:underline">{phone}</a>.</>}
             </p>
           </div>
 
           <div className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
             <p className="font-display text-[13px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">What happens next</p>
             <ol className="flex flex-col gap-3.5">
-              <Step n={1}><strong className="text-foreground">We reply within one business day</strong> with a couple of questions or a time to come by.</Step>
-              <Step n={2}><strong className="text-foreground">Free walkthrough.</strong> We look at the closet, the ceiling and the wiring before pricing anything.</Step>
-              <Step n={3} signal><strong className="text-foreground">Written quote,</strong> parts and labor separated, good for 30 days.</Step>
+              <Step n={1}>We reply within one business day.</Step>
+              <Step n={2}>We schedule a walkthrough of the site.</Step>
+              <Step n={3}>You get a written quote.</Step>
             </ol>
           </div>
 
-          <p className="text-[13.5px] leading-relaxed text-muted-foreground">
-            Every quote comes from someone who has done the job, not a sales rep. Photos of similar jobs are on the{" "}
-            <a href="/#work" onClick={(e) => { e.preventDefault(); navigate("/"); }} className="font-medium text-primary hover:underline">recent work</a> section.
-          </p>
         </div>
 
         {/* Right: the form or the confirmation */}
@@ -168,13 +164,13 @@ export default function InquiryForm() {
               <Check className="h-8 w-8" strokeWidth={2.5} />
             </span>
             <div className="flex max-w-md flex-col gap-2">
-              <h2 className="text-3xl">Got it. We'll be in touch within one business day.</h2>
+              <h2 className="text-3xl">Request sent</h2>
               <p className="text-[15px] leading-relaxed text-foreground/75">
-                Expect a short reply with a couple of questions or a time for the walkthrough. If it's urgent and you haven't heard back by tomorrow{phone ? `, call ${phone}` : ", give us a call"}.
+                We'll get back to you within one business day{phone ? `. If it's urgent, call ${phone}.` : "."}
               </p>
             </div>
             <div className="flex flex-wrap justify-center gap-2.5">
-              <Button variant="outline" onClick={() => navigate("/")}>Back to the site</Button>
+              <Button variant="outline" onClick={() => navigate("/")}>Back to site</Button>
               <Button variant="ghost" onClick={() => setSubmitted(false)}>Send another</Button>
             </div>
           </div>
@@ -265,7 +261,7 @@ export default function InquiryForm() {
                 <FormItem>
                   <FormLabel>Site address <span className="font-normal text-muted-foreground">(optional)</span></FormLabel>
                   <FormControl><Input placeholder="Street, city, ZIP" autoComplete="street-address" {...field} /></FormControl>
-                  <FormDescription>So we can tell you if it's in our service area before you wait a day.</FormDescription>
+                  <FormDescription>Helps us confirm you're in our service area.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -277,7 +273,7 @@ export default function InquiryForm() {
                     <Textarea
                       rows={5}
                       className="resize-y text-[15px] leading-relaxed"
-                      placeholder="Example: Two-story office, about 20 people. Wi-Fi drops in the back half every afternoon. We also want cameras on the loading dock."
+                      placeholder="Tell us about the site and what you need done."
                       {...field}
                     />
                   </FormControl>
@@ -286,9 +282,9 @@ export default function InquiryForm() {
               )} />
 
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5">
-                <p className="max-w-xs text-[13px] leading-snug text-muted-foreground">We only use this to get back to you. No list, no newsletter.</p>
-                <Button type="submit" variant="signal" size="lg" disabled={submit.isPending} className="w-full sm:w-auto">
-                  {submit.isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> Sending…</> : "Send my request"}
+                <p className="max-w-xs text-[13px] leading-snug text-muted-foreground">We'll only use this to contact you about your request.</p>
+                <Button type="submit" size="lg" disabled={submit.isPending} className="w-full sm:w-auto">
+                  {submit.isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> Sending…</> : "Send request"}
                 </Button>
               </div>
             </form>
@@ -307,11 +303,11 @@ export default function InquiryForm() {
   );
 }
 
-function Step({ n, children, signal = false }: { n: number; children: React.ReactNode; signal?: boolean }) {
+function Step({ n, children }: { n: number; children: React.ReactNode }) {
   return (
     <li className="flex items-start gap-3">
-      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-display text-sm font-bold ${signal ? "bg-signal text-signal-foreground" : "bg-foreground text-background"}`}>{n}</span>
-      <p className="text-[14.5px] leading-relaxed text-foreground/75">{children}</p>
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-foreground font-display text-sm font-bold text-background">{n}</span>
+      <p className="pt-0.5 text-[14.5px] leading-relaxed text-foreground/80">{children}</p>
     </li>
   );
 }

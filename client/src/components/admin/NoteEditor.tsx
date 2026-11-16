@@ -131,7 +131,7 @@ export default function NoteEditor({ clientId, open, onClose, initial, invalidat
       <DialogContent className="flex max-h-[100dvh] w-full flex-col gap-0 overflow-hidden rounded-none p-0 sm:max-h-[90vh] sm:max-w-xl sm:rounded-xl">
         <DialogHeader className="border-b border-border px-5 py-4 text-left">
           <DialogTitle className="font-display text-2xl font-semibold">{isEditing ? "Edit note" : "New note"}</DialogTitle>
-          <DialogDescription className="text-[13px]">Visible to the client under Notes. Locked values stay hidden until they tap Reveal.</DialogDescription>
+          <DialogDescription className="text-[13px]">Visible to the client under Notes. Locked values are hidden until revealed.</DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-5">
@@ -180,7 +180,7 @@ export default function NoteEditor({ clientId, open, onClose, initial, invalidat
             ) : (
               <div className="flex flex-col gap-2">
                 {draft.fields.map((field, i) => (
-                  <div key={i} className={`flex flex-col gap-2 rounded-xl border bg-card p-2.5 ${field.isSecret ? "border-signal" : "border-border"}`}>
+                  <div key={i} className={`flex flex-col gap-2 rounded-xl border bg-card p-2.5 ${field.isSecret ? "border-primary" : "border-border"}`}>
                     <div className="flex items-center gap-2">
                       <Input
                         className="h-9 flex-1 border-0 bg-transparent px-1 text-[13px] font-semibold shadow-none focus-visible:ring-1"
@@ -193,7 +193,7 @@ export default function NoteEditor({ clientId, open, onClose, initial, invalidat
                         type="button"
                         variant="outline"
                         size="sm"
-                        className={`h-9 w-9 p-0 ${field.isSecret ? "border-signal bg-signal-soft text-signal-soft-foreground hover:bg-signal-soft" : "text-muted-foreground"}`}
+                        className={`h-9 w-9 p-0 ${field.isSecret ? "border-primary bg-primary-soft text-primary-soft-foreground hover:bg-primary-soft" : "text-muted-foreground"}`}
                         onClick={() => updateField(i, { isSecret: !field.isSecret })}
                         aria-pressed={!!field.isSecret}
                         aria-label={field.isSecret ? "Secret, tap to make visible" : "Visible, tap to make secret"}
@@ -216,7 +216,7 @@ export default function NoteEditor({ clientId, open, onClose, initial, invalidat
                       aria-label="Value"
                     />
                     {field.isSecret && (
-                      <p className="text-[12px] font-medium text-signal-soft-foreground">Secret. The client sees dots until they tap Reveal. You always see what you type.</p>
+                      <p className="text-[12px] font-medium text-primary">Hidden from the client until they reveal it. You always see what you type.</p>
                     )}
                   </div>
                 ))}
@@ -235,12 +235,12 @@ export default function NoteEditor({ clientId, open, onClose, initial, invalidat
               id="note-content"
               value={draft.content}
               onChange={e => setDraft(d => ({ ...d, content: e.target.value }))}
-              placeholder="Where it is, who should have it, what to do if it stops working."
+              placeholder="Instructions or context for the client."
               rows={4}
               className="resize-none text-[14.5px] leading-relaxed"
             />
           </div>
-          <p className="text-[12.5px] text-muted-foreground">Shows to the client as a {categoryLabel[draft.category] ?? "Note"} card. Secret values are encrypted at rest and never emailed.</p>
+          <p className="text-[12.5px] text-muted-foreground">Shown to the client as a {categoryLabel[draft.category] ?? "Note"} card. Hidden values are encrypted at rest.</p>
         </div>
 
         <DialogFooter className="flex-row gap-2.5 border-t border-border px-5 py-4 sm:justify-end">

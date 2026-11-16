@@ -52,7 +52,7 @@ export default function DocumentsList({
 
   const list = shown.length === 0 ? (
     <p className="text-[14px] leading-relaxed text-foreground/75">
-      {compact ? "Quotes, camera maps and manuals land here as the job goes." : "No documents yet."}
+      {compact ? "Quotes, drawings and manuals for your project will show up here." : "No documents yet."}
     </p>
   ) : (
     <ul className="flex flex-col gap-1">

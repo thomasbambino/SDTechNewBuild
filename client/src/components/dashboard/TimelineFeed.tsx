@@ -468,7 +468,7 @@ export default function TimelineFeed({
             <article key={item.id} className="rounded-xl border border-border bg-card px-5 py-5 shadow-sm">
               <header className="flex items-start gap-3">
                 <Avatar className="h-10 w-10 flex-shrink-0">
-                  <AvatarFallback className={item.type === "start" ? "bg-signal-soft text-signal-soft-foreground" : "bg-primary-soft font-display text-sm font-bold tracking-wide text-primary-soft-foreground"}>
+                  <AvatarFallback className={item.type === "start" ? "bg-primary-soft text-primary-soft-foreground" : "bg-primary-soft font-display text-sm font-bold tracking-wide text-primary-soft-foreground"}>
                     {item.type === "start" ? <Flag className="h-4 w-4" /> : initialsOf(item.authorName)}
                   </AvatarFallback>
                 </Avatar>

@@ -128,7 +128,7 @@ export default function Header({ sidebarOpen, setSidebarOpen, themeMode, setThem
                 </div>
               ) : (
                 <>
-                  <span className="mr-2.5 flex h-9 w-9 items-center justify-center rounded-lg bg-signal font-display text-lg font-bold text-signal-foreground">SD</span>
+                  <span className="mr-2.5 flex h-9 w-9 items-center justify-center rounded-lg bg-foreground font-display text-lg font-bold text-background">SD</span>
                   <span className="hidden flex-col leading-none md:flex">
                     <span className="font-display text-xl font-bold">{publicSettings?.companyName || "SD Tech Pros"}</span>
                     <span className="font-display text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">

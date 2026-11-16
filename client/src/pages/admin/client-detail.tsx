@@ -203,7 +203,7 @@ export default function ClientDetailPage() {
         </nav>
 
         <header className="flex flex-wrap items-center gap-4">
-          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[14px] bg-signal-soft font-display text-xl font-bold tracking-wide text-signal-soft-foreground" aria-hidden="true">{initials}</span>
+          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[14px] bg-primary-soft font-display text-xl font-bold tracking-wide text-primary-soft-foreground" aria-hidden="true">{initials}</span>
           <div className="flex min-w-0 flex-1 flex-col gap-1">
             <h1 className="truncate text-2xl sm:text-3xl">{client.name}</h1>
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-[13.5px] text-muted-foreground">
@@ -239,7 +239,7 @@ export default function ClientDetailPage() {
                 {createLoginMutation.isPending ? "Creating…" : "Create login"}
               </Button>
             )}
-            <Button variant="signal" onClick={openComposer} className="w-full sm:w-auto">
+            <Button onClick={openComposer} className="w-full sm:w-auto">
               <Camera className="h-4 w-4" /> Post update
             </Button>
           </div>
@@ -292,7 +292,7 @@ export default function ClientDetailPage() {
                   onSaved={() => { setEditingPost(undefined); setComposerOpen(false); }}
                 />
               ) : (
-                <Button variant="signal" size="lg" className="w-full sm:w-auto" onClick={openComposer} disabled={projects.length === 0}>
+                <Button size="lg" className="w-full sm:w-auto" onClick={openComposer} disabled={projects.length === 0}>
                   <Camera className="h-5 w-5" /> Post an update with photos
                 </Button>
               )}
@@ -326,7 +326,7 @@ export default function ClientDetailPage() {
                   },
                 };
               }) as TimelineItem[]}
-              emptyMessage="Nothing posted for this client yet. The first photo update is the one they'll remember."
+              emptyMessage="No posts for this client yet."
               engagementRefreshKeys={[`/api/timeline/admin?clientId=${clientId}`]}
               onEdit={(meta, item) => {
                 setEditingPost({
@@ -450,7 +450,7 @@ export default function ClientDetailPage() {
 
           <TabsContent value="notes" className="mt-4 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-[13.5px] text-muted-foreground">Everything here is visible to the client under Notes. Lock a value to hide it until they reveal it.</p>
+              <p className="text-[13.5px] text-muted-foreground">Visible to the client under Notes. Locked values are hidden until revealed.</p>
               <Button onClick={() => { setEditingNote(undefined); setNoteEditorOpen(true); }}>
                 <Plus className="h-4 w-4" /> Add note
               </Button>
@@ -459,7 +459,7 @@ export default function ClientDetailPage() {
               <div className="rounded-xl border border-dashed border-input bg-card px-6 py-10 text-center">
                 <p className="font-display text-xl font-semibold">No notes yet.</p>
                 <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-                  Wi-Fi credentials, VLAN assignments, camera logins, door codes. Anything the client should be able to find six months from now.
+                  Wi-Fi credentials, VLAN assignments, camera logins and door codes.
                 </p>
               </div>
             ) : (

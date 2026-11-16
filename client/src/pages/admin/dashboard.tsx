@@ -71,7 +71,7 @@ export function AdminHomeView({ data, unreadMessages, onRefresh, refreshing = fa
   const needs: { key: string; icon: React.ReactNode; tone: string; title: string; detail: string; count?: number; to: string }[] = [];
   if (data.pendingInquiries.length > 0) {
     needs.push({
-      key: "inq", icon: <Inbox className="h-5 w-5" />, tone: "bg-signal-soft text-signal-soft-foreground",
+      key: "inq", icon: <Inbox className="h-5 w-5" />, tone: "bg-primary-soft text-primary-soft-foreground",
       title: `${data.pendingInquiries.length} new quote request${data.pendingInquiries.length === 1 ? "" : "s"}`,
       detail: data.pendingInquiries.slice(0, 2).map(i => i.name).join(" · "),
       to: "/admin/inquiries",
@@ -89,7 +89,7 @@ export function AdminHomeView({ data, unreadMessages, onRefresh, refreshing = fa
     needs.push({
       key: "msg", icon: <MessageSquare className="h-5 w-5" />, tone: "bg-primary-soft text-primary-soft-foreground",
       title: `${unreadMessages} unread message${unreadMessages === 1 ? "" : "s"}`,
-      detail: "Clients are waiting on a reply",
+      detail: "Unread client messages",
       count: unreadMessages,
       to: "/admin/messages",
     });
@@ -111,7 +111,7 @@ export function AdminHomeView({ data, unreadMessages, onRefresh, refreshing = fa
               <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
             </Button>
           )}
-          <Button variant="signal" onClick={() => navigate("/admin/clients")}>
+          <Button onClick={() => navigate("/admin/clients")}>
             <Camera className="h-4 w-4" />
             Post an update
           </Button>
@@ -125,7 +125,7 @@ export function AdminHomeView({ data, unreadMessages, onRefresh, refreshing = fa
             <SectionLabel>{needs.length > 0 ? `Needs you · ${needs.length}` : "Needs you"}</SectionLabel>
             {needs.length === 0 ? (
               <div className="rounded-xl border border-dashed border-input bg-card px-5 py-6 text-[14.5px] text-foreground/75">
-                Nothing waiting on you. Quote requests, unread messages and unpaid invoices show up here.
+                Nothing pending. Quote requests, unread messages and unpaid invoices show up here.
               </div>
             ) : (
               needs.map(n => (
@@ -205,7 +205,7 @@ export function AdminHomeView({ data, unreadMessages, onRefresh, refreshing = fa
           </div>
           <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
             {data.recentActivities.length === 0 ? (
-              <p className="px-4 py-6 text-[14.5px] text-foreground/75">Quiet so far.</p>
+              <p className="px-4 py-6 text-[14.5px] text-foreground/75">No recent activity.</p>
             ) : (
               <ul className="divide-y divide-border">
                 {data.recentActivities.map(a => (

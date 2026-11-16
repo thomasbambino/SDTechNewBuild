@@ -96,26 +96,26 @@ const SERVICE_ICON_MAP: Record<string, React.ReactNode> = {
 };
 
 const DEFAULT_HERO = {
-  title: "The techs you call when the office network dies at 4 PM.",
+  title: "Network, camera and IT installs for small businesses in San Diego.",
   subtitle:
-    "We install and maintain the stuff your business runs on: the network, the Wi-Fi, the cameras, the computers. Every job is documented with photos as we work, and you get those photos in your own portal, not a line item on an invoice.",
+    "We install and maintain networks, Wi-Fi, camera systems and computers. Every job is photographed as we go, and you can follow progress in your client portal.",
   cta: "Request a quote",
 };
 
 const DEFAULT_JOBS: Job[] = [
-  { id: "d1", kind: "Cameras", tags: ["112 cameras", "PoE", "NVR", "3 buildings"], title: "Camera system for a retirement community", result: "Over a hundred cameras across three buildings, wired back to one NVR, with staff able to pull footage without calling us.", photo: null },
-  { id: "d2", kind: "Network", tags: ["Firewall", "Switching", "Wi-Fi 6", "Rack"], title: "Full office network stack rebuild", result: "Pulled the consumer gear, built a proper rack, segmented guest and staff traffic, and left a VLAN map in the portal.", photo: null },
-  { id: "d3", kind: "Security", tags: ["Incident response", "Cleanup", "Hardening"], title: "Forensics after a hacked work computer", result: "Imaged the machine, traced what got in and when, cleaned it, then locked down the rest of the office so it would not happen again.", photo: null },
-  { id: "d4", kind: "Wi-Fi", tags: ["WAPs", "Smart locks", "Cameras"], title: "Whole-house Wi-Fi and smart home hardware", result: "Access points where the signal actually needed to be, plus locks and cameras that all work from one app.", photo: null },
-  { id: "d5", kind: "Computers", tags: ["Migration", "Backups", "Email"], title: "New computer migration, no lost files", result: "Everything moved, email and printers reconnected, old drive kept as a backup until the client said they were sure.", photo: null },
-  { id: "d6", kind: "Consulting", tags: ["Small business", "Planning", "Vendors"], title: "Straight answers on what to buy and what to skip", result: "A short written plan: what to fix first, what can wait, and what the vendor is overselling you.", photo: null },
+  { id: "d1", kind: "Cameras", tags: ["112 cameras", "PoE", "NVR", "3 buildings"], title: "Camera system for a retirement community", result: "112 PoE cameras across three buildings on a single NVR. Staff can review and export footage themselves.", photo: null },
+  { id: "d2", kind: "Network", tags: ["Firewall", "Switching", "Wi-Fi 6", "Rack"], title: "Full office network stack rebuild", result: "Replaced consumer gear with a rack-mounted firewall, managed switching and Wi-Fi 6, with guest and staff traffic on separate VLANs.", photo: null },
+  { id: "d3", kind: "Security", tags: ["Incident response", "Cleanup", "Hardening"], title: "Forensics after a hacked work computer", result: "Imaged the drive, identified how and when it was compromised, cleaned the machine and hardened the rest of the office.", photo: null },
+  { id: "d4", kind: "Wi-Fi", tags: ["WAPs", "Smart locks", "Cameras"], title: "Whole-house Wi-Fi and smart home hardware", result: "Ceiling-mounted access points for full coverage, plus smart locks and cameras on one app.", photo: null },
+  { id: "d5", kind: "Computers", tags: ["Migration", "Backups", "Email"], title: "New computer migration, no lost files", result: "Files, email and printers moved to the new machine. The old drive was kept as a backup.", photo: null },
+  { id: "d6", kind: "Consulting", tags: ["Small business", "Planning", "Vendors"], title: "Straight answers on what to buy and what to skip", result: "A written plan covering what to fix first, what can wait, and what to buy.", photo: null },
 ];
 
 const DEFAULT_SERVICES = [
-  { id: "s1", icon: "wifi", title: "Networks & Wi-Fi", lines: ["Firewalls, switching and rack builds", "Wi-Fi 6 access points, placed by survey not guesswork", "Guest and staff networks kept apart"] },
-  { id: "s2", icon: "camera", title: "Camera systems", lines: ["Dome, bullet and PTZ cameras over PoE", "NVR setup with remote viewing for your staff", "Single-building to 100+ camera campuses"] },
-  { id: "s3", icon: "monitor", title: "Small-business IT", lines: ["Computer setup, migration and backups", "Email, printers and the stuff that just stops working", "Hacked? We image, clean and harden"] },
-  { id: "s4", icon: "home", title: "Smart home & low voltage", lines: ["Smart locks, doorbells and hubs that talk to each other", "Whole-house Wi-Fi and wired drops", "Clean, labelled, finished runs"] },
+  { id: "s1", icon: "wifi", title: "Networks & Wi-Fi", lines: ["Firewalls, switching and rack builds", "Wi-Fi 6 access points", "Separate guest and staff networks"] },
+  { id: "s2", icon: "camera", title: "Camera systems", lines: ["Dome, bullet and PTZ cameras over PoE", "NVR setup with remote viewing", "Single buildings to 100+ camera sites"] },
+  { id: "s3", icon: "monitor", title: "Small-business IT", lines: ["Computer setup, migration and backups", "Email and printer support", "Security incident response"] },
+  { id: "s4", icon: "home", title: "Smart home & low voltage", lines: ["Smart locks, doorbells and hubs", "Whole-house Wi-Fi and wired drops", "Clean, labelled cable runs"] },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -137,12 +137,12 @@ function parseJob(row: ContentSection): Job {
   };
 }
 
-/** Equipment-label tag. `signal` is the orange one, used once per card for the job kind. */
-function Tag({ children, signal = false, className = "" }: { children: React.ReactNode; signal?: boolean; className?: string }) {
+/** Equipment-label tag. `accent` is the blue one, used once per card for the job kind. */
+function Tag({ children, accent = false, className = "" }: { children: React.ReactNode; accent?: boolean; className?: string }) {
   return (
     <span
       className={`inline-flex h-[22px] items-center whitespace-nowrap rounded border px-2 font-display text-[11.5px] font-semibold uppercase tracking-[0.1em] ${
-        signal ? "border-signal bg-signal-soft text-signal-soft-foreground" : "border-input text-foreground/80"
+        accent ? "border-primary bg-primary-soft text-primary-soft-foreground" : "border-input text-foreground/80"
       } ${className}`}
     >
       {children}
@@ -183,10 +183,10 @@ function LogoMark({ companyName, logoPath, light = false }: { companyName: strin
   }
   return (
     <span className="flex items-center gap-2.5">
-      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-signal font-display text-lg font-bold text-signal-foreground">SD</span>
+      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-foreground font-display text-lg font-bold text-background">SD</span>
       <span className="flex flex-col leading-none">
         <span className="font-display text-xl font-bold">{companyName}</span>
-        <span className="hidden font-display text-[10.5px] font-semibold uppercase tracking-[0.14em] text-muted-foreground sm:block">San Diego · Networks · Cameras · IT</span>
+        <span className="hidden font-display text-[10.5px] font-semibold uppercase tracking-[0.14em] text-muted-foreground sm:block">San Diego</span>
       </span>
     </span>
   );
@@ -243,7 +243,7 @@ export default function PublicHome() {
   const navLinks = [
     { name: "Recent work", id: "work" },
     { name: "Services", id: "services" },
-    { name: "How a job works", id: "how" },
+    { name: "How it works", id: "how" },
   ];
 
   const scrollToSection = (id: string) => {
@@ -275,11 +275,11 @@ export default function PublicHome() {
               </a>
             ))}
             <Button variant="outline" size="sm" onClick={() => navigate(portalHref)}>{portalLabel}</Button>
-            <Button variant="signal" size="sm" onClick={() => navigate("/inquiry")}>Get a quote</Button>
+            <Button size="sm" onClick={() => navigate("/inquiry")}>Get a quote</Button>
           </nav>
 
           <div className="ml-auto flex items-center gap-2 md:hidden">
-            <Button variant="signal" size="sm" onClick={() => navigate("/inquiry")}>Get a quote</Button>
+            <Button size="sm" onClick={() => navigate("/inquiry")}>Get a quote</Button>
             <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
               <SheetTrigger asChild>
                 <Button variant="ghost" size="icon" aria-label="Open menu">
@@ -304,7 +304,7 @@ export default function PublicHome() {
                   ))}
                   <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4">
                     <Button variant="outline" onClick={() => { setIsMenuOpen(false); navigate(portalHref); }}>{portalLabel}</Button>
-                    <Button variant="signal" onClick={() => { setIsMenuOpen(false); navigate("/inquiry"); }}>Request a quote</Button>
+                    <Button onClick={() => { setIsMenuOpen(false); navigate("/inquiry"); }}>Request a quote</Button>
                   </div>
                 </div>
               </SheetContent>
@@ -317,7 +317,7 @@ export default function PublicHome() {
         {/* Hero */}
         <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-14 sm:px-6 md:py-20 lg:grid-cols-[1.05fr_1fr] lg:gap-14">
           <div className="flex flex-col gap-6">
-            <Eyebrow className="text-signal-soft-foreground">Networks · Camera systems · Small-business IT · San Diego County</Eyebrow>
+            <Eyebrow>Networks · Cameras · IT · San Diego County</Eyebrow>
             {heroLoading ? (
               <div className="space-y-3">
                 <Skeleton className="h-14 w-full" />
@@ -332,26 +332,21 @@ export default function PublicHome() {
               </>
             )}
             <div className="flex flex-wrap gap-3">
-              <Button variant="signal" size="lg" onClick={() => navigate("/inquiry")}>
+              <Button size="lg" onClick={() => navigate("/inquiry")}>
                 {hero.cta}
                 <ArrowRight className="h-5 w-5" />
               </Button>
               <Button variant="outline" size="lg" onClick={() => scrollToSection("work")}>See recent work</Button>
             </div>
-            <ul className="flex flex-wrap gap-x-5 gap-y-1 text-[13.5px] font-medium text-muted-foreground">
-              <li>Licensed &amp; insured</li>
-              <li>Replies within one business day</li>
-              <li>Owner on every job</li>
-            </ul>
           </div>
 
           {/* Hero visual: the latest job with a photo, else the hero image, else a portal preview */}
           {featuredJob || hero.image ? (
             <article className="overflow-hidden rounded-xl border border-border bg-card shadow-lg">
               <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
-                <Tag signal>{featuredJob ? featuredJob.kind : "Recent job"}</Tag>
+                <Tag accent>{featuredJob ? featuredJob.kind : "Recent job"}</Tag>
                 {featuredJob?.tags.slice(0, 2).map((t) => <Tag key={t}>{t}</Tag>)}
-                <span className="ml-auto text-[12.5px] font-medium text-muted-foreground">Posted to the client's portal</span>
+                <span className="ml-auto text-[12.5px] font-medium text-muted-foreground">From the client portal</span>
               </div>
               <div className="aspect-[4/3] bg-muted">
                 <PhotoSlot src={featuredJob?.photo ?? hero.image} alt={featuredJob?.title ?? hero.title} fallback="" />
@@ -371,9 +366,9 @@ export default function PublicHome() {
           <div className="mx-auto flex max-w-6xl flex-col gap-9 px-4 py-16 sm:px-6 md:py-20">
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div className="flex max-w-2xl flex-col gap-3">
-                <Eyebrow>From the field log</Eyebrow>
-                <h2 className="text-4xl sm:text-5xl">Work we've actually done, shown the way we document it.</h2>
-                <p className="text-[16.5px] leading-relaxed text-foreground/75">No stock photos of smiling people in headsets. These are the photos we take on site so you can see what you paid for.</p>
+                <Eyebrow>Recent work</Eyebrow>
+                <h2 className="text-4xl sm:text-5xl">Recent jobs</h2>
+                <p className="text-[16.5px] leading-relaxed text-foreground/75">Photos from the job site.</p>
               </div>
             </div>
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -384,7 +379,7 @@ export default function PublicHome() {
                   </div>
                   <div className="flex flex-1 flex-col gap-2.5 p-5">
                     <div className="flex flex-wrap gap-1.5">
-                      <Tag signal>{job.kind}</Tag>
+                      <Tag accent>{job.kind}</Tag>
                       {job.tags.slice(0, 3).map((t) => <Tag key={t}>{t}</Tag>)}
                     </div>
                     <h3 className="text-xl font-semibold leading-tight">{job.title}</h3>
@@ -400,8 +395,8 @@ export default function PublicHome() {
         <section id="services" className="scroll-mt-16 border-t border-border">
           <div className="mx-auto flex max-w-6xl flex-col gap-9 px-4 py-16 sm:px-6 md:py-20">
             <div className="flex max-w-2xl flex-col gap-3">
-              <Eyebrow>What we do</Eyebrow>
-              <h2 className="text-4xl sm:text-5xl">{services.length === 4 ? "Four things, done properly." : "What we do, done properly."}</h2>
+              <Eyebrow>Services</Eyebrow>
+              <h2 className="text-4xl sm:text-5xl">What we do</h2>
             </div>
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
               {services.map((service) => (
@@ -428,13 +423,13 @@ export default function PublicHome() {
           <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 py-16 sm:px-6 md:py-20 lg:grid-cols-2">
             <div className="flex flex-col gap-7">
               <div className="flex flex-col gap-3">
-                <Eyebrow>How a job works</Eyebrow>
-                <h2 className="text-4xl sm:text-5xl">You'll never wonder what we did.</h2>
+                <Eyebrow>Process</Eyebrow>
+                <h2 className="text-4xl sm:text-5xl">How it works</h2>
               </div>
               <ol className="flex flex-col gap-6">
-                <Step n={1} title="Walkthrough and a written quote">We come look at the ceiling, the closet and the wiring before we price anything. The quote lists parts and labor separately.</Step>
-                <Step n={2} title="Install, photographed as we go">Progress posts land in your portal from the job site, so you can check in from your phone instead of walking over.</Step>
-                <Step n={3} title="Handoff you can find later" signal>Wi-Fi passwords, VLANs, camera logins and gate codes live in your Notes, with the invoice next to them. Six months from now it's still there.</Step>
+                <Step n={1} title="Walkthrough and quote">We come out, look at the space, and send a written quote.</Step>
+                <Step n={2} title="Install">We do the work and post photo updates to your portal as we go.</Step>
+                <Step n={3} title="Handoff">Passwords, network details and logins go in your portal so you can find them later.</Step>
               </ol>
             </div>
             <PortalPreview />
@@ -487,14 +482,13 @@ export default function PublicHome() {
         <section id="quote" className="scroll-mt-16 bg-primary-950 text-neutral-100">
           <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-7 px-4 py-16 sm:px-6 md:py-20">
             <div className="flex max-w-xl flex-col gap-3">
-              <h2 className="text-4xl text-neutral-50 sm:text-5xl">Network down, or just overdue for an upgrade?</h2>
+              <h2 className="text-4xl text-neutral-50 sm:text-5xl">Need a quote?</h2>
               <p className="text-[17px] leading-relaxed text-neutral-300">
-                Tell us what's going on. We'll reply within one business day with next steps
-                {contact.phone ? <>, or call if it's on fire right now.</> : "."}
+                Tell us what you need and we'll get back to you within one business day.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
-              <Button variant="signal" size="lg" onClick={() => navigate("/inquiry")}>Request a quote</Button>
+              <Button size="lg" onClick={() => navigate("/inquiry")}>Request a quote</Button>
               {contact.phone && (
                 <Button asChild variant="outline" size="lg" className="border-neutral-700 bg-transparent text-neutral-100 hover:bg-neutral-100/10 hover:text-neutral-50">
                   <a href={`tel:${contact.phone.replace(/[^\d+]/g, "")}`}>Call {contact.phone}</a>
@@ -509,7 +503,7 @@ export default function PublicHome() {
       <footer className="border-t border-border bg-background">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-7 gap-y-3 px-4 py-7 text-[13.5px] text-muted-foreground sm:px-6">
           <span className="flex items-center gap-2 font-semibold text-foreground">
-            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-signal font-display text-[13px] font-bold text-signal-foreground">SD</span>
+            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-foreground font-display text-[13px] font-bold text-background">SD</span>
             {companyName}
           </span>
           {contact.address && <span>{contact.address}</span>}
@@ -531,10 +525,10 @@ export default function PublicHome() {
 /* Sub-components used above                                           */
 /* ------------------------------------------------------------------ */
 
-function Step({ n, title, children, signal = false }: { n: number; title: string; children: React.ReactNode; signal?: boolean }) {
+function Step({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
   return (
     <li className="flex gap-4">
-      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-display text-lg font-bold ${signal ? "bg-signal text-signal-foreground" : "bg-foreground text-background"}`}>{n}</span>
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-foreground font-display text-lg font-bold text-background">{n}</span>
       <div className="flex flex-col gap-1">
         <p className="text-[17px] font-semibold">{title}</p>
         <p className="text-[14.5px] leading-relaxed text-foreground/75">{children}</p>
@@ -550,8 +544,8 @@ function PortalPreview() {
       <div className="flex items-center gap-2.5">
         <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-soft font-display text-xs font-bold text-primary-soft-foreground">SD</span>
         <div className="flex flex-col leading-tight">
-          <span className="text-sm font-semibold">Your tech posted an update</span>
-          <span className="text-[12.5px] text-muted-foreground">From the job site · today</span>
+          <span className="text-sm font-semibold">New update</span>
+          <span className="text-[12.5px] text-muted-foreground">Today</span>
         </div>
         <span className="ml-auto inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-primary-soft px-2.5 py-1 text-xs font-semibold text-primary-soft-foreground"><Clock className="h-3 w-3" />In progress</span>
       </div>

@@ -18,8 +18,8 @@ const buttonVariants = cva(
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
-        // Brand orange: one per screen, for the action we most want taken.
-        signal: "bg-signal text-signal-foreground hover:bg-signal-400",
+        // Kept for compatibility; same as default.
+        signal: "bg-primary text-primary-foreground hover:bg-primary/90",
       },
       size: {
         default: "h-11 px-5 py-2",

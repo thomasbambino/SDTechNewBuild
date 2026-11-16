@@ -92,7 +92,7 @@ export default function NoteCard({ note, action, compact = false }: NoteCardProp
   const fields = parseNoteFields(note.fields);
 
   return (
-    <div className={`flex flex-col gap-3 rounded-xl border bg-card ${note.isPinned ? "border-signal" : "border-border"} ${compact ? "p-4" : "p-5"}`}>
+    <div className={`flex flex-col gap-3 rounded-xl border bg-card ${note.isPinned ? "border-primary" : "border-border"} ${compact ? "p-4" : "p-5"}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <div className="flex flex-wrap items-center gap-1.5">
@@ -100,7 +100,7 @@ export default function NoteCard({ note, action, compact = false }: NoteCardProp
               {noteCategoryLabel(note.category)}
             </span>
             {note.isPinned && (
-              <span className="inline-flex h-[22px] items-center gap-1 rounded-full bg-signal-soft px-2 text-[11.5px] font-semibold text-signal-soft-foreground">
+              <span className="inline-flex h-[22px] items-center gap-1 rounded-full bg-primary-soft px-2 text-[11.5px] font-semibold text-primary-soft-foreground">
                 <Pin className="h-3 w-3" /> Pinned
               </span>
             )}

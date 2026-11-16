@@ -58,7 +58,7 @@ export default function ClientDashboard() {
       ) : isError || !data ? (
         <div className="mx-auto flex max-w-md flex-col items-center gap-4 px-4 py-20 text-center">
           <p className="font-display text-2xl font-semibold">We couldn't load your dashboard.</p>
-          <p className="text-sm text-muted-foreground">Usually a blip. Try again, and message your tech if it keeps happening.</p>
+          <p className="text-sm text-muted-foreground">Try again, or contact us if it keeps happening.</p>
           <Button onClick={() => refetch()}>Try again</Button>
         </div>
       ) : (
@@ -124,8 +124,8 @@ export function ClientDashboardView({ data, timeline, notes }: { data: ClientDas
   const recentDocuments = [...data.documents].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
   const headline = isEmpty
-    ? nextStart ? `Welcome. Your first visit is ${format(new Date(nextStart), "EEEE")}.` : "Welcome. We'll post here from the first visit."
-    : "Here's where things stand.";
+    ? nextStart ? `Your first visit is ${format(new Date(nextStart), "EEEE, MMM d")}.` : "Welcome."
+    : "Project overview";
 
   return (
     <div className="mx-auto flex max-w-[1280px] flex-col gap-7 px-4 py-7 sm:px-6 lg:px-8">
@@ -175,7 +175,7 @@ export function ClientDashboardView({ data, timeline, notes }: { data: ClientDas
         <aside className="flex min-w-0 flex-[1_1_300px] flex-col gap-4 lg:max-w-[400px]" aria-label="Project summary">
           <RailCard title="Project status" linkLabel="All projects" onLink={() => navigate("/client/projects")}>
             {data.projects.length === 0 ? (
-              <p className="text-[14px] leading-relaxed text-foreground/75">No project on the books yet. Once a quote is accepted it shows up here with a progress bar.</p>
+              <p className="text-[14px] leading-relaxed text-foreground/75">No active project yet.</p>
             ) : (
               <div className="flex flex-col gap-5">
                 {data.projects.slice(0, 2).map(project => (
@@ -187,7 +187,7 @@ export function ClientDashboardView({ data, timeline, notes }: { data: ClientDas
 
           <RailCard title="Important notes" linkLabel="All notes" onLink={() => navigate("/client/notes")}>
             {pinnedNotes.length === 0 ? (
-              <p className="text-[14px] leading-relaxed text-foreground/75">Wi-Fi passwords, camera logins and access codes will show up here after install, so you never have to dig through texts for them.</p>
+              <p className="text-[14px] leading-relaxed text-foreground/75">Wi-Fi passwords, logins and access codes left for you will show up here.</p>
             ) : (
               <div className="flex flex-col gap-3">
                 {pinnedNotes.map(note => <NoteCard key={note.id} note={note} compact />)}
@@ -232,13 +232,13 @@ function RailCard({ title, linkLabel, onLink, children }: { title: string; linkL
 function ZeroState({ projectName, nextStart, hasQuote, onMessage, onDocuments }: { projectName: string | null; nextStart: string | null; hasQuote: boolean; onMessage: () => void; onDocuments: () => void }) {
   return (
     <div className="flex flex-col items-center gap-5 rounded-xl border border-dashed border-input bg-card px-6 py-10 text-center sm:px-8">
-      <span className="flex h-[72px] w-[72px] items-center justify-center rounded-[20px] bg-signal-soft text-signal-soft-foreground">
+      <span className="flex h-[72px] w-[72px] items-center justify-center rounded-[20px] bg-primary-soft text-primary-soft-foreground">
         <Camera className="h-8 w-8" strokeWidth={1.8} />
       </span>
       <div className="flex max-w-md flex-col gap-2">
         <h2 className="text-3xl">Your timeline starts on the first visit.</h2>
         <p className="text-[15px] leading-relaxed text-foreground/75">
-          Your tech posts photos and short updates from the job site as the work happens, so you'll see progress here before you see an invoice. Until then, here's what's already in place.
+          Photo updates from the job site will show up here as the work happens.
         </p>
       </div>
       <ul className="flex w-full max-w-md flex-col gap-2 text-left">
@@ -247,11 +247,11 @@ function ZeroState({ projectName, nextStart, hasQuote, onMessage, onDocuments }:
         {nextStart ? (
           <ZeroRow next>First day on site: {format(new Date(nextStart), "EEE, MMM d")}{projectName ? ` · ${projectName}` : ""}</ZeroRow>
         ) : (
-          <ZeroRow next>Next: your tech confirms the first visit</ZeroRow>
+          <ZeroRow next>Next: first visit to be scheduled</ZeroRow>
         )}
       </ul>
       <div className="flex flex-wrap justify-center gap-2.5">
-        <Button onClick={onMessage}><MessageSquare className="h-4 w-4" />Message your tech</Button>
+        <Button onClick={onMessage}><MessageSquare className="h-4 w-4" />Send a message</Button>
         {hasQuote && <Button variant="outline" onClick={onDocuments}>View the quote <ArrowRight className="h-4 w-4" /></Button>}
       </div>
     </div>
