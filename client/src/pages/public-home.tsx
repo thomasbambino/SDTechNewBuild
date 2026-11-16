@@ -178,16 +178,32 @@ function PhotoSlot({ src, alt, fallback, className = "" }: { src: string | null;
   );
 }
 
-function LogoMark({ companyName, logoPath, light = false }: { companyName: string; logoPath?: string | null; light?: boolean }) {
+function LogoMark({
+  companyName,
+  logoPath,
+  light = false,
+  size = "md",
+}: {
+  companyName: string;
+  logoPath?: string | null;
+  light?: boolean;
+  size?: "sm" | "md";
+}) {
+  const imgClass = size === "sm" ? "h-7 max-w-[140px] object-contain" : "h-9 max-w-[180px] object-contain";
+  const boxClass = size === "sm" ? "h-7 w-7 rounded-md text-[13px]" : "h-9 w-9 rounded-lg text-lg";
+  const nameClass = size === "sm" ? "font-display text-base font-bold" : "font-display text-xl font-bold";
   if (logoPath) {
-    return <img src={logoPath} alt={companyName} className={`h-9 max-w-[180px] object-contain ${light ? "brightness-0 invert" : ""}`} />;
+    return <img src={logoPath} alt={companyName} className={`${imgClass} ${light ? "brightness-0 invert" : ""}`} />;
   }
+  const initials = companyName.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join("").toUpperCase() || "?";
   return (
     <span className="flex items-center gap-2.5">
-      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-foreground font-display text-lg font-bold text-background">SD</span>
+      <span className={`flex items-center justify-center bg-foreground font-display font-bold text-background ${boxClass}`}>{initials}</span>
       <span className="flex flex-col leading-none">
-        <span className="font-display text-xl font-bold">{companyName}</span>
-        <span className="hidden font-display text-[10.5px] font-semibold uppercase tracking-[0.14em] text-muted-foreground sm:block">San Diego</span>
+        <span className={nameClass}>{companyName}</span>
+        {size === "md" && (
+          <span className="hidden font-display text-[10.5px] font-semibold uppercase tracking-[0.14em] text-muted-foreground sm:block">San Diego</span>
+        )}
       </span>
     </span>
   );
@@ -511,8 +527,7 @@ export default function PublicHome() {
       <footer className="border-t border-border bg-background">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-7 gap-y-3 px-4 py-7 text-[13.5px] text-muted-foreground sm:px-6">
           <span className="flex items-center gap-2 font-semibold text-foreground">
-            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-foreground font-display text-[13px] font-bold text-background">SD</span>
-            {companyName}
+            <LogoMark companyName={companyName} logoPath={settings?.logoPath} size="sm" />
           </span>
           {contact.address && <span>{contact.address}</span>}
           {contact.phone && <a href={`tel:${contact.phone.replace(/[^\d+]/g, "")}`} className="hover:text-foreground">{contact.phone}</a>}
