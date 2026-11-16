@@ -247,14 +247,15 @@ export function setupAuth(app: Express) {
       if (targetUser.role === "admin") return res.status(400).json({ message: "Cannot impersonate an admin" });
 
       const originalAdminId = (req.user as SelectUser).id;
-      const adminUsername = (req.user as SelectUser).username;
+      const adminDisplay = (req.user as SelectUser).name || (req.user as SelectUser).username;
+      const targetDisplay = targetUser.name || targetUser.username;
       req.login(targetUser, async (err) => {
         if (err) return next(err);
         (req.session as any).originalUserId = originalAdminId;
         await storage.createActivity({
           userId: originalAdminId,
           action: "Impersonation Started",
-          details: `Admin ${adminUsername} started impersonating ${targetUser.username}`,
+          details: `Admin ${adminDisplay} started impersonating ${targetDisplay}`,
           entityType: "user",
           entityId: targetUser.id,
         });
@@ -276,14 +277,15 @@ export function setupAuth(app: Express) {
       if (!adminUser) return res.status(404).json({ message: "Original admin not found" });
 
       const impersonatedId = (req.user as SelectUser).id;
-      const impersonatedUsername = (req.user as SelectUser).username;
+      const impersonatedDisplay = (req.user as SelectUser).name || (req.user as SelectUser).username;
+      const adminDisplay = adminUser.name || adminUser.username;
       req.login(adminUser, async (err) => {
         if (err) return next(err);
         delete (req.session as any).originalUserId;
         await storage.createActivity({
           userId: adminUser.id,
           action: "Impersonation Ended",
-          details: `Admin ${adminUser.username} stopped impersonating ${impersonatedUsername}`,
+          details: `Admin ${adminDisplay} stopped impersonating ${impersonatedDisplay}`,
           entityType: "user",
           entityId: impersonatedId,
         });

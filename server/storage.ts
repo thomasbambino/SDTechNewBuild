@@ -961,7 +961,7 @@ export class DatabaseStorage implements IStorage {
         a.entity_type AS "entityType",
         a.entity_id AS "entityId",
         a.created_at AS "createdAt",
-        u.username  AS "userName",
+        COALESCE(u.name, u.username) AS "userName",
         u.role      AS "userRole"
       FROM activities a
       LEFT JOIN users u ON u.id = a.user_id
