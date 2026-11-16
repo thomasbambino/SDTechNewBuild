@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { readCachedPublicSettings } from "@/lib/publicSettingsCache";
 
 type ThemeProviderProps = {
   children: ReactNode;
@@ -40,10 +41,32 @@ const initialState: ThemeProviderState = {
   faviconUrl: null
 };
 
+// Hydrate the provider's initial state from the localStorage cache so the
+// first useEffect pass doesn't accidentally remove the `dark` class that
+// index.html's bootstrap script just added, which caused a visible flash
+// of light theme on navigation.
+function hydrateInitialState(): ThemeProviderState {
+  const cached = readCachedPublicSettings();
+  if (!cached) return initialState;
+  return {
+    primaryColor: cached.primaryColor || initialState.primaryColor,
+    companyName: cached.companyName || initialState.companyName,
+    theme: cached.theme === "dark" ? "dark" : "light",
+    logoUrl: cached.logoPath ? toAbsolute(cached.logoPath) : null,
+    faviconUrl: cached.favicon ?? null,
+  };
+}
+
+function toAbsolute(path: string): string {
+  if (/^https?:\/\//.test(path)) return path;
+  if (typeof window === "undefined") return path;
+  return `${window.location.origin}${path.startsWith("/") ? "" : "/"}${path}`;
+}
+
 const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
 
 export function ThemeProvider({ children }: ThemeProviderProps) {
-  const [state, setState] = useState<ThemeProviderState>(initialState);
+  const [state, setState] = useState<ThemeProviderState>(hydrateInitialState);
 
   // Fetch settings from the API with proper type
   const { data: settings } = useQuery<SettingsData>({

@@ -21,6 +21,7 @@ import {
   ChevronDown
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { readCachedPublicSettings } from "@/lib/publicSettingsCache";
 
 function AdminBellButton() {
   const [_, navigate] = useLocation();
@@ -55,8 +56,14 @@ export default function Header({ sidebarOpen, setSidebarOpen, themeMode, setThem
   const { toast } = useToast();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [logoImgLoaded, setLogoImgLoaded] = useState(false);
+  // Seed from the localStorage cache so the first paint already has the
+  // real logo + company name. isLoading only reports true when there's no
+  // cached value at all, so the skeleton shows on the very first visit
+  // instead of every refresh.
+  const cachedSettings = readCachedPublicSettings();
   const { data: publicSettings, isLoading: settingsLoading } = useQuery<{ logoPath?: string; companyName?: string }>({
     queryKey: ["/api/settings/public"],
+    initialData: cachedSettings as { logoPath?: string; companyName?: string } | undefined,
   });
 
   const toggleTheme = () => {

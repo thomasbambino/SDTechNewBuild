@@ -1,6 +1,12 @@
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
+import { syncPublicSettingsCache } from "./lib/publicSettingsCache";
+
+// Fired once at module import so the subscription is live before any
+// component renders. Mirrors /api/settings/public into localStorage so
+// the next page load can hydrate instantly.
+syncPublicSettingsCache(queryClient);
 import { Toaster } from "@/components/ui/toaster";
 import NotFound from "@/pages/not-found";
 import { AuthProvider } from "@/hooks/use-auth";

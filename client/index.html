@@ -9,6 +9,29 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet" />
+    <!--
+      Synchronous bootstrap: read cached settings + theme from the last
+      successful page load and apply them before React mounts. Avoids the
+      light→dark flash and the "SD Tech Pros / default favicon" flash that
+      show up for the first few hundred ms while /api/settings/public is
+      being fetched.
+    -->
+    <script>
+      (function () {
+        try {
+          var cached = JSON.parse(localStorage.getItem("publicSettings") || "null");
+          var theme = (cached && cached.theme) || localStorage.getItem("theme");
+          if (theme === "dark") document.documentElement.classList.add("dark");
+          if (cached) {
+            if (cached.siteTitle) document.title = cached.siteTitle;
+            if (cached.favicon) {
+              var link = document.querySelector('link[rel="icon"]');
+              if (link) link.setAttribute("href", cached.favicon);
+            }
+          }
+        } catch (e) { /* localStorage disabled / parse error — fall through */ }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
