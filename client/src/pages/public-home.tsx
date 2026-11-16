@@ -182,23 +182,22 @@ function LogoMark({
   companyName,
   logoPath,
   light = false,
-  grayscale = false,
+  mono = false,
   size = "md",
 }: {
   companyName: string;
   logoPath?: string | null;
+  /** On dark backgrounds: flatten logo to a white silhouette. */
   light?: boolean;
-  grayscale?: boolean;
+  /** On light backgrounds: flatten logo to a solid black silhouette (strips color). */
+  mono?: boolean;
   size?: "sm" | "md";
 }) {
   const imgClass = size === "sm" ? "h-7 max-w-[140px] object-contain" : "h-9 max-w-[180px] object-contain";
   const boxClass = size === "sm" ? "h-7 w-7 rounded-md text-[13px]" : "h-9 w-9 rounded-lg text-lg";
   const nameClass = size === "sm" ? "font-display text-base font-bold" : "font-display text-xl font-bold";
   if (logoPath) {
-    const filter = [
-      light && "brightness-0 invert",
-      grayscale && "grayscale",
-    ].filter(Boolean).join(" ");
+    const filter = light ? "brightness-0 invert" : mono ? "brightness-0" : "";
     return <img src={logoPath} alt={companyName} className={`${imgClass} ${filter}`} />;
   }
   const initials = companyName.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join("").toUpperCase() || "?";
@@ -533,7 +532,7 @@ export default function PublicHome() {
       <footer className="border-t border-border bg-background">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-7 gap-y-3 px-4 py-7 text-[13.5px] text-muted-foreground sm:px-6">
           <span className="flex items-center gap-2 font-semibold text-foreground">
-            <LogoMark companyName={companyName} logoPath={settings?.logoPath} size="sm" grayscale />
+            <LogoMark companyName={companyName} logoPath={settings?.logoPath} size="sm" mono />
           </span>
           {contact.address && <span>{contact.address}</span>}
           {contact.phone && <a href={`tel:${contact.phone.replace(/[^\d+]/g, "")}`} className="hover:text-foreground">{contact.phone}</a>}
