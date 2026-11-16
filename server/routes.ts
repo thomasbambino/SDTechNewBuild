@@ -28,7 +28,15 @@ import {
   decryptFieldsArray,
   assertNoteCryptoReady,
 } from "./noteCrypto";
-import { sendNewAccountEmail, sendPasswordResetEmail, sendPasswordResetLinkEmail } from "./email";
+import {
+  sendNewAccountEmail,
+  sendPasswordResetEmail,
+  sendPasswordResetLinkEmail,
+  sendTimelinePostEmail,
+  sendAdminAlertEmail,
+  sendTicketStatusEmail,
+  sendAppointmentEmail,
+} from "./email";
 import { createHash } from "crypto";
 
 
@@ -1871,6 +1879,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const msg = await storage.createMessage({ clientId, senderUserId: req.user!.id, content: content.trim(), isRead: false });
+
+      // If a client sent it, notify admins. If an admin sent it, notify
+      // client contacts. Either direction keeps the conversation alive even
+      // when the recipient isn't logged in.
+      (async () => {
+        try {
+          const appUrl = process.env.APP_URL || "https://www.sdtechpros.com";
+          const client = await storage.getClient(clientId);
+          if (req.user?.role === "admin" || req.user?.role === "internal") {
+            const emails = await collectClientContactEmails(clientId);
+            if (emails.length > 0) {
+              await sendAdminAlertEmail({
+                to: emails,
+                kind: "message",
+                clientName: client?.name || "your account",
+                title: "New message from your team",
+                preview: content.trim().slice(0, 300),
+                url: `${appUrl}/client/messages`,
+              });
+            }
+          } else {
+            const admins = await collectAdminEmails();
+            if (admins.length > 0) {
+              await sendAdminAlertEmail({
+                to: admins,
+                kind: "message",
+                clientName: client?.name || "a client",
+                title: `New message from ${client?.name || "a client"}`,
+                preview: content.trim().slice(0, 300),
+                url: `${appUrl}/admin/messages`,
+              });
+            }
+          }
+        } catch (e) { console.error("[email] message notify failed:", e); }
+      })();
+
       res.status(201).json(msg);
     } catch (err) { next(err); }
   });
@@ -1914,6 +1958,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         createdBy: req.user!.id,
         ...(ts ? { createdAt: ts } : {}),
       });
+
+      // Fire-and-forget email to the client's contact roster. Non-blocking;
+      // caller shouldn't wait on SMTP latency, and we swallow errors so a
+      // failing Resend key doesn't fail the whole post.
+      (async () => {
+        try {
+          const project = await storage.getProject(parseInt(projectId));
+          if (!project) return;
+          const emails = await collectClientContactEmails(project.clientId);
+          if (emails.length === 0) return;
+          const client = await storage.getClient(project.clientId);
+          const appUrl = process.env.APP_URL || "https://www.sdtechpros.com";
+          await sendTimelinePostEmail({
+            to: emails,
+            clientName: client?.name || "your account",
+            projectName: project.name,
+            title,
+            body: notes || null,
+            postUrl: `${appUrl}/client`,
+          });
+        } catch (e) { console.error("[email] timeline post notify failed:", e); }
+      })();
+
       res.status(201).json(milestone);
     } catch (err) { next(err); }
   });
@@ -2359,6 +2426,516 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       next(error);
     }
+  });
+
+  // ── Helpers for email notifications ─────────────────────────────────────
+
+  async function collectClientContactEmails(clientId: number): Promise<string[]> {
+    // Owner + sub-users + the client-record contact email. Dedupe case-insensitively.
+    const client = await storage.getClient(clientId).catch(() => null);
+    const members = await storage.getClientMembers(clientId).catch(() => []);
+    const emails = new Set<string>();
+    if (client?.email) emails.add(client.email.toLowerCase());
+    for (const m of members) {
+      if (m.email && m.status !== "disabled") emails.add(m.email.toLowerCase());
+    }
+    return Array.from(emails);
+  }
+
+  async function collectAdminEmails(): Promise<string[]> {
+    const all = await storage.getAllUsers().catch(() => []);
+    return all
+      .filter(u => (u.role === "admin" || u.role === "internal") && u.status !== "disabled" && u.email)
+      .map(u => u.email);
+  }
+
+  // ── Tickets ─────────────────────────────────────────────────────────────
+
+  app.get("/api/tickets", isAuthenticated, async (req, res, next) => {
+    try {
+      if (req.user?.role === "admin" || req.user?.role === "internal") {
+        return res.json(await storage.getAllTickets());
+      }
+      const client = await storage.getClientForUser(req.user!.id);
+      if (!client) return res.status(404).json({ message: "Client profile not found" });
+      res.json(await storage.getTicketsByClient(client.id));
+    } catch (err) { next(err); }
+  });
+
+  app.post("/api/tickets", isAuthenticated, async (req, res, next) => {
+    try {
+      const { title, description, category, priority, location, clientId: bodyClientId } = req.body;
+      if (!title?.trim()) return res.status(400).json({ message: "Title is required" });
+
+      let clientId: number;
+      if (req.user?.role === "admin" || req.user?.role === "internal") {
+        if (!bodyClientId) return res.status(400).json({ message: "clientId required" });
+        clientId = parseInt(bodyClientId);
+      } else {
+        const client = await storage.getClientForUser(req.user!.id);
+        if (!client) return res.status(404).json({ message: "Client profile not found" });
+        clientId = client.id;
+      }
+
+      const ticket = await storage.createTicket({
+        clientId,
+        title: title.trim(),
+        description: (description || "").trim(),
+        category: category || "support",
+        priority: priority || "normal",
+        status: "new",
+        location: location || null,
+        createdBy: req.user!.id,
+      });
+
+      // Notify admins when a client opens a ticket; notify client when an
+      // admin opens one on their behalf.
+      (async () => {
+        try {
+          const appUrl = process.env.APP_URL || "https://www.sdtechpros.com";
+          const client = await storage.getClient(clientId);
+          if (req.user?.role === "client") {
+            const admins = await collectAdminEmails();
+            if (admins.length > 0) {
+              await sendAdminAlertEmail({
+                to: admins, kind: "ticket",
+                clientName: client?.name || "a client",
+                title: `${priority === "urgent" ? "[URGENT] " : ""}${ticket.title}`,
+                preview: (description || "").slice(0, 400),
+                url: `${appUrl}/admin/tickets/${ticket.id}`,
+              });
+            }
+          } else {
+            const emails = await collectClientContactEmails(clientId);
+            if (emails.length > 0) {
+              await sendAdminAlertEmail({
+                to: emails, kind: "ticket",
+                clientName: client?.name || "your account",
+                title: ticket.title,
+                preview: (description || "").slice(0, 400),
+                url: `${appUrl}/client/tickets/${ticket.id}`,
+              });
+            }
+          }
+        } catch (e) { console.error("[email] ticket notify failed:", e); }
+      })();
+
+      res.status(201).json(ticket);
+    } catch (err) { next(err); }
+  });
+
+  app.get("/api/tickets/:id", isAuthenticated, async (req, res, next) => {
+    try {
+      const ticket = await storage.getTicket(parseInt(req.params.id));
+      if (!ticket) return res.status(404).json({ message: "Ticket not found" });
+      if (req.user?.role === "client") {
+        const client = await storage.getClientForUser(req.user.id);
+        if (!client || client.id !== ticket.clientId) return res.status(403).json({ message: "Forbidden" });
+      }
+      const comments = await storage.getTicketComments(ticket.id);
+      res.json({ ...ticket, comments });
+    } catch (err) { next(err); }
+  });
+
+  app.put("/api/tickets/:id", isAuthenticated, hasAdminAccess, async (req, res, next) => {
+    try {
+      const existing = await storage.getTicket(parseInt(req.params.id));
+      if (!existing) return res.status(404).json({ message: "Ticket not found" });
+
+      const { title, description, category, priority, status, location, assignedTo, projectId } = req.body;
+      const patch: any = {};
+      if (title !== undefined) patch.title = title;
+      if (description !== undefined) patch.description = description;
+      if (category !== undefined) patch.category = category;
+      if (priority !== undefined) patch.priority = priority;
+      if (status !== undefined) {
+        patch.status = status;
+        if (status === "resolved" || status === "closed") patch.resolvedAt = new Date();
+      }
+      if (location !== undefined) patch.location = location;
+      if (assignedTo !== undefined) patch.assignedTo = assignedTo;
+      if (projectId !== undefined) patch.projectId = projectId;
+
+      const updated = await storage.updateTicket(existing.id, patch);
+
+      // Email client when status changes.
+      if (patch.status && patch.status !== existing.status) {
+        (async () => {
+          try {
+            const emails = await collectClientContactEmails(existing.clientId);
+            if (emails.length > 0) {
+              const appUrl = process.env.APP_URL || "https://www.sdtechpros.com";
+              await sendTicketStatusEmail({
+                to: emails,
+                ticketTitle: updated?.title || existing.title,
+                oldStatus: existing.status,
+                newStatus: patch.status,
+                url: `${appUrl}/client/tickets/${existing.id}`,
+              });
+            }
+          } catch (e) { console.error("[email] ticket status notify failed:", e); }
+        })();
+      }
+      res.json(updated);
+    } catch (err) { next(err); }
+  });
+
+  app.delete("/api/tickets/:id", isAuthenticated, hasAdminAccess, async (req, res, next) => {
+    try {
+      await storage.deleteTicket(parseInt(req.params.id));
+      res.sendStatus(204);
+    } catch (err) { next(err); }
+  });
+
+  app.post("/api/tickets/:id/comments", isAuthenticated, async (req, res, next) => {
+    try {
+      const ticket = await storage.getTicket(parseInt(req.params.id));
+      if (!ticket) return res.status(404).json({ message: "Ticket not found" });
+      if (req.user?.role === "client") {
+        const client = await storage.getClientForUser(req.user.id);
+        if (!client || client.id !== ticket.clientId) return res.status(403).json({ message: "Forbidden" });
+      }
+      const { content } = req.body;
+      if (!content?.trim()) return res.status(400).json({ message: "Content required" });
+      const comment = await storage.createTicketComment({ ticketId: ticket.id, userId: req.user!.id, content: content.trim() });
+      res.status(201).json(comment);
+    } catch (err) { next(err); }
+  });
+
+  // ── Appointments ────────────────────────────────────────────────────────
+
+  app.get("/api/appointments", isAuthenticated, async (req, res, next) => {
+    try {
+      if (req.user?.role === "admin" || req.user?.role === "internal") {
+        return res.json(await storage.getAllAppointments());
+      }
+      const client = await storage.getClientForUser(req.user!.id);
+      if (!client) return res.status(404).json({ message: "Client profile not found" });
+      res.json(await storage.getAppointmentsByClient(client.id));
+    } catch (err) { next(err); }
+  });
+
+  app.post("/api/appointments", isAuthenticated, async (req, res, next) => {
+    try {
+      const { title, notes, location, scheduledStart, scheduledEnd, clientId: bodyClientId, projectId, ticketId, assignedTo } = req.body;
+      if (!title?.trim() || !scheduledStart || !scheduledEnd) {
+        return res.status(400).json({ message: "title, scheduledStart, scheduledEnd required" });
+      }
+      const start = new Date(scheduledStart);
+      const end = new Date(scheduledEnd);
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        return res.status(400).json({ message: "Invalid date" });
+      }
+      if (end <= start) return res.status(400).json({ message: "End must be after start" });
+
+      let clientId: number;
+      let status = "requested";
+      if (req.user?.role === "admin" || req.user?.role === "internal") {
+        if (!bodyClientId) return res.status(400).json({ message: "clientId required" });
+        clientId = parseInt(bodyClientId);
+        status = "confirmed";
+      } else {
+        const client = await storage.getClientForUser(req.user!.id);
+        if (!client) return res.status(404).json({ message: "Client profile not found" });
+        clientId = client.id;
+      }
+
+      const appt = await storage.createAppointment({
+        clientId,
+        title: title.trim(),
+        notes: notes || null,
+        location: location || null,
+        scheduledStart: start,
+        scheduledEnd: end,
+        status,
+        projectId: projectId || null,
+        ticketId: ticketId || null,
+        assignedTo: assignedTo || null,
+        createdBy: req.user!.id,
+      });
+
+      // Notify the other side.
+      (async () => {
+        try {
+          const appUrl = process.env.APP_URL || "https://www.sdtechpros.com";
+          const client = await storage.getClient(clientId);
+          if (req.user?.role === "client") {
+            const admins = await collectAdminEmails();
+            if (admins.length > 0) {
+              await sendAdminAlertEmail({
+                to: admins, kind: "appointment",
+                clientName: client?.name || "a client",
+                title: appt.title,
+                preview: `${start.toLocaleString()} → ${end.toLocaleString()}${location ? ` · ${location}` : ""}`,
+                url: `${appUrl}/admin/appointments`,
+              });
+            }
+          } else {
+            const emails = await collectClientContactEmails(clientId);
+            if (emails.length > 0) {
+              await sendAppointmentEmail({
+                to: emails,
+                title: appt.title,
+                whenLabel: `${start.toLocaleString()} – ${end.toLocaleString()}`,
+                location: location || null,
+                status: "confirmed",
+                url: `${appUrl}/client/appointments`,
+              });
+            }
+          }
+        } catch (e) { console.error("[email] appointment notify failed:", e); }
+      })();
+
+      res.status(201).json(appt);
+    } catch (err) { next(err); }
+  });
+
+  app.put("/api/appointments/:id", isAuthenticated, hasAdminAccess, async (req, res, next) => {
+    try {
+      const existing = await storage.getAppointment(parseInt(req.params.id));
+      if (!existing) return res.status(404).json({ message: "Appointment not found" });
+      const patch: any = {};
+      const { title, notes, location, scheduledStart, scheduledEnd, status, assignedTo } = req.body;
+      if (title !== undefined) patch.title = title;
+      if (notes !== undefined) patch.notes = notes;
+      if (location !== undefined) patch.location = location;
+      if (scheduledStart !== undefined) patch.scheduledStart = new Date(scheduledStart);
+      if (scheduledEnd !== undefined) patch.scheduledEnd = new Date(scheduledEnd);
+      if (status !== undefined) patch.status = status;
+      if (assignedTo !== undefined) patch.assignedTo = assignedTo;
+      const updated = await storage.updateAppointment(existing.id, patch);
+
+      if (patch.status && patch.status !== existing.status) {
+        (async () => {
+          try {
+            const emails = await collectClientContactEmails(existing.clientId);
+            if (emails.length > 0) {
+              const appUrl = process.env.APP_URL || "https://www.sdtechpros.com";
+              await sendAppointmentEmail({
+                to: emails,
+                title: updated?.title || existing.title,
+                whenLabel: `${(updated?.scheduledStart ?? existing.scheduledStart).toLocaleString()} – ${(updated?.scheduledEnd ?? existing.scheduledEnd).toLocaleString()}`,
+                location: updated?.location ?? existing.location,
+                status: patch.status,
+                url: `${appUrl}/client/appointments`,
+              });
+            }
+          } catch (e) { console.error("[email] appointment status notify failed:", e); }
+        })();
+      }
+      res.json(updated);
+    } catch (err) { next(err); }
+  });
+
+  app.delete("/api/appointments/:id", isAuthenticated, hasAdminAccess, async (req, res, next) => {
+    try {
+      await storage.deleteAppointment(parseInt(req.params.id));
+      res.sendStatus(204);
+    } catch (err) { next(err); }
+  });
+
+  // ── Assets (equipment inventory) ────────────────────────────────────────
+
+  app.get("/api/assets", isAuthenticated, async (req, res, next) => {
+    try {
+      const qClientId = req.query.clientId ? parseInt(String(req.query.clientId)) : null;
+      if (req.user?.role === "admin" || req.user?.role === "internal") {
+        if (qClientId) return res.json(await storage.getAssetsByClient(qClientId));
+        return res.json([]); // admin must pick a client
+      }
+      const client = await storage.getClientForUser(req.user!.id);
+      if (!client) return res.status(404).json({ message: "Client profile not found" });
+      res.json(await storage.getAssetsByClient(client.id));
+    } catch (err) { next(err); }
+  });
+
+  app.post("/api/assets", isAuthenticated, hasAdminAccess, async (req, res, next) => {
+    try {
+      const { clientId, category, name, manufacturer, model, serialNumber, firmware, location, installedAt, warrantyExpiresAt, notes } = req.body;
+      if (!clientId || !name?.trim()) return res.status(400).json({ message: "clientId and name required" });
+      const asset = await storage.createAsset({
+        clientId: parseInt(clientId),
+        category: category || "other",
+        name: name.trim(),
+        manufacturer: manufacturer || null,
+        model: model || null,
+        serialNumber: serialNumber || null,
+        firmware: firmware || null,
+        location: location || null,
+        installedAt: installedAt ? new Date(installedAt) : null,
+        warrantyExpiresAt: warrantyExpiresAt ? new Date(warrantyExpiresAt) : null,
+        notes: notes || null,
+        createdBy: req.user!.id,
+      });
+      res.status(201).json(asset);
+    } catch (err) { next(err); }
+  });
+
+  app.put("/api/assets/:id", isAuthenticated, hasAdminAccess, async (req, res, next) => {
+    try {
+      const patch: any = { ...req.body };
+      if (patch.installedAt) patch.installedAt = new Date(patch.installedAt);
+      if (patch.warrantyExpiresAt) patch.warrantyExpiresAt = new Date(patch.warrantyExpiresAt);
+      const updated = await storage.updateAsset(parseInt(req.params.id), patch);
+      if (!updated) return res.status(404).json({ message: "Asset not found" });
+      res.json(updated);
+    } catch (err) { next(err); }
+  });
+
+  app.delete("/api/assets/:id", isAuthenticated, hasAdminAccess, async (req, res, next) => {
+    try {
+      await storage.deleteAsset(parseInt(req.params.id));
+      res.sendStatus(204);
+    } catch (err) { next(err); }
+  });
+
+  // ── Service plans ───────────────────────────────────────────────────────
+
+  app.get("/api/service-plans", isAuthenticated, async (req, res, next) => {
+    try {
+      const activeOnly = req.user?.role === "client";
+      res.json(await storage.getAllServicePlans(activeOnly));
+    } catch (err) { next(err); }
+  });
+
+  app.post("/api/service-plans", isAuthenticated, hasAdminAccess, async (req, res, next) => {
+    try {
+      const { name, description, monthlyPrice, includedHours, features, isActive } = req.body;
+      if (!name?.trim()) return res.status(400).json({ message: "Name required" });
+      const plan = await storage.createServicePlan({
+        name: name.trim(),
+        description: description || null,
+        monthlyPrice: Number(monthlyPrice) || 0,
+        includedHours: includedHours != null ? Number(includedHours) : null,
+        features: features ? (typeof features === "string" ? features : JSON.stringify(features)) : null,
+        isActive: isActive !== false,
+      });
+      res.status(201).json(plan);
+    } catch (err) { next(err); }
+  });
+
+  app.put("/api/service-plans/:id", isAuthenticated, hasAdminAccess, async (req, res, next) => {
+    try {
+      const patch: any = { ...req.body };
+      if (patch.features && typeof patch.features !== "string") patch.features = JSON.stringify(patch.features);
+      const updated = await storage.updateServicePlan(parseInt(req.params.id), patch);
+      if (!updated) return res.status(404).json({ message: "Plan not found" });
+      res.json(updated);
+    } catch (err) { next(err); }
+  });
+
+  app.delete("/api/service-plans/:id", isAuthenticated, hasAdminAccess, async (req, res, next) => {
+    try {
+      await storage.deleteServicePlan(parseInt(req.params.id));
+      res.sendStatus(204);
+    } catch (err) { next(err); }
+  });
+
+  // Per-client plan assignment.
+  app.get("/api/clients/:id/plan", isAuthenticated, async (req, res, next) => {
+    try {
+      const clientId = parseInt(req.params.id);
+      if (req.user?.role === "client") {
+        const client = await storage.getClientForUser(req.user.id);
+        if (!client || client.id !== clientId) return res.status(403).json({ message: "Forbidden" });
+      }
+      const plan = await storage.getClientPlan(clientId);
+      res.json(plan || null);
+    } catch (err) { next(err); }
+  });
+
+  // The client's own plan — convenience endpoint. Avoids the client needing
+  // to know its own clientId.
+  app.get("/api/my/plan", isAuthenticated, async (req, res, next) => {
+    try {
+      const client = await storage.getClientForUser(req.user!.id);
+      if (!client) return res.json(null);
+      const plan = await storage.getClientPlan(client.id);
+      res.json(plan || null);
+    } catch (err) { next(err); }
+  });
+
+  app.post("/api/clients/:id/plan", isAuthenticated, hasAdminAccess, async (req, res, next) => {
+    try {
+      const { planId } = req.body;
+      if (!planId) return res.status(400).json({ message: "planId required" });
+      const assigned = await storage.assignClientPlan(parseInt(req.params.id), parseInt(planId));
+      res.status(201).json(assigned);
+    } catch (err) { next(err); }
+  });
+
+  app.delete("/api/clients/:id/plan", isAuthenticated, hasAdminAccess, async (req, res, next) => {
+    try {
+      const plan = await storage.getClientPlan(parseInt(req.params.id));
+      if (plan) await storage.cancelClientPlan(plan.id);
+      res.sendStatus(204);
+    } catch (err) { next(err); }
+  });
+
+  // ── Attachments (messages + ticket-comments) ────────────────────────────
+
+  app.post("/api/attachments", isAuthenticated, upload.single("file"), async (req, res, next) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+      const { messageId, ticketId, ticketCommentId } = req.body;
+      if (!messageId && !ticketId && !ticketCommentId) {
+        return res.status(400).json({ message: "Must attach to message, ticket, or comment" });
+      }
+      const relativePath = `/uploads/${req.file.filename}`;
+      const a = await storage.createAttachment({
+        messageId: messageId ? parseInt(messageId) : null,
+        ticketId: ticketId ? parseInt(ticketId) : null,
+        ticketCommentId: ticketCommentId ? parseInt(ticketCommentId) : null,
+        name: req.file.originalname,
+        path: relativePath,
+        mimeType: req.file.mimetype,
+        size: req.file.size,
+        uploadedBy: req.user!.id,
+      });
+      res.status(201).json(a);
+    } catch (err) { next(err); }
+  });
+
+  app.get("/api/attachments", isAuthenticated, async (req, res, next) => {
+    try {
+      const { ticketId, messageId } = req.query;
+      if (ticketId) return res.json(await storage.getAttachmentsByTicket(parseInt(String(ticketId))));
+      if (messageId) return res.json(await storage.getAttachmentsByMessage(parseInt(String(messageId))));
+      res.json([]);
+    } catch (err) { next(err); }
+  });
+
+  // ── Public case studies ─────────────────────────────────────────────────
+
+  app.get("/api/case-studies", async (req, res, next) => {
+    try {
+      const items = await storage.getPublicMilestones(50);
+      // Strip any PII beyond what's intended for public view. We expose:
+      // project name, client name, title, summary (or notes if no summary),
+      // images, and created date — nothing else.
+      res.json(items.map(m => ({
+        id: m.id,
+        title: m.title,
+        summary: m.publicSummary || m.notes || null,
+        imagePaths: m.imagePaths,
+        clientName: m.clientName,
+        projectName: m.projectName,
+        createdAt: m.createdAt,
+      })));
+    } catch (err) { next(err); }
+  });
+
+  // Admin-only: flip case-study visibility on a milestone.
+  app.patch("/api/milestones/:id/visibility", isAuthenticated, hasAdminAccess, async (req, res, next) => {
+    try {
+      const { isPublic, publicSummary } = req.body;
+      const updated = await storage.updateMilestone(parseInt(req.params.id), {
+        isPublic: isPublic === true,
+        publicSummary: publicSummary ?? null,
+      });
+      if (!updated) return res.status(404).json({ message: "Milestone not found" });
+      res.json(updated);
+    } catch (err) { next(err); }
   });
 
   const httpServer = createServer(app);

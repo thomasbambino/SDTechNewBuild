@@ -35,6 +35,8 @@ import NoteEditor, { NoteDraft } from "@/components/admin/NoteEditor";
 import TeamMembers from "@/components/dashboard/TeamMembers";
 import { Plus, Trash2, Pencil } from "lucide-react";
 import { projectStatusMeta } from "@/components/dashboard/ProjectStatus";
+import AssetsPanel from "@/components/admin/AssetsPanel";
+import PlanPanel from "@/components/admin/PlanPanel";
 
 interface ClientNote {
   id: number;
@@ -267,6 +269,8 @@ export default function ClientDetailPage() {
               ["invoices", "Invoices", invoices.length],
               ["documents", "Documents", documents.length],
               ["notes", "Notes", notes.length],
+              ["equipment", "Equipment", null],
+              ["plan", "Plan", null],
               ["team", "Team", null],
               ["messages", "Messages", messages.length],
             ] as const).map(([value, label, count]) => (
@@ -518,6 +522,14 @@ export default function ClientDetailPage() {
               initial={editingNote}
               invalidateKeys={[`/api/client-notes?clientId=${clientId}`]}
             />
+          </TabsContent>
+
+          <TabsContent value="equipment" className="mt-4">
+            <AssetsPanel clientId={clientId} />
+          </TabsContent>
+
+          <TabsContent value="plan" className="mt-4">
+            <PlanPanel clientId={clientId} />
           </TabsContent>
 
           <TabsContent value="team" className="mt-4">

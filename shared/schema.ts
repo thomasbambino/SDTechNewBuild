@@ -254,6 +254,10 @@ export const milestones = pgTable("milestones", {
   notes: text("notes"),
   imagePaths: text("image_paths"), // JSON array string
   createdBy: integer("created_by").references(() => users.id),
+  // Flip to true to surface this update on the public /case-studies page.
+  // Admin-only toggle; off by default so nothing leaks.
+  isPublic: boolean("is_public").default(false),
+  publicSummary: text("public_summary"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -383,3 +387,176 @@ export const insertCustomPageSchema = createInsertSchema(customPages)
 
 export type CustomPage = typeof customPages.$inferSelect;
 export type InsertCustomPage = z.infer<typeof insertCustomPageSchema>;
+
+// ─── Service tickets ────────────────────────────────────────────────────────
+// Structured service requests. Clients file them; admins triage, schedule, and
+// resolve. Separate from free-form messages: tickets have state, priority,
+// and can be converted into a project once scoped.
+export const tickets = pgTable("tickets", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").references(() => clients.id).notNull(),
+  // Set after admin converts the ticket into real work.
+  projectId: integer("project_id").references(() => projects.id),
+  title: text("title").notNull(),
+  description: text("description").notNull().default(""),
+  // support | install | outage | question | other
+  category: text("category").notNull().default("support"),
+  // low | normal | high | urgent
+  priority: text("priority").notNull().default("normal"),
+  // new | acknowledged | in_progress | scheduled | resolved | closed
+  status: text("status").notNull().default("new"),
+  // Free-text (e.g. "Oceanside office, server closet"). Clients fill it in.
+  location: text("location"),
+  createdBy: integer("created_by").references(() => users.id),
+  assignedTo: integer("assigned_to").references(() => users.id),
+  resolvedAt: timestamp("resolved_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertTicketSchema = createInsertSchema(tickets)
+  .omit({ id: true, createdAt: true, updatedAt: true });
+
+export type Ticket = typeof tickets.$inferSelect;
+export type InsertTicket = z.infer<typeof insertTicketSchema>;
+
+// Thread of back-and-forth on a single ticket. Admin + client both post.
+export const ticketComments = pgTable("ticket_comments", {
+  id: serial("id").primaryKey(),
+  ticketId: integer("ticket_id").references(() => tickets.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertTicketCommentSchema = createInsertSchema(ticketComments)
+  .omit({ id: true, createdAt: true });
+
+export type TicketComment = typeof ticketComments.$inferSelect;
+export type InsertTicketComment = z.infer<typeof insertTicketCommentSchema>;
+
+// ─── Appointments / on-site visit scheduling ────────────────────────────────
+// Either a client-requested slot ("come look at the NVR Tuesday") or an
+// admin-booked visit. Linked to a project or ticket when applicable.
+export const appointments = pgTable("appointments", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").references(() => clients.id).notNull(),
+  projectId: integer("project_id").references(() => projects.id),
+  ticketId: integer("ticket_id").references(() => tickets.id),
+  title: text("title").notNull(),
+  notes: text("notes"),
+  location: text("location"),
+  scheduledStart: timestamp("scheduled_start").notNull(),
+  scheduledEnd: timestamp("scheduled_end").notNull(),
+  // requested | confirmed | completed | cancelled
+  status: text("status").notNull().default("requested"),
+  assignedTo: integer("assigned_to").references(() => users.id),
+  createdBy: integer("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertAppointmentSchema = createInsertSchema(appointments)
+  .omit({ id: true, createdAt: true, updatedAt: true })
+  .extend({
+    scheduledStart: z.coerce.date(),
+    scheduledEnd: z.coerce.date(),
+  });
+
+export type Appointment = typeof appointments.$inferSelect;
+export type InsertAppointment = z.infer<typeof insertAppointmentSchema>;
+
+// ─── Equipment inventory per client ─────────────────────────────────────────
+// What switches/cameras/APs/NVRs/servers etc. are installed at a client site.
+// Lets both sides track warranty and replacement cycles.
+export const assets = pgTable("assets", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").references(() => clients.id).notNull(),
+  // switch | router | ap | camera | nvr | firewall | server | ups | other
+  category: text("category").notNull().default("other"),
+  name: text("name").notNull(),
+  manufacturer: text("manufacturer"),
+  model: text("model"),
+  serialNumber: text("serial_number"),
+  firmware: text("firmware"),
+  location: text("location"),
+  installedAt: timestamp("installed_at"),
+  warrantyExpiresAt: timestamp("warranty_expires_at"),
+  notes: text("notes"),
+  createdBy: integer("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertAssetSchema = createInsertSchema(assets)
+  .omit({ id: true, createdAt: true, updatedAt: true })
+  .extend({
+    installedAt: z.coerce.date().nullable().optional(),
+    warrantyExpiresAt: z.coerce.date().nullable().optional(),
+  });
+
+export type Asset = typeof assets.$inferSelect;
+export type InsertAsset = z.infer<typeof insertAssetSchema>;
+
+// ─── Managed service plans ──────────────────────────────────────────────────
+// Reusable plan definitions (e.g. "Essentials", "Business", "Enterprise") +
+// per-client assignment. No billing happens here — FreshBooks handles the
+// invoicing — this is the entitlement + display layer.
+export const servicePlans = pgTable("service_plans", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  monthlyPrice: doublePrecision("monthly_price").notNull().default(0),
+  includedHours: doublePrecision("included_hours"),
+  // JSON array of feature strings for the marketing-style bullet list.
+  features: text("features"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertServicePlanSchema = createInsertSchema(servicePlans)
+  .omit({ id: true, createdAt: true, updatedAt: true });
+
+export type ServicePlan = typeof servicePlans.$inferSelect;
+export type InsertServicePlan = z.infer<typeof insertServicePlanSchema>;
+
+export const clientPlans = pgTable("client_plans", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").references(() => clients.id).notNull(),
+  planId: integer("plan_id").references(() => servicePlans.id).notNull(),
+  // active | paused | cancelled
+  status: text("status").notNull().default("active"),
+  startedAt: timestamp("started_at").defaultNow(),
+  cancelledAt: timestamp("cancelled_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertClientPlanSchema = createInsertSchema(clientPlans)
+  .omit({ id: true, createdAt: true, updatedAt: true });
+
+export type ClientPlan = typeof clientPlans.$inferSelect;
+export type InsertClientPlan = z.infer<typeof insertClientPlanSchema>;
+
+// ─── Message / ticket attachments ───────────────────────────────────────────
+// Files attached to a message or a ticket. One row per file; the parent is
+// identified by (messageId, ticketId) with exactly one of them non-null.
+export const attachments = pgTable("attachments", {
+  id: serial("id").primaryKey(),
+  messageId: integer("message_id").references(() => messages.id),
+  ticketId: integer("ticket_id").references(() => tickets.id),
+  ticketCommentId: integer("ticket_comment_id").references(() => ticketComments.id),
+  name: text("name").notNull(),
+  path: text("path").notNull(),
+  mimeType: text("mime_type"),
+  size: integer("size"),
+  uploadedBy: integer("uploaded_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertAttachmentSchema = createInsertSchema(attachments)
+  .omit({ id: true, createdAt: true });
+
+export type Attachment = typeof attachments.$inferSelect;
+export type InsertAttachment = z.infer<typeof insertAttachmentSchema>;

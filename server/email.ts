@@ -225,6 +225,122 @@ export async function sendPasswordResetLinkEmail(opts: {
   return send({ to: opts.to, subject: `${brand.companyName}: reset your password`, html });
 }
 
+/**
+ * Notify client contacts about a new timeline post on their project. Fires
+ * from `/api/projects/:id/milestones` POST. Soft-fails if the client has no
+ * contact email set.
+ */
+export async function sendTimelinePostEmail(opts: {
+  to: string[];
+  clientName: string;
+  projectName: string;
+  title: string;
+  body: string | null;
+  postUrl: string;
+}): Promise<boolean> {
+  if (opts.to.length === 0) return true;
+  const brand = await getBrand();
+  const html = renderLayout({
+    brand,
+    preview: `New update on ${opts.projectName}: ${opts.title}`,
+    heading: opts.title,
+    body: `
+      <p style="margin:0 0 12px;color:#687079;">Project update · <strong style="color:#161b22;">${esc(opts.projectName)}</strong></p>
+      ${opts.body ? `<p style="margin:0 0 12px;white-space:pre-wrap;">${esc(opts.body)}</p>` : ""}
+      <p style="margin:0;color:#687079;">Sign in to your portal to see photos and leave a comment.</p>
+    `,
+    cta: { label: "View in portal", href: opts.postUrl },
+    footer: `You're receiving this because you're a contact on ${esc(opts.clientName)}.`,
+  });
+  // Send one at a time so a bad address on one recipient doesn't drop the rest.
+  const results = await Promise.all(opts.to.map(to => send({ to, subject: `${opts.projectName}: ${opts.title}`, html })));
+  return results.every(Boolean);
+}
+
+/** Notify admins when a client posts a new message or opens a ticket. */
+export async function sendAdminAlertEmail(opts: {
+  to: string[];
+  kind: "message" | "ticket" | "appointment";
+  clientName: string;
+  title: string;
+  preview: string;
+  url: string;
+}): Promise<boolean> {
+  if (opts.to.length === 0) return true;
+  const brand = await getBrand();
+  const kindLabel = opts.kind === "message" ? "New message"
+    : opts.kind === "ticket" ? "New service request"
+    : "New appointment request";
+  const html = renderLayout({
+    brand,
+    preview: `${kindLabel} from ${opts.clientName}`,
+    heading: `${kindLabel} from ${opts.clientName}`,
+    body: `
+      <p style="margin:0 0 6px;color:#687079;">${esc(opts.title)}</p>
+      <p style="margin:0 0 12px;white-space:pre-wrap;">${esc(opts.preview)}</p>
+    `,
+    cta: { label: "Open in portal", href: opts.url },
+    footer: `You're receiving this as a ${esc(brand.companyName)} admin.`,
+  });
+  const results = await Promise.all(opts.to.map(to => send({ to, subject: `${kindLabel}: ${opts.clientName}`, html })));
+  return results.every(Boolean);
+}
+
+/** Notify a client that their ticket status changed. */
+export async function sendTicketStatusEmail(opts: {
+  to: string[];
+  ticketTitle: string;
+  oldStatus: string;
+  newStatus: string;
+  message?: string;
+  url: string;
+}): Promise<boolean> {
+  if (opts.to.length === 0) return true;
+  const brand = await getBrand();
+  const html = renderLayout({
+    brand,
+    preview: `Your request is now ${opts.newStatus}`,
+    heading: `Status update: ${opts.newStatus}`,
+    body: `
+      <p style="margin:0 0 12px;">We've updated the status of <strong>${esc(opts.ticketTitle)}</strong> from <em>${esc(opts.oldStatus)}</em> to <strong>${esc(opts.newStatus)}</strong>.</p>
+      ${opts.message ? `<p style="margin:0 0 12px;white-space:pre-wrap;">${esc(opts.message)}</p>` : ""}
+    `,
+    cta: { label: "View request", href: opts.url },
+  });
+  const results = await Promise.all(opts.to.map(to => send({ to, subject: `${brand.companyName}: ${opts.ticketTitle}`, html })));
+  return results.every(Boolean);
+}
+
+/** Notify a client when an admin confirms/updates their appointment. */
+export async function sendAppointmentEmail(opts: {
+  to: string[];
+  title: string;
+  whenLabel: string;
+  location: string | null;
+  status: string;
+  url: string;
+}): Promise<boolean> {
+  if (opts.to.length === 0) return true;
+  const brand = await getBrand();
+  const headline = opts.status === "confirmed" ? "Visit confirmed"
+    : opts.status === "cancelled" ? "Visit cancelled"
+    : opts.status === "completed" ? "Visit completed"
+    : "Visit scheduled";
+  const html = renderLayout({
+    brand,
+    preview: `${headline}: ${opts.whenLabel}`,
+    heading: headline,
+    body: `
+      <p style="margin:0 0 6px;">${esc(opts.title)}</p>
+      <p style="margin:0 0 6px;"><strong>${esc(opts.whenLabel)}</strong></p>
+      ${opts.location ? `<p style="margin:0 0 12px;color:#687079;">${esc(opts.location)}</p>` : ""}
+    `,
+    cta: { label: "View in portal", href: opts.url },
+  });
+  const results = await Promise.all(opts.to.map(to => send({ to, subject: `${brand.companyName}: ${headline}`, html })));
+  return results.every(Boolean);
+}
+
 /** Sent when an admin resets a user's password. */
 export async function sendPasswordResetEmail(opts: {
   to: string;

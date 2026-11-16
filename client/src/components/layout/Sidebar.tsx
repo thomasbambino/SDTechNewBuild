@@ -15,6 +15,11 @@ import {
   RefreshCw,
   MessageSquare,
   StickyNote,
+  LifeBuoy,
+  Calendar as CalendarIcon,
+  HardDrive,
+  Package,
+  Globe,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -167,6 +172,42 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen, offsetTop }: Side
                 </Link>
               </nav>
 
+              <p className="mt-8 px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Service</p>
+              <nav className="mt-3 space-y-1">
+                <Link href="/admin/tickets">
+                  <a className={cn("flex items-center px-3 py-2 text-sm font-medium rounded-md",
+                      isActive("/admin/tickets") ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted")}
+                    onClick={handleLinkClick}>
+                    <LifeBuoy className="h-5 w-5 mr-3" />
+                    <span>Service requests</span>
+                  </a>
+                </Link>
+                <Link href="/admin/appointments">
+                  <a className={cn("flex items-center px-3 py-2 text-sm font-medium rounded-md",
+                      isActive("/admin/appointments") ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted")}
+                    onClick={handleLinkClick}>
+                    <CalendarIcon className="h-5 w-5 mr-3" />
+                    <span>Site visits</span>
+                  </a>
+                </Link>
+                <Link href="/admin/service-plans">
+                  <a className={cn("flex items-center px-3 py-2 text-sm font-medium rounded-md",
+                      isActive("/admin/service-plans") ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted")}
+                    onClick={handleLinkClick}>
+                    <Package className="h-5 w-5 mr-3" />
+                    <span>Service plans</span>
+                  </a>
+                </Link>
+                <Link href="/admin/case-studies">
+                  <a className={cn("flex items-center px-3 py-2 text-sm font-medium rounded-md",
+                      isActive("/admin/case-studies") ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted")}
+                    onClick={handleLinkClick}>
+                    <Globe className="h-5 w-5 mr-3" />
+                    <span>Case studies</span>
+                  </a>
+                </Link>
+              </nav>
+
               <p className="mt-8 px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 Content Management
               </p>
@@ -295,6 +336,66 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen, offsetTop }: Side
                 >
                   <FileText className="h-5 w-5 mr-3" />
                   <span>Invoices</span>
+                </a>
+              </Link>
+
+              <Link href="/client/tickets">
+                <a
+                  className={cn(
+                    "flex items-center px-3 py-2 text-sm font-medium rounded-md",
+                    isActive("/client/tickets")
+                      ? "bg-primary/10 text-primary"
+                      : "text-foreground hover:bg-muted"
+                  )}
+                  onClick={handleLinkClick}
+                >
+                  <LifeBuoy className="h-5 w-5 mr-3" />
+                  <span>Service requests</span>
+                </a>
+              </Link>
+
+              <Link href="/client/appointments">
+                <a
+                  className={cn(
+                    "flex items-center px-3 py-2 text-sm font-medium rounded-md",
+                    isActive("/client/appointments")
+                      ? "bg-primary/10 text-primary"
+                      : "text-foreground hover:bg-muted"
+                  )}
+                  onClick={handleLinkClick}
+                >
+                  <CalendarIcon className="h-5 w-5 mr-3" />
+                  <span>Site visits</span>
+                </a>
+              </Link>
+
+              <Link href="/client/equipment">
+                <a
+                  className={cn(
+                    "flex items-center px-3 py-2 text-sm font-medium rounded-md",
+                    isActive("/client/equipment")
+                      ? "bg-primary/10 text-primary"
+                      : "text-foreground hover:bg-muted"
+                  )}
+                  onClick={handleLinkClick}
+                >
+                  <HardDrive className="h-5 w-5 mr-3" />
+                  <span>Equipment</span>
+                </a>
+              </Link>
+
+              <Link href="/client/plan">
+                <a
+                  className={cn(
+                    "flex items-center px-3 py-2 text-sm font-medium rounded-md",
+                    isActive("/client/plan")
+                      ? "bg-primary/10 text-primary"
+                      : "text-foreground hover:bg-muted"
+                  )}
+                  onClick={handleLinkClick}
+                >
+                  <Package className="h-5 w-5 mr-3" />
+                  <span>My plan</span>
                 </a>
               </Link>
 

@@ -35,6 +35,10 @@ import AdminApiConnections from "@/pages/admin/api-connections";
 import AdminProfile from "@/pages/admin/profile";
 import AdminUsers from "@/pages/admin/users";
 import AdminMessages from "@/pages/admin/messages";
+import AdminTickets from "@/pages/admin/tickets";
+import AdminAppointments from "@/pages/admin/appointments";
+import AdminServicePlans from "@/pages/admin/service-plans";
+import AdminCaseStudies from "@/pages/admin/case-studies";
 
 // Client pages
 import ClientDashboard from "@/pages/client/dashboard";
@@ -45,7 +49,13 @@ import ClientProfile from "@/pages/client/profile";
 import ClientMessages from "@/pages/client/messages";
 import ClientNotes from "@/pages/client/notes";
 import ClientReport from "@/pages/client/report";
+import ClientTickets from "@/pages/client/tickets";
+import ClientTicketDetail from "@/pages/client/ticket-detail";
+import ClientAppointments from "@/pages/client/appointments";
+import ClientAssets from "@/pages/client/assets";
+import ClientPlan from "@/pages/client/plan";
 import CustomPageView from "@/pages/custom-page";
+import CaseStudies from "@/pages/case-studies";
 
 function Router() {
   return (
@@ -53,6 +63,7 @@ function Router() {
       {/* Public routes */}
       <Route path="/" component={PublicHome} />
       <Route path="/inquiry" component={InquiryForm} />
+      <Route path="/case-studies" component={CaseStudies} />
       <Route path="/auth/forgot" component={AuthForgotPage} />
       <Route path="/auth/reset" component={AuthResetPage} />
       <Route path="/auth" component={AuthPage} />
@@ -73,16 +84,26 @@ function Router() {
       <ProtectedRoute path="/admin/users" role="admin" component={AdminUsers} />
       <ProtectedRoute path="/admin/profile" role="admin" component={AdminProfile} />
       <ProtectedRoute path="/admin/messages" role="admin" component={AdminMessages} />
-      
-      {/* Client routes */}
+      <ProtectedRoute path="/admin/tickets" role="admin" component={AdminTickets} />
+      <ProtectedRoute path="/admin/appointments" role="admin" component={AdminAppointments} />
+      <ProtectedRoute path="/admin/service-plans" role="admin" component={AdminServicePlans} />
+      <ProtectedRoute path="/admin/case-studies" role="admin" component={AdminCaseStudies} />
+
+      {/* Client routes. More-specific paths MUST come before "/client" so
+          Switch matches them first — wouter is first-match-wins. */}
       <ProtectedRoute path="/client/report" role="client" component={ClientReport} />
-      <ProtectedRoute path="/client" role="client" component={ClientDashboard} />
+      <ProtectedRoute path="/client/tickets/:id" role="client" component={ClientTicketDetail} />
+      <ProtectedRoute path="/client/tickets" role="client" component={ClientTickets} />
+      <ProtectedRoute path="/client/appointments" role="client" component={ClientAppointments} />
+      <ProtectedRoute path="/client/equipment" role="client" component={ClientAssets} />
+      <ProtectedRoute path="/client/plan" role="client" component={ClientPlan} />
       <ProtectedRoute path="/client/projects" role="client" component={ClientProjects} />
       <ProtectedRoute path="/client/invoices" role="client" component={ClientInvoices} />
       <ProtectedRoute path="/client/documents" role="client" component={ClientDocuments} />
       <ProtectedRoute path="/client/profile" role="client" component={ClientProfile} />
       <ProtectedRoute path="/client/messages" role="client" component={ClientMessages} />
       <ProtectedRoute path="/client/notes" role="client" component={ClientNotes} />
+      <ProtectedRoute path="/client" role="client" component={ClientDashboard} />
       
       {/* Custom hidden pages (e.g. /privacy-policy) */}
       <Route path="/pages/:slug" component={CustomPageView} />

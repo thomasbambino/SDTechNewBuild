@@ -322,6 +322,134 @@ const createTables = async () => {
       );
     `);
 
+    // Service tickets
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS tickets (
+        id SERIAL PRIMARY KEY,
+        client_id INTEGER NOT NULL REFERENCES clients(id),
+        project_id INTEGER REFERENCES projects(id),
+        title TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        category TEXT NOT NULL DEFAULT 'support',
+        priority TEXT NOT NULL DEFAULT 'normal',
+        status TEXT NOT NULL DEFAULT 'new',
+        location TEXT,
+        created_by INTEGER REFERENCES users(id),
+        assigned_to INTEGER REFERENCES users(id),
+        resolved_at TIMESTAMP WITH TIME ZONE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_tickets_client ON tickets(client_id);`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);`);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ticket_comments (
+        id SERIAL PRIMARY KEY,
+        ticket_id INTEGER NOT NULL REFERENCES tickets(id),
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        content TEXT NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_ticket_comments_ticket ON ticket_comments(ticket_id);`);
+
+    // Appointments / on-site visits
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS appointments (
+        id SERIAL PRIMARY KEY,
+        client_id INTEGER NOT NULL REFERENCES clients(id),
+        project_id INTEGER REFERENCES projects(id),
+        ticket_id INTEGER REFERENCES tickets(id),
+        title TEXT NOT NULL,
+        notes TEXT,
+        location TEXT,
+        scheduled_start TIMESTAMP WITH TIME ZONE NOT NULL,
+        scheduled_end TIMESTAMP WITH TIME ZONE NOT NULL,
+        status TEXT NOT NULL DEFAULT 'requested',
+        assigned_to INTEGER REFERENCES users(id),
+        created_by INTEGER REFERENCES users(id),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_appointments_client ON appointments(client_id);`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_appointments_start ON appointments(scheduled_start);`);
+
+    // Equipment inventory per client
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS assets (
+        id SERIAL PRIMARY KEY,
+        client_id INTEGER NOT NULL REFERENCES clients(id),
+        category TEXT NOT NULL DEFAULT 'other',
+        name TEXT NOT NULL,
+        manufacturer TEXT,
+        model TEXT,
+        serial_number TEXT,
+        firmware TEXT,
+        location TEXT,
+        installed_at TIMESTAMP WITH TIME ZONE,
+        warranty_expires_at TIMESTAMP WITH TIME ZONE,
+        notes TEXT,
+        created_by INTEGER REFERENCES users(id),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_assets_client ON assets(client_id);`);
+
+    // Managed service plans + per-client assignment
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS service_plans (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        monthly_price DOUBLE PRECISION NOT NULL DEFAULT 0,
+        included_hours DOUBLE PRECISION,
+        features TEXT,
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS client_plans (
+        id SERIAL PRIMARY KEY,
+        client_id INTEGER NOT NULL REFERENCES clients(id),
+        plan_id INTEGER NOT NULL REFERENCES service_plans(id),
+        status TEXT NOT NULL DEFAULT 'active',
+        started_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        cancelled_at TIMESTAMP WITH TIME ZONE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_client_plans_client ON client_plans(client_id);`);
+
+    // Attachments on messages and tickets
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS attachments (
+        id SERIAL PRIMARY KEY,
+        message_id INTEGER REFERENCES messages(id),
+        ticket_id INTEGER REFERENCES tickets(id),
+        ticket_comment_id INTEGER REFERENCES ticket_comments(id),
+        name TEXT NOT NULL,
+        path TEXT NOT NULL,
+        mime_type TEXT,
+        size INTEGER,
+        uploaded_by INTEGER REFERENCES users(id),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_attachments_message ON attachments(message_id);`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_attachments_ticket ON attachments(ticket_id);`);
+
+    // Milestones: public case-study flag + optional summary
+    await client.query(`ALTER TABLE milestones ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT FALSE;`);
+    await client.query(`ALTER TABLE milestones ADD COLUMN IF NOT EXISTS public_summary TEXT;`);
+
     // Add a default admin user
     await client.query(`
       INSERT INTO users (username, password, name, email, role)

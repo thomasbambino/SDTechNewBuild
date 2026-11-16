@@ -19,6 +19,13 @@ import {
   siteStrings, SiteString,
   projectTasks, ProjectTask, InsertProjectTask,
   passwordResetTokens, PasswordResetToken,
+  tickets, Ticket, InsertTicket,
+  ticketComments, TicketComment, InsertTicketComment,
+  appointments, Appointment, InsertAppointment,
+  assets, Asset, InsertAsset,
+  servicePlans, ServicePlan, InsertServicePlan,
+  clientPlans, ClientPlan, InsertClientPlan,
+  attachments, Attachment, InsertAttachment,
 } from "@shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
@@ -1377,6 +1384,215 @@ export class DatabaseStorage implements IStorage {
   async deleteCustomPage(id: number): Promise<boolean> {
     const deleted = await this.db.delete(customPages).where(eq(customPages.id, id)).returning({ id: customPages.id });
     return deleted.length > 0;
+  }
+
+  // ─── Tickets ────────────────────────────────────────────────────────────
+  async getTicket(id: number): Promise<Ticket | undefined> {
+    const [t] = await this.db.select().from(tickets).where(eq(tickets.id, id));
+    return t;
+  }
+  async getTicketsByClient(clientId: number): Promise<Ticket[]> {
+    return await this.db.select().from(tickets).where(eq(tickets.clientId, clientId)).orderBy(desc(tickets.createdAt));
+  }
+  async getAllTickets(): Promise<Ticket[]> {
+    return await this.db.select().from(tickets).orderBy(desc(tickets.createdAt));
+  }
+  async createTicket(t: InsertTicket): Promise<Ticket> {
+    const [row] = await this.db.insert(tickets).values(t).returning();
+    return row;
+  }
+  async updateTicket(id: number, patch: Partial<Ticket>): Promise<Ticket | undefined> {
+    const [row] = await this.db.update(tickets).set({ ...patch, updatedAt: new Date() }).where(eq(tickets.id, id)).returning();
+    return row;
+  }
+  async deleteTicket(id: number): Promise<boolean> {
+    await this.db.delete(attachments).where(eq(attachments.ticketId, id));
+    await this.db.delete(ticketComments).where(eq(ticketComments.ticketId, id));
+    const deleted = await this.db.delete(tickets).where(eq(tickets.id, id)).returning({ id: tickets.id });
+    return deleted.length > 0;
+  }
+  async getTicketComments(ticketId: number): Promise<(TicketComment & { authorName: string; authorRole: string })[]> {
+    const rows = await this.client`
+      SELECT c.id, c.ticket_id, c.user_id, c.content, c.created_at,
+             u.name AS author_name, u.role AS author_role
+        FROM ticket_comments c
+        LEFT JOIN users u ON u.id = c.user_id
+       WHERE c.ticket_id = ${ticketId}
+       ORDER BY c.created_at ASC`;
+    return rows.map((r: any) => ({
+      id: r.id,
+      ticketId: r.ticket_id,
+      userId: r.user_id,
+      content: r.content,
+      createdAt: r.created_at,
+      authorName: r.author_name || "",
+      authorRole: r.author_role || "",
+    }));
+  }
+  async createTicketComment(c: InsertTicketComment): Promise<TicketComment> {
+    const [row] = await this.db.insert(ticketComments).values(c).returning();
+    return row;
+  }
+
+  // ─── Appointments ───────────────────────────────────────────────────────
+  async getAppointment(id: number): Promise<Appointment | undefined> {
+    const [a] = await this.db.select().from(appointments).where(eq(appointments.id, id));
+    return a;
+  }
+  async getAppointmentsByClient(clientId: number): Promise<Appointment[]> {
+    return await this.db.select().from(appointments).where(eq(appointments.clientId, clientId)).orderBy(asc(appointments.scheduledStart));
+  }
+  async getAllAppointments(): Promise<Appointment[]> {
+    return await this.db.select().from(appointments).orderBy(asc(appointments.scheduledStart));
+  }
+  async createAppointment(a: InsertAppointment): Promise<Appointment> {
+    const [row] = await this.db.insert(appointments).values(a).returning();
+    return row;
+  }
+  async updateAppointment(id: number, patch: Partial<Appointment>): Promise<Appointment | undefined> {
+    const [row] = await this.db.update(appointments).set({ ...patch, updatedAt: new Date() }).where(eq(appointments.id, id)).returning();
+    return row;
+  }
+  async deleteAppointment(id: number): Promise<boolean> {
+    const deleted = await this.db.delete(appointments).where(eq(appointments.id, id)).returning({ id: appointments.id });
+    return deleted.length > 0;
+  }
+
+  // ─── Assets ─────────────────────────────────────────────────────────────
+  async getAsset(id: number): Promise<Asset | undefined> {
+    const [a] = await this.db.select().from(assets).where(eq(assets.id, id));
+    return a;
+  }
+  async getAssetsByClient(clientId: number): Promise<Asset[]> {
+    return await this.db.select().from(assets).where(eq(assets.clientId, clientId)).orderBy(asc(assets.category), asc(assets.name));
+  }
+  async createAsset(a: InsertAsset): Promise<Asset> {
+    const [row] = await this.db.insert(assets).values(a).returning();
+    return row;
+  }
+  async updateAsset(id: number, patch: Partial<Asset>): Promise<Asset | undefined> {
+    const [row] = await this.db.update(assets).set({ ...patch, updatedAt: new Date() }).where(eq(assets.id, id)).returning();
+    return row;
+  }
+  async deleteAsset(id: number): Promise<boolean> {
+    const deleted = await this.db.delete(assets).where(eq(assets.id, id)).returning({ id: assets.id });
+    return deleted.length > 0;
+  }
+
+  // ─── Service plans + per-client assignments ─────────────────────────────
+  async getAllServicePlans(activeOnly = false): Promise<ServicePlan[]> {
+    if (activeOnly) {
+      return await this.db.select().from(servicePlans).where(eq(servicePlans.isActive, true)).orderBy(asc(servicePlans.monthlyPrice));
+    }
+    return await this.db.select().from(servicePlans).orderBy(asc(servicePlans.monthlyPrice));
+  }
+  async getServicePlan(id: number): Promise<ServicePlan | undefined> {
+    const [p] = await this.db.select().from(servicePlans).where(eq(servicePlans.id, id));
+    return p;
+  }
+  async createServicePlan(p: InsertServicePlan): Promise<ServicePlan> {
+    const [row] = await this.db.insert(servicePlans).values(p).returning();
+    return row;
+  }
+  async updateServicePlan(id: number, patch: Partial<ServicePlan>): Promise<ServicePlan | undefined> {
+    const [row] = await this.db.update(servicePlans).set({ ...patch, updatedAt: new Date() }).where(eq(servicePlans.id, id)).returning();
+    return row;
+  }
+  async deleteServicePlan(id: number): Promise<boolean> {
+    // Null out references on client_plans so cancellations survive the plan deletion.
+    await this.client`DELETE FROM client_plans WHERE plan_id = ${id}`;
+    const deleted = await this.db.delete(servicePlans).where(eq(servicePlans.id, id)).returning({ id: servicePlans.id });
+    return deleted.length > 0;
+  }
+  async getClientPlan(clientId: number): Promise<(ClientPlan & { plan: ServicePlan }) | undefined> {
+    const rows = await this.client`
+      SELECT cp.id, cp.client_id, cp.plan_id, cp.status, cp.started_at, cp.cancelled_at, cp.created_at, cp.updated_at,
+             sp.name AS plan_name, sp.description AS plan_description, sp.monthly_price, sp.included_hours,
+             sp.features, sp.is_active, sp.created_at AS plan_created_at, sp.updated_at AS plan_updated_at
+        FROM client_plans cp
+        JOIN service_plans sp ON sp.id = cp.plan_id
+       WHERE cp.client_id = ${clientId} AND cp.status = 'active'
+       ORDER BY cp.started_at DESC
+       LIMIT 1`;
+    if (rows.length === 0) return undefined;
+    const r: any = rows[0];
+    return {
+      id: r.id,
+      clientId: r.client_id,
+      planId: r.plan_id,
+      status: r.status,
+      startedAt: r.started_at,
+      cancelledAt: r.cancelled_at,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+      plan: {
+        id: r.plan_id,
+        name: r.plan_name,
+        description: r.plan_description,
+        monthlyPrice: r.monthly_price,
+        includedHours: r.included_hours,
+        features: r.features,
+        isActive: r.is_active,
+        createdAt: r.plan_created_at,
+        updatedAt: r.plan_updated_at,
+      },
+    };
+  }
+  async assignClientPlan(clientId: number, planId: number): Promise<ClientPlan> {
+    // Cancel any active plan first — one active plan per client.
+    await this.client`UPDATE client_plans SET status = 'cancelled', cancelled_at = NOW(), updated_at = NOW() WHERE client_id = ${clientId} AND status = 'active'`;
+    const [row] = await this.db.insert(clientPlans).values({ clientId, planId, status: "active" }).returning();
+    return row;
+  }
+  async cancelClientPlan(id: number): Promise<ClientPlan | undefined> {
+    const [row] = await this.db.update(clientPlans)
+      .set({ status: "cancelled", cancelledAt: new Date(), updatedAt: new Date() })
+      .where(eq(clientPlans.id, id)).returning();
+    return row;
+  }
+
+  // ─── Attachments ────────────────────────────────────────────────────────
+  async createAttachment(a: InsertAttachment): Promise<Attachment> {
+    const [row] = await this.db.insert(attachments).values(a).returning();
+    return row;
+  }
+  async getAttachmentsByMessage(messageId: number): Promise<Attachment[]> {
+    return await this.db.select().from(attachments).where(eq(attachments.messageId, messageId));
+  }
+  async getAttachmentsByTicket(ticketId: number): Promise<Attachment[]> {
+    return await this.db.select().from(attachments).where(eq(attachments.ticketId, ticketId));
+  }
+  async deleteAttachment(id: number): Promise<boolean> {
+    const deleted = await this.db.delete(attachments).where(eq(attachments.id, id)).returning({ id: attachments.id });
+    return deleted.length > 0;
+  }
+
+  // ─── Public case studies (flagged milestones) ───────────────────────────
+  async getPublicMilestones(limit = 50): Promise<Array<Milestone & { projectName: string; clientName: string }>> {
+    const rows = await this.client`
+      SELECT m.id, m.project_id, m.title, m.notes, m.image_paths, m.created_by,
+             m.is_public, m.public_summary, m.created_at, m.updated_at,
+             p.name AS project_name, c.name AS client_name
+        FROM milestones m
+        JOIN projects p ON p.id = m.project_id
+        JOIN clients c  ON c.id = p.client_id
+       WHERE m.is_public = TRUE
+       ORDER BY m.created_at DESC
+       LIMIT ${limit}`;
+    return rows.map((r: any) => ({
+      id: r.id,
+      projectId: r.project_id,
+      title: r.title,
+      notes: r.notes,
+      imagePaths: r.image_paths,
+      createdBy: r.created_by,
+      isPublic: r.is_public,
+      publicSummary: r.public_summary,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+      projectName: r.project_name,
+      clientName: r.client_name,
+    }));
   }
 }
 
