@@ -294,9 +294,10 @@ export default function PublicHome() {
         id: s.id,
         icon: s.imagePath?.startsWith("icon:") ? s.imagePath.slice(5) : "briefcase",
         title: s.title ?? "",
+        subtitle: s.subtitle ?? "",
         lines: (s.content ?? "").split(/\n+/).map((l) => l.replace(/^[-•]\s*/, "").trim()).filter(Boolean),
       }))
-    : serviceDefaults;
+    : serviceDefaults.map(d => ({ ...d, subtitle: "" }));
 
   const about = aboutContent[0] ?? null;
 
@@ -472,7 +473,12 @@ export default function PublicHome() {
                   <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary-soft text-primary-soft-foreground">
                     {SERVICE_ICON_MAP[service.icon] ?? SERVICE_ICON_MAP.briefcase}
                   </span>
-                  <h3 className="text-xl font-semibold">{service.title}</h3>
+                  <div className="flex flex-col gap-1">
+                    <h3 className="text-xl font-semibold leading-tight">{service.title}</h3>
+                    {service.subtitle && (
+                      <p className="text-[13.5px] text-muted-foreground leading-snug">{service.subtitle}</p>
+                    )}
+                  </div>
                   {service.lines.length > 1 ? (
                     <ul className="flex flex-col gap-1.5 pl-[18px] text-[14.5px] leading-snug text-foreground/75 marker:text-muted-foreground" style={{ listStyle: "disc" }}>
                       {service.lines.map((line) => <li key={line}>{line}</li>)}

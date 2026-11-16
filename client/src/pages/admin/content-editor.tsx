@@ -44,22 +44,26 @@ import {
   Settings,
   Monitor,
   Smartphone,
-  Wrench, Camera } from "lucide-react";
+  Wrench, Camera, Wifi, Lock } from "lucide-react";
 
 const SERVICE_ICON_OPTIONS = [
-  { key: "layout",     label: "Layout",     Icon: Layout },
-  { key: "code",       label: "Code",       Icon: Code },
-  { key: "briefcase",  label: "Consulting", Icon: Briefcase },
-  { key: "barChart",   label: "Analytics",  Icon: BarChart },
-  { key: "globe",      label: "Web",        Icon: Globe },
-  { key: "database",   label: "Database",   Icon: Database },
+  { key: "wifi",       label: "Networking", Icon: Wifi },
+  { key: "camera",     label: "Cameras",    Icon: Camera },
+  { key: "monitor",    label: "IT",         Icon: Monitor },
   { key: "shield",     label: "Security",   Icon: Shield },
-  { key: "zap",        label: "Speed",      Icon: Zap },
+  { key: "home",       label: "Smart Home", Icon: Home },
+  { key: "lock",       label: "Access",     Icon: Lock },
+  { key: "briefcase",  label: "Consulting", Icon: Briefcase },
   { key: "settings",   label: "IT/Ops",     Icon: Settings },
-  { key: "monitor",    label: "Hardware",   Icon: Monitor },
+  { key: "wrench",     label: "Support",    Icon: Wrench },
+  { key: "zap",        label: "Speed",      Icon: Zap },
+  { key: "database",   label: "Database",   Icon: Database },
   { key: "users",      label: "Team",       Icon: Users },
   { key: "smartphone", label: "Mobile",     Icon: Smartphone },
-  { key: "wrench",     label: "Support",    Icon: Wrench },
+  { key: "layout",     label: "Layout",     Icon: Layout },
+  { key: "code",       label: "Code",       Icon: Code },
+  { key: "globe",      label: "Web",        Icon: Globe },
+  { key: "barChart",   label: "Analytics",  Icon: BarChart },
 ];
 import Cropper from "react-easy-crop";
 import heic2any from "heic2any";
