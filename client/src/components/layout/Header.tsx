@@ -93,7 +93,7 @@ export default function Header({ sidebarOpen, setSidebarOpen, themeMode, setThem
       .slice(0, 2);
   };
 
-  const redirectPath = user?.role === "admin" ? "/admin" : "/client";
+  const redirectPath = (user?.role === "admin" || user?.role === "internal") ? "/admin" : "/client";
 
   return (
     <header className={`bg-card border-b border-border z-30 fixed left-0 right-0 ${offsetTop ? "top-10" : "top-0"}`}>
@@ -132,7 +132,7 @@ export default function Header({ sidebarOpen, setSidebarOpen, themeMode, setThem
                   <span className="hidden flex-col leading-none md:flex">
                     <span className="font-display text-xl font-bold">{publicSettings?.companyName || "SD Tech Pros"}</span>
                     <span className="font-display text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                      {user?.role === "admin" ? "Admin" : "Client portal"}
+                      {(user?.role === "admin" || user?.role === "internal") ? "Admin" : "Client portal"}
                     </span>
                   </span>
                 </>
@@ -175,11 +175,11 @@ export default function Header({ sidebarOpen, setSidebarOpen, themeMode, setThem
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem asChild>
-                  <Link href={user?.role === "admin" ? "/admin/profile" : "/client/profile"}>
+                  <Link href={(user?.role === "admin" || user?.role === "internal") ? "/admin/profile" : "/client/profile"}>
                     Your Profile
                   </Link>
                 </DropdownMenuItem>
-                {user?.role === "admin" && (
+                {(user?.role === "admin" || user?.role === "internal") && (
                   <DropdownMenuItem asChild>
                     <Link href="/admin/branding">Settings</Link>
                   </DropdownMenuItem>

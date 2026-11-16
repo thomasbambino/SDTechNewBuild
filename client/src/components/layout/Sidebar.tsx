@@ -29,13 +29,13 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen, offsetTop }: Side
 
   const { data: inquiries = [] } = useQuery<{ status: string }[]>({
     queryKey: ['/api/inquiries'],
-    enabled: user?.role === 'admin',
+    enabled: user?.role === 'admin' || user?.role === 'internal',
   });
   const pendingInquiryCount = inquiries.filter(i => i.status === 'pending').length;
 
   const { data: unreadData } = useQuery<{ count: number }>({
     queryKey: ['/api/messages/unread-count'],
-    enabled: user?.role === 'admin',
+    enabled: user?.role === 'admin' || user?.role === 'internal',
     refetchInterval: 10000,
   });
   const unreadMessageCount = unreadData?.count ?? 0;
@@ -63,7 +63,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen, offsetTop }: Side
       >
         <ScrollArea className="h-full px-3 py-4">
           {/* Admin Navigation */}
-          {user?.role === "admin" && (
+          {(user?.role === "admin" || user?.role === "internal") && (
             <>
               <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 Dashboard

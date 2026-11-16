@@ -31,9 +31,17 @@ export function ProtectedRoute({
     );
   }
   
-  // Check for role-based access
-  if (role && user.role !== role) {
-    const redirectPath = user.role === "admin" ? "/admin" : "/client";
+  // Role-based access. "admin" is the gate for back-office routes and
+  // "internal" users satisfy it (same back-office access, fewer destructive
+  // powers — enforced per-action on the server).
+  const isAdminLike = user.role === "admin" || user.role === "internal";
+  const isAllowed =
+    !role ||
+    user.role === role ||
+    (role === "admin" && isAdminLike);
+
+  if (!isAllowed) {
+    const redirectPath = isAdminLike ? "/admin" : "/client";
     return (
       <Route path={path}>
         <Redirect to={redirectPath} />

@@ -244,7 +244,7 @@ export function setupAuth(app: Express) {
       const targetId = parseInt(req.params.userId);
       const targetUser = await storage.getUser(targetId);
       if (!targetUser) return res.status(404).json({ message: "User not found" });
-      if (targetUser.role === "admin") return res.status(400).json({ message: "Cannot impersonate an admin" });
+      if (targetUser.role === "admin" || targetUser.role === "internal") return res.status(400).json({ message: "Cannot impersonate an admin or internal user" });
 
       const originalAdminId = (req.user as SelectUser).id;
       const adminDisplay = (req.user as SelectUser).name || (req.user as SelectUser).username;

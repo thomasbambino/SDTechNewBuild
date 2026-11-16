@@ -75,7 +75,7 @@ const createUserSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
   fullName: z.string().min(2, "Full name is required"),
   password: z.string().min(8, "Password must be at least 8 characters"),
-  role: z.enum(["admin", "client"]),
+  role: z.enum(["admin", "internal", "client"]),
 });
 
 type CreateUserValues = z.infer<typeof createUserSchema>;
@@ -95,7 +95,8 @@ const generateRandomPassword = () => {
 
 export default function AdminUsers() {
   const { toast } = useToast();
-  const { impersonateMutation } = useAuth();
+  const { user: currentUser, impersonateMutation } = useAuth();
+  const isFullAdmin = currentUser?.role === "admin";
   const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [createdLogin, setCreatedLogin] = useState<{ username: string; tempPassword: string; emailSent?: boolean; sentTo?: string } | null>(null);
@@ -242,6 +243,13 @@ export default function AdminUsers() {
           <Badge variant="outline" className="bg-purple-100 text-purple-800 flex items-center gap-1">
             <ShieldCheck className="h-3 w-3" />
             Admin
+          </Badge>
+        );
+      case "internal":
+        return (
+          <Badge variant="outline" className="bg-amber-100 text-amber-800 flex items-center gap-1">
+            <ShieldCheck className="h-3 w-3" />
+            Internal
           </Badge>
         );
       case "client":
@@ -552,6 +560,7 @@ export default function AdminUsers() {
                                 </FormControl>
                                 <SelectContent>
                                   <SelectItem value="client">Client</SelectItem>
+                                  <SelectItem value="internal">Internal (back-office)</SelectItem>
                                   <SelectItem value="admin">Administrator</SelectItem>
                                 </SelectContent>
                               </Select>
@@ -667,19 +676,21 @@ export default function AdminUsers() {
                                             View as Client
                                           </Button>
                                         )}
-                                        <Button 
-                                          variant={user.role === 'admin' ? 'outline' : 'default'}
-                                          className="justify-start"
-                                          onClick={() => handleToggleRole(user)}
-                                          disabled={updateRoleMutation.isPending}
-                                        >
-                                          {updateRoleMutation.isPending ? (
-                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                          ) : (
-                                            <ShieldCheck className="mr-2 h-4 w-4" />
-                                          )}
-                                          {user.role === 'admin' ? 'Remove Admin Rights' : 'Make Administrator'}
-                                        </Button>
+                                        {isFullAdmin && (
+                                          <Button
+                                            variant={user.role === 'admin' ? 'outline' : 'default'}
+                                            className="justify-start"
+                                            onClick={() => handleToggleRole(user)}
+                                            disabled={updateRoleMutation.isPending}
+                                          >
+                                            {updateRoleMutation.isPending ? (
+                                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            ) : (
+                                              <ShieldCheck className="mr-2 h-4 w-4" />
+                                            )}
+                                            {user.role === 'admin' ? 'Remove Admin Rights' : 'Make Administrator'}
+                                          </Button>
+                                        )}
                                         <Button 
                                           variant={user.status === 'disabled' ? 'default' : 'destructive'}
                                           className="justify-start"
@@ -697,14 +708,16 @@ export default function AdminUsers() {
                                           )}
                                           {(user.status === 'disabled') ? 'Enable Account' : 'Disable Account'}
                                         </Button>
-                                        <Button
-                                          variant="outline"
-                                          className="justify-start text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/40"
-                                          onClick={() => { setDeleteTarget(user); setDeleteBlocked(null); }}
-                                        >
-                                          <Trash2 className="mr-2 h-4 w-4" />
-                                          Delete User
-                                        </Button>
+                                        {isFullAdmin && (
+                                          <Button
+                                            variant="outline"
+                                            className="justify-start text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/40"
+                                            onClick={() => { setDeleteTarget(user); setDeleteBlocked(null); }}
+                                          >
+                                            <Trash2 className="mr-2 h-4 w-4" />
+                                            Delete User
+                                          </Button>
+                                        )}
                                       </div>
                                     </div>
                                   </div>

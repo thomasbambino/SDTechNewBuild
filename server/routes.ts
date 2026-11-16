@@ -42,12 +42,18 @@ const isAuthenticated = (req: Request, res: Response, next: NextFunction) => {
 };
 
 // Role middleware to ensure user has specific role
-const hasRole = (role: string) => (req: Request, res: Response, next: NextFunction) => {
-  if (req.isAuthenticated() && req.user?.role === role) {
+// Accepts one or more roles — a user with any of them passes.
+const hasRole = (...roles: string[]) => (req: Request, res: Response, next: NextFunction) => {
+  if (req.isAuthenticated() && req.user?.role && roles.includes(req.user.role)) {
     return next();
   }
   res.status(403).json({ message: "Forbidden: Insufficient permissions" });
 };
+
+// Convenience for "admin OR internal" — the common back-office gate.
+// Strictly-admin endpoints (delete user, promote to admin, etc.) keep using
+// `hasAdminAccess` directly.
+const hasAdminAccess = hasRole("admin", "internal");
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Fail fast if encryption for secret note fields isn't configured.
@@ -312,7 +318,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/site-strings", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.put("/api/site-strings", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const body = req.body;
       if (!body || typeof body !== "object") {
@@ -368,7 +374,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Dashboard data
-  app.get("/api/dashboard/admin", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.get("/api/dashboard/admin", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const clients = await storage.getAllClients();
       const projects = await storage.getAllProjects();
@@ -524,7 +530,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Client routes
-  app.get("/api/clients", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.get("/api/clients", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const clients = await storage.getAllClients();
       res.json(clients);
@@ -533,7 +539,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.post("/api/clients", isAuthenticated, hasRole("admin"), validateRequest(insertClientSchema), async (req, res, next) => {
+  app.post("/api/clients", isAuthenticated, hasAdminAccess, validateRequest(insertClientSchema), async (req, res, next) => {
     try {
       const client = await storage.createClient(req.body);
       
@@ -570,7 +576,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.put("/api/clients/:id", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.put("/api/clients/:id", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const clientId = parseInt(req.params.id);
       const updatedClient = await storage.updateClient(clientId, req.body);
@@ -593,7 +599,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/clients/:id/related-counts", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.get("/api/clients/:id/related-counts", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const counts = await storage.getClientRelatedCounts(parseInt(req.params.id));
       res.json(counts);
@@ -602,7 +608,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/clients/:id", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.delete("/api/clients/:id", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const clientId = parseInt(req.params.id);
       const client = await storage.getClient(clientId);
@@ -656,7 +662,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.post("/api/projects", isAuthenticated, hasRole("admin"), validateRequest(insertProjectSchema), async (req, res, next) => {
+  app.post("/api/projects", isAuthenticated, hasAdminAccess, validateRequest(insertProjectSchema), async (req, res, next) => {
     try {
       const project = await storage.createProject(req.body);
       
@@ -697,7 +703,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.put("/api/projects/:id", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.put("/api/projects/:id", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const projectId = parseInt(req.params.id);
       // Coerce ISO date strings → Date for drizzle; partial() so any
@@ -723,7 +729,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/projects/:id", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.delete("/api/projects/:id", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const projectId = parseInt(req.params.id);
       const project = await storage.getProject(projectId);
@@ -896,7 +902,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Inquiry routes
-  app.get("/api/inquiries", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.get("/api/inquiries", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const inquiries = await storage.getAllInquiries();
       res.json(inquiries);
@@ -905,7 +911,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.get("/api/inquiries/pending", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.get("/api/inquiries/pending", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const pendingInquiries = await storage.getPendingInquiries();
       res.json(pendingInquiries);
@@ -914,7 +920,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.put("/api/inquiries/:id", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.put("/api/inquiries/:id", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const inquiryId = parseInt(req.params.id);
       const updatedInquiry = await storage.updateInquiry(inquiryId, req.body);
@@ -938,7 +944,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Content management routes
-  app.get("/api/contents", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.get("/api/contents", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const contents = await storage.getAllContents();
       res.json(contents);
@@ -947,7 +953,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.post("/api/contents", isAuthenticated, hasRole("admin"), validateRequest(insertContentSchema), async (req, res, next) => {
+  app.post("/api/contents", isAuthenticated, hasAdminAccess, validateRequest(insertContentSchema), async (req, res, next) => {
     try {
       const content = await storage.createContent(req.body);
       
@@ -965,7 +971,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.put("/api/contents/:id", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.put("/api/contents/:id", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const contentId = parseInt(req.params.id);
       const updatedContent = await storage.updateContent(contentId, req.body);
@@ -988,7 +994,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.delete("/api/contents/:id", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.delete("/api/contents/:id", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const contentId = parseInt(req.params.id);
       const content = await storage.getContent(contentId);
@@ -1018,7 +1024,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Settings routes
-  app.get("/api/settings", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.get("/api/settings", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const settings = await storage.getSettings();
       res.json(settings);
@@ -1027,7 +1033,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.put("/api/settings", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.put("/api/settings", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const updatedSettings = await storage.updateSettings(req.body);
       
@@ -1048,7 +1054,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Logo upload endpoint
-  app.post("/api/settings/logo", isAuthenticated, hasRole("admin"), upload.single('logo'), async (req, res, next) => {
+  app.post("/api/settings/logo", isAuthenticated, hasAdminAccess, upload.single('logo'), async (req, res, next) => {
     try {
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
@@ -1081,7 +1087,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Favicon upload endpoint
-  app.post("/api/settings/favicon", isAuthenticated, hasRole("admin"), upload.single('favicon'), async (req, res, next) => {
+  app.post("/api/settings/favicon", isAuthenticated, hasAdminAccess, upload.single('favicon'), async (req, res, next) => {
     try {
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
@@ -1117,7 +1123,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Content image upload endpoint
-  app.post("/api/content/image", isAuthenticated, hasRole("admin"), upload.single('image'), async (req, res, next) => {
+  app.post("/api/content/image", isAuthenticated, hasAdminAccess, upload.single('image'), async (req, res, next) => {
     try {
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
@@ -1167,7 +1173,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Activity routes
-  app.get("/api/activities", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.get("/api/activities", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 20;
       const activities = await storage.getRecentActivities(limit);
@@ -1178,7 +1184,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Freshbooks API connection routes
-  app.get("/api/api-connections/freshbooks", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.get("/api/api-connections/freshbooks", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       let connection = await storage.getApiConnection("freshbooks");
 
@@ -1206,7 +1212,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Initiate FreshBooks OAuth — redirects browser to FreshBooks authorization page
-  app.get("/api/api-connections/freshbooks/auth", isAuthenticated, hasRole("admin"), (req, res) => {
+  app.get("/api/api-connections/freshbooks/auth", isAuthenticated, hasAdminAccess, (req, res) => {
     const clientId = process.env.FRESHBOOKS_CLIENT_ID;
     const redirectUri = process.env.FRESHBOOKS_REDIRECT_URI;
     if (!clientId || !redirectUri) {
@@ -1293,13 +1299,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   // FreshBooks OAuth callback — registered redirect URI
-  app.get("/auth/callback", isAuthenticated, hasRole("admin"), handleFreshbooksCallback);
+  app.get("/auth/callback", isAuthenticated, hasAdminAccess, handleFreshbooksCallback);
 
   // FreshBooks OAuth callback — alternate path
-  app.get("/api/api-connections/freshbooks/callback", isAuthenticated, hasRole("admin"), handleFreshbooksCallback);
+  app.get("/api/api-connections/freshbooks/callback", isAuthenticated, hasAdminAccess, handleFreshbooksCallback);
 
   // Refresh FreshBooks token using stored refresh_token
-  app.post("/api/api-connections/freshbooks/refresh", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.post("/api/api-connections/freshbooks/refresh", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const connection = await storage.getApiConnection("freshbooks");
       if (!connection?.refreshToken) {
@@ -1348,7 +1354,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Disconnect FreshBooks
-  app.delete("/api/api-connections/freshbooks", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.delete("/api/api-connections/freshbooks", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const updated = await storage.updateApiConnection("freshbooks", {
         provider: "freshbooks",
@@ -1364,7 +1370,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Sync FreshBooks data
-  app.post("/api/api-connections/freshbooks/sync", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.post("/api/api-connections/freshbooks/sync", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const { freshbooksService } = await import("./freshbooks");
       await freshbooksService.syncAll();
@@ -1469,7 +1475,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // User management routes
-  app.get("/api/users", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.get("/api/users", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const users = await storage.getAllUsers();
       
@@ -1485,7 +1491,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.post("/api/users", isAuthenticated, hasRole("admin"), validateRequest(insertUserSchema), async (req, res, next) => {
+  app.post("/api/users", isAuthenticated, hasAdminAccess, validateRequest(insertUserSchema), async (req, res, next) => {
     try {
       const { password, ...userData } = req.body;
 
@@ -1523,7 +1529,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.get("/api/users/:id", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.get("/api/users/:id", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const userId = parseInt(req.params.id);
       const user = await storage.getUser(userId);
@@ -1541,21 +1547,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.put("/api/users/:id", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.put("/api/users/:id", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const userId = parseInt(req.params.id);
       const { role, ...otherUpdates } = req.body;
-      
+
       // Check if user exists
       const existingUser = await storage.getUser(userId);
       if (!existingUser) {
         return res.status(404).json({ message: "User not found" });
       }
-      
-      // Update user
+
+      // Only admins may change roles. Internal users may edit everything else.
+      const wantsRoleChange = typeof role === "string" && role !== existingUser.role;
+      if (wantsRoleChange && req.user?.role !== "admin") {
+        return res.status(403).json({ message: "Only admins can change a user's role" });
+      }
+
       const updatedUser = await storage.updateUser(userId, {
         ...otherUpdates,
-        role,
+        ...(wantsRoleChange ? { role } : {}),
         updatedAt: new Date()
       });
       
@@ -1581,6 +1592,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Hard-delete a user stays admin-only — internal users can't remove accounts.
   app.delete("/api/users/:id", isAuthenticated, hasRole("admin"), async (req, res, next) => {
     try {
       const userId = parseInt(req.params.id);
@@ -1610,7 +1622,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (err) { next(err); }
   });
 
-  app.post("/api/users/:id/reset-password", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.post("/api/users/:id/reset-password", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const userId = parseInt(req.params.id);
 
@@ -1726,7 +1738,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin: send a reset link to a user (instead of generating a temp password).
-  app.post("/api/users/:id/send-reset-link", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.post("/api/users/:id/send-reset-link", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const userId = parseInt(req.params.id);
       const user = await storage.getUser(userId);
@@ -1763,14 +1775,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin: list all pages
-  app.get("/api/pages", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.get("/api/pages", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       res.json(await storage.getAllCustomPages());
     } catch (err) { next(err); }
   });
 
   // Admin: create page
-  app.post("/api/pages", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.post("/api/pages", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const { title, slug, content, isPublished } = req.body;
       if (!title || !slug) return res.status(400).json({ message: "title and slug are required" });
@@ -1781,7 +1793,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin: update page
-  app.put("/api/pages/:id", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.put("/api/pages/:id", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const { title, slug, content, isPublished } = req.body;
       const cleanSlug = slug ? slug.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") : undefined;
@@ -1792,7 +1804,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin: delete page
-  app.delete("/api/pages/:id", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.delete("/api/pages/:id", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       await storage.deleteCustomPage(parseInt(req.params.id));
       res.sendStatus(204);
@@ -1802,7 +1814,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ── Messages ──────────────────────────────────────────────────────────────
 
   // Admin: unread message count for current admin
-  app.get("/api/messages/unread-count", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.get("/api/messages/unread-count", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const count = await storage.getUnreadCountForAdmin(req.user!.id);
       res.json({ count });
@@ -1810,7 +1822,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin: list all clients that have messages + unread counts
-  app.get("/api/messages/clients", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.get("/api/messages/clients", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const counts = await storage.getAllClientsWithMessageCounts(req.user!.id);
       const allClients = await storage.getAllClients();
@@ -1884,7 +1896,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (err) { next(err); }
   });
 
-  app.post("/api/milestones", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.post("/api/milestones", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const { projectId, title, notes, imagePaths, createdAt } = req.body;
       if (!projectId || !title) return res.status(400).json({ message: "projectId and title required" });
@@ -1906,7 +1918,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (err) { next(err); }
   });
 
-  app.put("/api/milestones/:id", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.put("/api/milestones/:id", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const { title, notes, imagePaths, createdAt } = req.body;
       const ts = createdAt ? new Date(createdAt) : undefined;
@@ -1924,7 +1936,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (err) { next(err); }
   });
 
-  app.delete("/api/milestones/:id", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.delete("/api/milestones/:id", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       await storage.deleteMilestone(parseInt(req.params.id));
       res.sendStatus(204);
@@ -1932,7 +1944,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Milestone image upload
-  app.post("/api/milestones/image", isAuthenticated, hasRole("admin"), upload.single("image"), async (req, res, next) => {
+  app.post("/api/milestones/image", isAuthenticated, hasAdminAccess, upload.single("image"), async (req, res, next) => {
     try {
       if (!req.file) return res.status(400).json({ message: "No file uploaded" });
       if (!(await verifyUploadedImage(req, res))) return;
@@ -1983,7 +1995,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (err) { next(err); }
   });
 
-  app.post("/api/projects/:projectId/tasks", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.post("/api/projects/:projectId/tasks", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const projectId = parseInt(req.params.projectId);
       const project = await storage.getProject(projectId);
@@ -2006,7 +2018,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (err) { next(err); }
   });
 
-  app.put("/api/tasks/:id", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.put("/api/tasks/:id", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const id = parseInt(req.params.id);
       const patch: Partial<ProjectTask> = {};
@@ -2032,7 +2044,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (err) { next(err); }
   });
 
-  app.delete("/api/tasks/:id", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.delete("/api/tasks/:id", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const id = parseInt(req.params.id);
       const deleted = await storage.deleteProjectTask(id);
@@ -2139,7 +2151,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (err) { next(err); }
   });
 
-  app.post("/api/client-notes", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.post("/api/client-notes", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const { clientId, title, content, isPinned, category, fields } = req.body;
       if (!clientId || !title) return res.status(400).json({ message: "clientId and title are required" });
@@ -2162,7 +2174,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (err) { next(err); }
   });
 
-  app.put("/api/client-notes/:id", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.put("/api/client-notes/:id", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const { title, content, isPinned, category, fields } = req.body;
       const encryptedFields = Array.isArray(fields) && fields.length > 0
@@ -2180,7 +2192,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (err) { next(err); }
   });
 
-  app.delete("/api/client-notes/:id", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.delete("/api/client-notes/:id", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       await storage.deleteClientNote(parseInt(req.params.id));
       res.sendStatus(204);
@@ -2299,7 +2311,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create a login account for an existing client
-  app.post("/api/clients/:id/create-login", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+  app.post("/api/clients/:id/create-login", isAuthenticated, hasAdminAccess, async (req, res, next) => {
     try {
       const clientId = parseInt(req.params.id);
       const client = await storage.getClient(clientId);
