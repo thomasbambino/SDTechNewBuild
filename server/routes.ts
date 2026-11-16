@@ -28,7 +28,8 @@ import {
   decryptFieldsArray,
   assertNoteCryptoReady,
 } from "./noteCrypto";
-import { sendNewAccountEmail, sendPasswordResetEmail } from "./email";
+import { sendNewAccountEmail, sendPasswordResetEmail, sendPasswordResetLinkEmail } from "./email";
+import { createHash } from "crypto";
 
 
 
@@ -1487,17 +1488,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/users", isAuthenticated, hasRole("admin"), validateRequest(insertUserSchema), async (req, res, next) => {
     try {
       const { password, ...userData } = req.body;
-      
-      // Hash the password
+
       const hashedPassword = await hashPassword(password);
-      
-      // Create the user
       const user = await storage.createUser({
         ...userData,
         password: hashedPassword
       });
-      
-      // Create activity record
+
       await storage.createActivity({
         userId: req.user?.id,
         action: "User Created",
@@ -1505,11 +1502,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         entityType: "user",
         entityId: user.id
       });
-      
-      // Remove password from response
+
+      // Email the credentials so the admin never has to copy-paste them manually.
+      // Reports success/failure back so the dialog can tell the admin whether
+      // to read the password out loud or trust the inbox.
+      let emailSent = false;
+      if (user.email) {
+        emailSent = await sendNewAccountEmail({
+          to: user.email,
+          name: user.name,
+          username: user.username,
+          temporaryPassword: password,
+        });
+      }
+
       const { password: _, ...userWithoutPassword } = user;
-      
-      res.status(201).json(userWithoutPassword);
+      res.status(201).json({ ...userWithoutPassword, emailSent });
     } catch (error) {
       next(error);
     }
@@ -1626,6 +1634,92 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       next(error);
     }
+  });
+
+  // ── Password reset (link flow) ────────────────────────────────────────────
+
+  const RESET_TOKEN_TTL_MIN = 60;
+
+  // Issue a reset token for a user (shared between self-service + admin-sent).
+  // Returns the plaintext token so the caller can build the URL.
+  const issueResetToken = async (userId: number): Promise<string> => {
+    const token = randomBytes(32).toString("base64url");
+    const tokenHash = createHash("sha256").update(token).digest("hex");
+    const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MIN * 60 * 1000);
+    await storage.createPasswordResetToken(userId, tokenHash, expiresAt);
+    return token;
+  };
+
+  // Public self-service. Always returns 200 (don't leak which emails exist).
+  app.post("/api/auth/forgot-password", async (req, res, next) => {
+    try {
+      const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+      if (!email) return res.status(400).json({ message: "Email is required" });
+      const user = await storage.getUserByEmail(email);
+      if (user && user.status !== "disabled") {
+        const token = await issueResetToken(user.id);
+        const appUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
+        await sendPasswordResetLinkEmail({
+          to: user.email,
+          name: user.name,
+          resetUrl: `${appUrl}/auth/reset?token=${encodeURIComponent(token)}`,
+          expiresInMinutes: RESET_TOKEN_TTL_MIN,
+        });
+      }
+      // Same response either way — avoids email enumeration.
+      res.json({ ok: true });
+    } catch (err) { next(err); }
+  });
+
+  // Public: consume a token + set a new password.
+  app.post("/api/auth/reset-password", async (req, res, next) => {
+    try {
+      const token = typeof req.body?.token === "string" ? req.body.token : "";
+      const newPassword = typeof req.body?.newPassword === "string" ? req.body.newPassword : "";
+      if (!token) return res.status(400).json({ message: "Reset token is required" });
+      if (newPassword.length < PASSWORD_MIN_LENGTH) {
+        return res.status(400).json({ message: `Password must be at least ${PASSWORD_MIN_LENGTH} characters` });
+      }
+      const tokenHash = createHash("sha256").update(token).digest("hex");
+      const row = await storage.findValidPasswordResetToken(tokenHash);
+      if (!row) return res.status(400).json({ message: "This reset link is invalid or expired. Request a new one." });
+      await storage.updateUser(row.userId, { password: await hashPassword(newPassword) });
+      await storage.markPasswordResetTokenUsed(row.id);
+      await storage.createActivity({
+        userId: row.userId,
+        action: "Password Reset",
+        details: "Password changed via reset link",
+        entityType: "user",
+        entityId: row.userId,
+      });
+      res.json({ ok: true });
+    } catch (err) { next(err); }
+  });
+
+  // Admin: send a reset link to a user (instead of generating a temp password).
+  app.post("/api/users/:id/send-reset-link", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+    try {
+      const userId = parseInt(req.params.id);
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      if (!user.email) return res.status(400).json({ message: "User has no email on file" });
+      const token = await issueResetToken(userId);
+      const appUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
+      const emailSent = await sendPasswordResetLinkEmail({
+        to: user.email,
+        name: user.name,
+        resetUrl: `${appUrl}/auth/reset?token=${encodeURIComponent(token)}`,
+        expiresInMinutes: RESET_TOKEN_TTL_MIN,
+      });
+      await storage.createActivity({
+        userId: req.user?.id,
+        action: "Password Reset",
+        details: `Reset link sent to ${user.email}`,
+        entityType: "user",
+        entityId: user.id,
+      });
+      res.json({ ok: true, emailSent, sentTo: user.email });
+    } catch (err) { next(err); }
   });
 
   // ── Custom Pages ──────────────────────────────────────────────────────────
@@ -2139,10 +2233,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         entityId: clientId,
       });
 
-      // Fire-and-forget welcome email. Failure does not block the response.
-      sendNewAccountEmail({ to: email, name, username, temporaryPassword: tempPassword }).catch(() => {});
+      // Await so the admin UI can tell the primary whether the email landed.
+      const emailSent = await sendNewAccountEmail({ to: email, name, username, temporaryPassword: tempPassword });
 
-      res.status(201).json({ username, tempPassword, userId: newUser.id });
+      res.status(201).json({ username, tempPassword, userId: newUser.id, emailSent });
     } catch (err) { next(err); }
   });
 
@@ -2213,14 +2307,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Also link the user → client so sub-user logic keeps a consistent invariant.
       await storage.updateUser(newUser.id, { clientId });
 
-      sendNewAccountEmail({
+      const emailSent = await sendNewAccountEmail({
         to: client.email,
         name: client.name,
         username,
         temporaryPassword: tempPassword,
-      }).catch(() => {});
+      });
 
-      res.json({ username, tempPassword, userId: newUser.id });
+      res.json({ username, tempPassword, userId: newUser.id, emailSent });
     } catch (error) {
       next(error);
     }

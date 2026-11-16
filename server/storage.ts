@@ -18,6 +18,7 @@ import {
   customPages, CustomPage, InsertCustomPage,
   siteStrings, SiteString,
   projectTasks, ProjectTask, InsertProjectTask,
+  passwordResetTokens, PasswordResetToken,
 } from "@shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
@@ -129,6 +130,11 @@ export interface IStorage {
   // Site string operations
   getAllSiteStrings(): Promise<SiteString[]>;
   upsertSiteStrings(entries: { key: string; value: string }[]): Promise<void>;
+
+  // Password reset tokens
+  createPasswordResetToken(userId: number, tokenHash: string, expiresAt: Date): Promise<PasswordResetToken>;
+  findValidPasswordResetToken(tokenHash: string): Promise<PasswordResetToken | undefined>;
+  markPasswordResetTokenUsed(id: number): Promise<void>;
 
   // Project task operations
   getProjectTasks(projectId: number): Promise<ProjectTask[]>;
@@ -1282,6 +1288,34 @@ export class DatabaseStorage implements IStorage {
         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
       `;
     }
+  }
+
+  async createPasswordResetToken(userId: number, tokenHash: string, expiresAt: Date): Promise<PasswordResetToken> {
+    const [row] = await this.db
+      .insert(passwordResetTokens)
+      .values({ userId, tokenHash, expiresAt })
+      .returning();
+    return row;
+  }
+
+  async findValidPasswordResetToken(tokenHash: string): Promise<PasswordResetToken | undefined> {
+    // Valid = not used and not expired.
+    const now = new Date();
+    const [row] = await this.db
+      .select()
+      .from(passwordResetTokens)
+      .where(eq(passwordResetTokens.tokenHash, tokenHash));
+    if (!row) return undefined;
+    if (row.usedAt) return undefined;
+    if (new Date(row.expiresAt) < now) return undefined;
+    return row;
+  }
+
+  async markPasswordResetTokenUsed(id: number): Promise<void> {
+    await this.db
+      .update(passwordResetTokens)
+      .set({ usedAt: new Date() })
+      .where(eq(passwordResetTokens.id, id));
   }
 
   async getAllCustomPages(): Promise<CustomPage[]> {

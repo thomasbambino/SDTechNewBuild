@@ -97,7 +97,7 @@ export default function AdminUsers() {
   const { impersonateMutation } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [createdLogin, setCreatedLogin] = useState<{ username: string; tempPassword: string } | null>(null);
+  const [createdLogin, setCreatedLogin] = useState<{ username: string; tempPassword: string; emailSent?: boolean; sentTo?: string } | null>(null);
   const [resetTarget, setResetTarget] = useState<User | null>(null);
   const [resetPasswordInput, setResetPasswordInput] = useState("");
   const [resetResult, setResetResult] = useState<{ username: string; newPassword: string } | null>(null);
@@ -136,7 +136,12 @@ export default function AdminUsers() {
       return res.json();
     },
     onSuccess: (data) => {
-      setCreatedLogin({ username: data.username, tempPassword: data.tempPassword });
+      setCreatedLogin({
+        username: data.username,
+        tempPassword: data.tempPassword,
+        emailSent: data.emailSent,
+        sentTo: data.sentTo,
+      });
       queryClient.invalidateQueries({ queryKey: ['/api/clients'] });
       queryClient.invalidateQueries({ queryKey: ['/api/users'] });
     },
@@ -170,11 +175,16 @@ export default function AdminUsers() {
       const response = await apiRequest('POST', '/api/users', userData);
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/users'] });
       toast({
         title: "User created",
-        description: "The user has been successfully created.",
+        description: data.emailSent
+          ? `Welcome email sent to ${data.email}.`
+          : data.email
+            ? `User created. Email didn't go out — check RESEND_API_KEY or the Resend dashboard.`
+            : "User created.",
+        variant: data.email && !data.emailSent ? "destructive" : "default",
       });
       setIsDialogOpen(false);
       form.reset({
@@ -297,6 +307,24 @@ export default function AdminUsers() {
         variant: "destructive",
       });
     }
+  });
+
+  const sendResetLinkMutation = useMutation({
+    mutationFn: async (userId: number) => {
+      const res = await apiRequest("POST", `/api/users/${userId}/send-reset-link`);
+      return res.json() as Promise<{ emailSent: boolean; sentTo: string }>;
+    },
+    onSuccess: (data) => {
+      setResetTarget(null);
+      toast({
+        title: data.emailSent ? "Reset link sent" : "Couldn't send email",
+        description: data.emailSent
+          ? `We emailed a reset link to ${data.sentTo}. It's good for 60 minutes.`
+          : "The server tried to send the link but the email provider failed. Check RESEND_API_KEY.",
+        variant: data.emailSent ? "default" : "destructive",
+      });
+    },
+    onError: (err: Error) => toast({ title: "Couldn't send reset link", description: err.message, variant: "destructive" }),
   });
   
   // Update user role function
@@ -706,7 +734,16 @@ export default function AdminUsers() {
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
               <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm w-full mx-4">
                 <h3 className="font-semibold text-lg mb-1">Login Created</h3>
-                <p className="text-sm text-muted-foreground mb-4">Share these credentials with the client.</p>
+                {createdLogin.emailSent ? (
+                  <div className="rounded-md bg-success-soft text-success-soft-foreground px-3 py-2 text-sm mb-3 flex items-start gap-2">
+                    <span>✓</span>
+                    <span>Welcome email sent to <strong>{createdLogin.sentTo ?? "the user"}</strong>. The credentials below are a backup if they can't find it.</span>
+                  </div>
+                ) : (
+                  <div className="rounded-md bg-warning-soft text-warning-soft-foreground px-3 py-2 text-sm mb-3">
+                    Email didn't go out. Copy the credentials below and share them another way.
+                  </div>
+                )}
                 <div className="space-y-3 bg-gray-50 rounded-md p-4 font-mono text-sm">
                   <div><span className="text-gray-500">Username: </span><strong>{createdLogin.username}</strong></div>
                   <div><span className="text-gray-500">Password: </span><strong>{createdLogin.tempPassword}</strong></div>
@@ -729,51 +766,76 @@ export default function AdminUsers() {
               <DialogHeader>
                 <DialogTitle>Reset Password</DialogTitle>
                 <DialogDescription>
-                  Set a new password for <strong>{resetTarget?.username}</strong>. Leave blank to generate a random one.
+                  Pick how you want to reset <strong>{resetTarget?.username}</strong>'s password.
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-3 py-2">
-                <div className="flex space-x-2">
-                  <Input
-                    type="text"
-                    autoComplete="new-password"
-                    placeholder="New password (min 8 chars)"
-                    value={resetPasswordInput}
-                    onChange={(e) => setResetPasswordInput(e.target.value)}
-                  />
+
+              {/* Option 1: Email a reset link (recommended) */}
+              <div className="space-y-2 py-2">
+                <div className="rounded-md border border-border bg-muted/30 p-3 space-y-2">
+                  <p className="text-sm font-medium">Email them a reset link</p>
+                  <p className="text-xs text-muted-foreground">
+                    The user picks their own new password. Link expires in 60 minutes.
+                    {!resetTarget?.email && " — this user has no email on file."}
+                  </p>
                   <Button
                     type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setResetPasswordInput(generateRandomPassword())}
-                    title="Generate random password"
+                    size="sm"
+                    disabled={!resetTarget?.email || sendResetLinkMutation.isPending}
+                    onClick={() => resetTarget && sendResetLinkMutation.mutate(resetTarget.id)}
                   >
-                    <Key className="h-4 w-4" />
+                    {sendResetLinkMutation.isPending ? (
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending…</>
+                    ) : "Send reset link"}
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  The new password will be shown once after saving so you can copy it.
-                </p>
+
+                {/* Option 2: Set a temp password manually */}
+                <div className="rounded-md border border-border p-3 space-y-2">
+                  <p className="text-sm font-medium">Or set a temporary password now</p>
+                  <div className="flex gap-2">
+                    <Input
+                      type="text"
+                      autoComplete="new-password"
+                      placeholder="New password (min 8 chars)"
+                      value={resetPasswordInput}
+                      onChange={(e) => setResetPasswordInput(e.target.value)}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setResetPasswordInput(generateRandomPassword())}
+                      title="Generate random password"
+                    >
+                      <Key className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Shown once after saving; also emailed to the user if they have an address on file.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={submitResetPassword}
+                    disabled={resetPasswordMutation.isPending || !resetPasswordInput.trim()}
+                  >
+                    {resetPasswordMutation.isPending ? (
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…</>
+                    ) : "Set temporary password"}
+                  </Button>
+                </div>
               </div>
+
               <DialogFooter>
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   onClick={() => {
                     setResetTarget(null);
                     setResetPasswordInput("");
                   }}
                 >
-                  Cancel
-                </Button>
-                <Button onClick={submitResetPassword} disabled={resetPasswordMutation.isPending}>
-                  {resetPasswordMutation.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    "Save Password"
-                  )}
+                  Close
                 </Button>
               </DialogFooter>
             </DialogContent>

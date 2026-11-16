@@ -7,6 +7,8 @@ import { AuthProvider } from "@/hooks/use-auth";
 import { SettingsProvider } from "@/hooks/use-settings";
 import { ProtectedRoute } from "@/lib/protected-route";
 import AuthPage from "@/pages/auth-page";
+import AuthForgotPage from "@/pages/auth-forgot";
+import AuthResetPage from "@/pages/auth-reset";
 import PublicHome from "@/pages/public-home";
 import InquiryForm from "@/pages/inquiry-form";
 import DynamicFavicon from "@/components/layout/DynamicFavicon";
@@ -44,6 +46,8 @@ function Router() {
       {/* Public routes */}
       <Route path="/" component={PublicHome} />
       <Route path="/inquiry" component={InquiryForm} />
+      <Route path="/auth/forgot" component={AuthForgotPage} />
+      <Route path="/auth/reset" component={AuthResetPage} />
       <Route path="/auth" component={AuthPage} />
 
       {/* Admin routes */}

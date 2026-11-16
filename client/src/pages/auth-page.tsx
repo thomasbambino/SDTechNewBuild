@@ -103,7 +103,12 @@ export default function AuthPage() {
               {settings?.contactPhone ? <> Call <a href={`tel:${settings.contactPhone.replace(/[^\d+]/g, "")}`} className="font-medium text-primary hover:underline">{settings.contactPhone}</a> or </> : " "}
               <a href="/inquiry" onClick={(e) => { e.preventDefault(); navigate("/inquiry"); }} className="font-medium text-primary hover:underline">request a quote</a>.
             </p>
-            <p>Forgot your password? Contact us and we'll reset it.</p>
+            <p>
+              Forgot your password?{" "}
+              <a href="/auth/forgot" onClick={(e) => { e.preventDefault(); navigate("/auth/forgot"); }} className="font-medium text-primary hover:underline">
+                Email yourself a reset link
+              </a>.
+            </p>
           </div>
         </div>
       </div>

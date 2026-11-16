@@ -198,6 +198,33 @@ export async function sendNewAccountEmail(opts: {
   return send({ to: opts.to, subject: `Your ${brand.companyName} portal account`, html });
 }
 
+/**
+ * Sent when a user (or admin on their behalf) requests a reset link. The
+ * recipient clicks it to set a new password themselves — no temporary
+ * password is ever exposed.
+ */
+export async function sendPasswordResetLinkEmail(opts: {
+  to: string;
+  name: string;
+  resetUrl: string;
+  expiresInMinutes: number;
+}): Promise<boolean> {
+  const brand = await getBrand();
+  const html = renderLayout({
+    brand,
+    preview: `Reset your ${brand.companyName} password.`,
+    heading: "Reset your password",
+    body: `
+      <p style="margin:0 0 12px;">Hi${opts.name ? ` ${esc(opts.name.split(" ")[0])}` : ""}, someone — hopefully you — asked to reset the password on your <strong>${esc(brand.companyName)}</strong> portal account.</p>
+      <p style="margin:0 0 12px;">Click the button below to pick a new password. The link is good for <strong>${opts.expiresInMinutes} minutes</strong> and can only be used once.</p>
+      <p style="margin:0;color:#687079;">If you didn't ask for this, you can ignore the email — your password won't change.</p>
+    `,
+    cta: { label: "Set a new password", href: opts.resetUrl },
+    footer: `This message was sent to ${esc(opts.to)}.`,
+  });
+  return send({ to: opts.to, subject: `${brand.companyName}: reset your password`, html });
+}
+
 /** Sent when an admin resets a user's password. */
 export async function sendPasswordResetEmail(opts: {
   to: string;

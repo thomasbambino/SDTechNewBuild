@@ -225,6 +225,19 @@ const createTables = async () => {
     // Recent Work before/after: optional second image per content row.
     await client.query(`ALTER TABLE contents ADD COLUMN IF NOT EXISTS image_path_before TEXT;`);
 
+    // Single-use password reset tokens (self-service forgot + admin-sent link).
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token_hash TEXT NOT NULL UNIQUE,
+        expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+        used_at TIMESTAMP WITH TIME ZONE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_password_reset_user ON password_reset_tokens(user_id);`);
+
     // Per-project tasks ("What's next").
     await client.query(`
       CREATE TABLE IF NOT EXISTS project_tasks (

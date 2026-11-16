@@ -314,6 +314,20 @@ export const insertClientNoteSchema = createInsertSchema(clientNotes)
 export type ClientNote = typeof clientNotes.$inferSelect;
 export type InsertClientNote = z.infer<typeof insertClientNoteSchema>;
 
+// Single-use password reset tokens. Admin can trigger one, or a user
+// can request one from the Forgot-Password page. Short-lived.
+export const passwordResetTokens = pgTable("password_reset_tokens", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  // Hashed before storage so a DB dump can't be used to reset accounts.
+  tokenHash: text("token_hash").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt: timestamp("used_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
+
 // Per-project task list. Admins add/complete/reorder; clients see
 // the list on their dashboard and project view.
 export const projectTasks = pgTable("project_tasks", {
