@@ -1574,13 +1574,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Remove password from response
       const { password, ...userWithoutPassword } = updatedUser;
-      
+
       res.json(userWithoutPassword);
     } catch (error) {
       next(error);
     }
   });
-  
+
+  app.delete("/api/users/:id", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+    try {
+      const userId = parseInt(req.params.id);
+      if (userId === req.user?.id) {
+        return res.status(400).json({ message: "You can't delete your own account" });
+      }
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      const result = await storage.deleteUser(userId);
+      if (!result.ok) {
+        return res.status(409).json({
+          message: `This user is still the primary owner of ${result.clientIds.length} client${result.clientIds.length === 1 ? "" : "s"}. Reassign or delete the client first.`,
+          clientIds: result.clientIds,
+        });
+      }
+
+      await storage.createActivity({
+        userId: req.user?.id,
+        action: "User Deleted",
+        details: `Deleted user ${user.username}`,
+        entityType: "user",
+        entityId: userId,
+      });
+
+      res.sendStatus(204);
+    } catch (err) { next(err); }
+  });
+
   app.post("/api/users/:id/reset-password", isAuthenticated, hasRole("admin"), async (req, res, next) => {
     try {
       const userId = parseInt(req.params.id);

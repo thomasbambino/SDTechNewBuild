@@ -54,6 +54,7 @@ import {
   Loader2,
   Key,
   Eye,
+  Trash2,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -210,7 +211,10 @@ export default function AdminUsers() {
   };
 
   // Filter users based on search term
-  const filteredUsers = users.filter(u => u.role !== 'client' || clientUserIds.has(u.id)).filter(user =>
+  // Show every user — admins AND all client-role users (primaries, team members,
+  // disabled). Previously only primary client users were shown, which hid
+  // ex-team-members whose emails were still occupying unique slots in the DB.
+  const filteredUsers = users.filter(user =>
     user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -397,6 +401,36 @@ export default function AdminUsers() {
     const newStatus = currentStatus === 'active' ? 'disabled' : 'active';
     updateStatusMutation.mutate({ userId: user.id, status: newStatus });
   };
+
+  const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
+  const [deleteBlocked, setDeleteBlocked] = useState<{ clientIds: number[] } | null>(null);
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: number) => {
+      const res = await fetch(`/api/users/${userId}`, { method: "DELETE", credentials: "include" });
+      if (res.status === 409) {
+        const body = await res.json();
+        const err: any = new Error(body.message || "Blocked");
+        err.blocked = true;
+        err.clientIds = body.clientIds ?? [];
+        throw err;
+      }
+      if (!res.ok) throw new Error((await res.text()) || res.statusText);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
+      toast({ title: "User deleted" });
+      setDeleteTarget(null);
+      setDeleteBlocked(null);
+    },
+    onError: (err: any) => {
+      if (err.blocked) {
+        setDeleteBlocked({ clientIds: err.clientIds });
+      } else {
+        toast({ title: "Delete failed", description: err.message, variant: "destructive" });
+      }
+    },
+  });
 
   return (
     <AppLayout>
@@ -663,6 +697,14 @@ export default function AdminUsers() {
                                           )}
                                           {(user.status === 'disabled') ? 'Enable Account' : 'Disable Account'}
                                         </Button>
+                                        <Button
+                                          variant="outline"
+                                          className="justify-start text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/40"
+                                          onClick={() => { setDeleteTarget(user); setDeleteBlocked(null); }}
+                                        >
+                                          <Trash2 className="mr-2 h-4 w-4" />
+                                          Delete User
+                                        </Button>
                                       </div>
                                     </div>
                                   </div>
@@ -868,6 +910,45 @@ export default function AdminUsers() {
               </div>
             </div>
           )}
+
+          {/* Delete user confirmation */}
+          <Dialog
+            open={!!deleteTarget}
+            onOpenChange={(open) => { if (!open) { setDeleteTarget(null); setDeleteBlocked(null); } }}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>
+                  {deleteBlocked ? "Can't delete this user yet" : `Delete ${deleteTarget?.name}?`}
+                </DialogTitle>
+                <DialogDescription>
+                  {deleteBlocked ? (
+                    <>
+                      <span>They're still the primary owner of {deleteBlocked.clientIds.length} client{deleteBlocked.clientIds.length === 1 ? "" : "s"}. Reassign the client to someone else (or delete the client first) before you delete the user.</span>
+                    </>
+                  ) : (
+                    <>
+                      Permanently removes <strong>{deleteTarget?.username}</strong> ({deleteTarget?.email}). Their messages, likes, and comments are deleted; their past activity shows as "someone". This can't be undone.
+                    </>
+                  )}
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => { setDeleteTarget(null); setDeleteBlocked(null); }}>
+                  Cancel
+                </Button>
+                {!deleteBlocked && (
+                  <Button
+                    variant="destructive"
+                    onClick={() => deleteTarget && deleteUserMutation.mutate(deleteTarget.id)}
+                    disabled={deleteUserMutation.isPending}
+                  >
+                    {deleteUserMutation.isPending ? "Deleting…" : "Delete user"}
+                  </Button>
+                )}
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </main>
       </div>
     </AppLayout>

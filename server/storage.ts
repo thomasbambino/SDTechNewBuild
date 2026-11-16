@@ -136,6 +136,9 @@ export interface IStorage {
   findValidPasswordResetToken(tokenHash: string): Promise<PasswordResetToken | undefined>;
   markPasswordResetTokenUsed(id: number): Promise<void>;
 
+  // User deletion with FK cleanup
+  deleteUser(id: number): Promise<{ ok: true } | { ok: false; reason: "primary_owner"; clientIds: number[] }>;
+
   // Project task operations
   getProjectTasks(projectId: number): Promise<ProjectTask[]>;
   getProjectTasksByClientId(clientId: number): Promise<ProjectTask[]>;
@@ -1316,6 +1319,40 @@ export class DatabaseStorage implements IStorage {
       .update(passwordResetTokens)
       .set({ usedAt: new Date() })
       .where(eq(passwordResetTokens.id, id));
+  }
+
+  /**
+   * Hard-delete a user, cleaning up every FK that would otherwise block the
+   * row delete. Refuses if the user is still the primary owner of any client
+   * — the admin must reassign or delete the client first.
+   */
+  async deleteUser(id: number): Promise<{ ok: true } | { ok: false; reason: "primary_owner"; clientIds: number[] }> {
+    // Primary-owner check first — don't silently orphan a client record.
+    const ownedClients = await this.db.select().from(clients).where(eq(clients.userId, id));
+    if (ownedClients.length > 0) {
+      return { ok: false, reason: "primary_owner", clientIds: ownedClients.map(c => c.id) };
+    }
+
+    // Preserve audit trails by NULL'ing user references where the column
+    // allows it (authors of past posts, notes, docs, activities). Hard-delete
+    // engagement rows and ephemeral records.
+    await this.client`UPDATE activities    SET user_id    = NULL WHERE user_id    = ${id}`;
+    await this.client`UPDATE client_notes  SET created_by = NULL WHERE created_by = ${id}`;
+    await this.client`UPDATE milestones    SET created_by = NULL WHERE created_by = ${id}`;
+    await this.client`UPDATE documents     SET uploaded_by = NULL WHERE uploaded_by = ${id}`;
+    await this.client`UPDATE project_tasks SET created_by  = NULL WHERE created_by  = ${id}`;
+    await this.client`UPDATE project_tasks SET completed_by = NULL WHERE completed_by = ${id}`;
+
+    // These columns are NOT NULL in the schema, so we hard-delete those rows.
+    await this.db.delete(messages).where(eq(messages.senderUserId, id));
+    await this.db.delete(messageReads).where(eq(messageReads.userId, id));
+    await this.db.delete(postLikes).where(eq(postLikes.userId, id));
+    await this.db.delete(postComments).where(eq(postComments.userId, id));
+    await this.db.delete(passwordResetTokens).where(eq(passwordResetTokens.userId, id));
+
+    // Finally the user row itself.
+    await this.db.delete(users).where(eq(users.id, id));
+    return { ok: true };
   }
 
   async getAllCustomPages(): Promise<CustomPage[]> {
