@@ -13,6 +13,7 @@ import {
   InsertInquiry,
   InsertUser,
   PASSWORD_MIN_LENGTH,
+  ProjectTask,
 } from "@shared/schema";
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
@@ -1765,6 +1766,106 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!(await verifyUploadedImage(req, res))) return;
       const relativePath = `/uploads/${req.file.filename}`;
       res.json({ url: relativePath });
+    } catch (err) { next(err); }
+  });
+
+  // ── Project tasks (What's next) ───────────────────────────────────────────
+
+  // Shared read-access check for a project. Admin = always; client = only if
+  // the project belongs to their client record.
+  const assertCanSeeProject = async (req: Request, projectId: number) => {
+    const project = await storage.getProject(projectId);
+    if (!project) return { ok: false as const, code: 404, msg: "Project not found" };
+    if (req.user!.role === "admin") return { ok: true as const };
+    const userClient = await storage.getClientForUser(req.user!.id);
+    if (!userClient || userClient.id !== project.clientId) {
+      return { ok: false as const, code: 403, msg: "Forbidden" };
+    }
+    return { ok: true as const };
+  };
+
+  app.get("/api/projects/:projectId/tasks", isAuthenticated, async (req, res, next) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      const access = await assertCanSeeProject(req, projectId);
+      if (!access.ok) return res.status(access.code).json({ message: access.msg });
+      const tasks = await storage.getProjectTasks(projectId);
+      res.json(tasks);
+    } catch (err) { next(err); }
+  });
+
+  // Client dashboard batch endpoint — all tasks across the viewer's projects.
+  app.get("/api/tasks/client", isAuthenticated, async (req, res, next) => {
+    try {
+      let clientId: number;
+      if (req.user!.role === "admin") {
+        if (!req.query.clientId) return res.status(400).json({ message: "clientId required" });
+        clientId = parseInt(req.query.clientId as string);
+      } else {
+        const userClient = await storage.getClientForUser(req.user!.id);
+        if (!userClient) return res.status(404).json({ message: "Client profile not found" });
+        clientId = userClient.id;
+      }
+      const tasks = await storage.getProjectTasksByClientId(clientId);
+      res.json(tasks);
+    } catch (err) { next(err); }
+  });
+
+  app.post("/api/projects/:projectId/tasks", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      const title = typeof req.body?.title === "string" ? req.body.title.trim() : "";
+      if (!title) return res.status(400).json({ message: "Title required" });
+      if (title.length > 500) return res.status(400).json({ message: "Title too long" });
+      const description = typeof req.body?.description === "string" ? req.body.description.trim() : null;
+      // Place new tasks at the bottom of the open list.
+      const existing = await storage.getProjectTasks(projectId);
+      const maxOrder = existing.reduce((acc, t) => (t.completedAt ? acc : Math.max(acc, t.order)), -1);
+      const created = await storage.createProjectTask({
+        projectId,
+        title,
+        description: description || null,
+        order: maxOrder + 1,
+        createdBy: req.user!.id,
+      });
+      res.status(201).json(created);
+    } catch (err) { next(err); }
+  });
+
+  app.put("/api/tasks/:id", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+    try {
+      const id = parseInt(req.params.id);
+      const patch: Partial<ProjectTask> = {};
+      if (typeof req.body?.title === "string") {
+        const t = req.body.title.trim();
+        if (!t) return res.status(400).json({ message: "Title cannot be empty" });
+        if (t.length > 500) return res.status(400).json({ message: "Title too long" });
+        patch.title = t;
+      }
+      if (typeof req.body?.description === "string") {
+        patch.description = req.body.description.trim() || null;
+      } else if (req.body?.description === null) {
+        patch.description = null;
+      }
+      if (typeof req.body?.order === "number") patch.order = req.body.order;
+      if (typeof req.body?.completed === "boolean") {
+        patch.completedAt = req.body.completed ? new Date() : null;
+        patch.completedBy = req.body.completed ? req.user!.id : null;
+      }
+      const updated = await storage.updateProjectTask(id, patch);
+      if (!updated) return res.status(404).json({ message: "Task not found" });
+      res.json(updated);
+    } catch (err) { next(err); }
+  });
+
+  app.delete("/api/tasks/:id", isAuthenticated, hasRole("admin"), async (req, res, next) => {
+    try {
+      const id = parseInt(req.params.id);
+      const deleted = await storage.deleteProjectTask(id);
+      if (!deleted) return res.status(404).json({ message: "Task not found" });
+      res.sendStatus(204);
     } catch (err) { next(err); }
   });
 

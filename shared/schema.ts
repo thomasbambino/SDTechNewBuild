@@ -310,6 +310,29 @@ export const insertClientNoteSchema = createInsertSchema(clientNotes)
 export type ClientNote = typeof clientNotes.$inferSelect;
 export type InsertClientNote = z.infer<typeof insertClientNoteSchema>;
 
+// Per-project task list. Admins add/complete/reorder; clients see
+// the list on their dashboard and project view.
+export const projectTasks = pgTable("project_tasks", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  // null = open, set = done. Timestamp lets us show "completed 2 days ago".
+  completedAt: timestamp("completed_at"),
+  completedBy: integer("completed_by").references(() => users.id),
+  // Admin-controlled display order. Integer — gaps are fine.
+  order: integer("order").notNull().default(0),
+  createdBy: integer("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertProjectTaskSchema = createInsertSchema(projectTasks)
+  .omit({ id: true, createdAt: true, updatedAt: true });
+
+export type ProjectTask = typeof projectTasks.$inferSelect;
+export type InsertProjectTask = z.infer<typeof insertProjectTaskSchema>;
+
 // Freeform key/value store for editable UI strings (eyebrows, CTAs,
 // nav labels, etc.). One row per key; the code registers defaults that
 // win when no row exists, so the UI never shows blank text.

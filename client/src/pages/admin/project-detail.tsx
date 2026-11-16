@@ -23,6 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import { formatBytes } from "@/lib/utils";
 import TimelineComposer, { ExistingPost } from "@/components/admin/TimelineComposer";
 import TimelineFeed, { TimelineItem } from "@/components/dashboard/TimelineFeed";
+import TaskList, { TaskRow } from "@/components/dashboard/TaskList";
 
 interface Milestone {
   id: number;
@@ -86,6 +87,11 @@ export default function AdminProjectDetailPage() {
 
   const { data: milestones = [] } = useQuery<Milestone[]>({
     queryKey: [`/api/projects/${projectId}/milestones`],
+    enabled: !isNaN(projectId),
+  });
+
+  const { data: tasks = [] } = useQuery<TaskRow[]>({
+    queryKey: [`/api/projects/${projectId}/tasks`],
     enabled: !isNaN(projectId),
   });
 
@@ -226,6 +232,7 @@ export default function AdminProjectDetailPage() {
           <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-none border-b border-border bg-transparent p-0 [scrollbar-width:none]">
             {([
               ["timeline", "Timeline", milestones.length],
+              ["tasks", "What's next", tasks.length],
               ["invoices", "Invoices", invoices.length],
               ["documents", "Documents", documents.length],
             ] as const).map(([value, label, count]) => (
@@ -276,6 +283,25 @@ export default function AdminProjectDetailPage() {
                 if (confirm(`Delete post "${item.title}"?`)) deleteMilestoneMutation.mutate(meta.milestoneId);
               }}
             />
+          </TabsContent>
+
+          <TabsContent value="tasks" className="mt-4">
+            <Card>
+              <CardContent className="p-5">
+                <div className="mb-3">
+                  <h3 className="font-display text-lg font-semibold">What's next</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Everything you add here shows up on the client's dashboard. Check them off as you finish so they see progress in real time.
+                  </p>
+                </div>
+                <TaskList
+                  tasks={tasks}
+                  projectId={projectId}
+                  canEdit={true}
+                  refreshKeys={[`/api/projects/${projectId}/tasks`, `/api/tasks/client`]}
+                />
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="invoices" className="mt-4">

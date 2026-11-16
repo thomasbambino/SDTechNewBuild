@@ -222,6 +222,23 @@ const createTables = async () => {
     await client.query(`ALTER TABLE client_notes ADD COLUMN IF NOT EXISTS fields TEXT;`);
     await client.query(`ALTER TABLE client_notes ALTER COLUMN content SET DEFAULT '';`);
 
+    // Per-project tasks ("What's next").
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS project_tasks (
+        id SERIAL PRIMARY KEY,
+        project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        description TEXT,
+        completed_at TIMESTAMP WITH TIME ZONE,
+        completed_by INTEGER REFERENCES users(id),
+        "order" INTEGER NOT NULL DEFAULT 0,
+        created_by INTEGER REFERENCES users(id),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_project_tasks_project ON project_tasks(project_id);`);
+
     // Editable UI strings for the public site + portal shell.
     await client.query(`
       CREATE TABLE IF NOT EXISTS site_strings (

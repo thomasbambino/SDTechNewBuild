@@ -7,6 +7,7 @@ import InvoicesTable, { Invoice, formatCurrency } from "@/components/dashboard/I
 import DocumentsList, { Document } from "@/components/dashboard/DocumentsList";
 import TimelineFeed, { TimelineItem } from "@/components/dashboard/TimelineFeed";
 import NoteCard, { NoteData } from "@/components/dashboard/NoteCard";
+import TaskList, { TaskRow } from "@/components/dashboard/TaskList";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Camera, Check, Clock, MessageSquare, ArrowRight } from "lucide-react";
@@ -50,6 +51,7 @@ export default function ClientDashboard() {
   const { data, isLoading, isError, refetch } = useQuery<ClientDashboardData>({ queryKey: ["/api/dashboard/client"] });
   const { data: clientNotes = [] } = useQuery<ClientNote[]>({ queryKey: ["/api/client-notes"], enabled: !!data });
   const { data: timeline = [] } = useQuery<TimelinePost[]>({ queryKey: ["/api/timeline/client"], enabled: !!data });
+  const { data: tasks = [] } = useQuery<TaskRow[]>({ queryKey: ["/api/tasks/client"], enabled: !!data });
 
   return (
     <AppLayout>
@@ -62,7 +64,7 @@ export default function ClientDashboard() {
           <Button onClick={() => refetch()}>Try again</Button>
         </div>
       ) : (
-        <ClientDashboardView data={data} timeline={timeline} notes={clientNotes} />
+        <ClientDashboardView data={data} timeline={timeline} notes={clientNotes} tasks={tasks} />
       )}
     </AppLayout>
   );
@@ -72,7 +74,7 @@ export default function ClientDashboard() {
 /* View: everything visual. Pure props, so it can be previewed.        */
 /* ------------------------------------------------------------------ */
 
-export function ClientDashboardView({ data, timeline, notes }: { data: ClientDashboardData; timeline: TimelinePost[]; notes: ClientNote[] }) {
+export function ClientDashboardView({ data, timeline, notes, tasks }: { data: ClientDashboardData; timeline: TimelinePost[]; notes: ClientNote[]; tasks: TaskRow[] }) {
   const [, navigate] = useLocation();
   const { toast } = useToast();
 
@@ -181,6 +183,37 @@ export function ClientDashboardView({ data, timeline, notes }: { data: ClientDas
                 {data.projects.slice(0, 2).map(project => (
                   <ProjectStatus key={project.id} project={project} onViewDetails={() => navigate("/client/projects")} />
                 ))}
+              </div>
+            )}
+          </RailCard>
+
+          <RailCard title="What's next">
+            {tasks.length === 0 ? (
+              <p className="text-[14px] leading-relaxed text-foreground/75">
+                Your tech will add the project checklist here so you can see what's done and what's coming up.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-4">
+                {data.projects.map(project => {
+                  const projectTasks = tasks.filter(t => t.projectId === project.id);
+                  if (projectTasks.length === 0) return null;
+                  return (
+                    <div key={project.id} className="flex flex-col gap-2">
+                      {data.projects.length > 1 && (
+                        <p className="text-[11px] uppercase tracking-wide font-semibold text-muted-foreground">
+                          {project.name}
+                        </p>
+                      )}
+                      <TaskList
+                        tasks={projectTasks}
+                        projectId={project.id}
+                        canEdit={false}
+                        collapseCompleted
+                        refreshKeys={["/api/tasks/client"]}
+                      />
+                    </div>
+                  );
+                })}
               </div>
             )}
           </RailCard>

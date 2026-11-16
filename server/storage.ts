@@ -17,6 +17,7 @@ import {
   clientNotes, ClientNote, InsertClientNote,
   customPages, CustomPage, InsertCustomPage,
   siteStrings, SiteString,
+  projectTasks, ProjectTask, InsertProjectTask,
 } from "@shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
@@ -128,6 +129,13 @@ export interface IStorage {
   // Site string operations
   getAllSiteStrings(): Promise<SiteString[]>;
   upsertSiteStrings(entries: { key: string; value: string }[]): Promise<void>;
+
+  // Project task operations
+  getProjectTasks(projectId: number): Promise<ProjectTask[]>;
+  getProjectTasksByClientId(clientId: number): Promise<ProjectTask[]>;
+  createProjectTask(task: InsertProjectTask): Promise<ProjectTask>;
+  updateProjectTask(id: number, task: Partial<ProjectTask>): Promise<ProjectTask | undefined>;
+  deleteProjectTask(id: number): Promise<boolean>;
 
   // Custom page operations
   getAllCustomPages(): Promise<CustomPage[]>;
@@ -716,6 +724,7 @@ export class DatabaseStorage implements IStorage {
   async deleteProject(id: number): Promise<boolean> {
     const project = await this.getProject(id);
     if (!project) return false;
+    await this.db.delete(projectTasks).where(eq(projectTasks.projectId, id));
     await this.db.delete(milestones).where(eq(milestones.projectId, id));
     await this.db.delete(documents).where(eq(documents.projectId, id));
     await this.db.delete(invoices).where(eq(invoices.projectId, id));
@@ -1191,6 +1200,61 @@ export class DatabaseStorage implements IStorage {
 
   async getAllSiteStrings(): Promise<SiteString[]> {
     return await this.db.select().from(siteStrings);
+  }
+
+  async getProjectTasks(projectId: number): Promise<ProjectTask[]> {
+    // Open items first (by order), then completed items (newest-completed first).
+    const rows = await this.client<ProjectTask[]>`
+      SELECT
+        id, project_id AS "projectId", title, description,
+        completed_at AS "completedAt", completed_by AS "completedBy",
+        "order", created_by AS "createdBy",
+        created_at AS "createdAt", updated_at AS "updatedAt"
+      FROM project_tasks
+      WHERE project_id = ${projectId}
+      ORDER BY
+        (completed_at IS NOT NULL) ASC,
+        "order" ASC,
+        id ASC
+    `;
+    return rows;
+  }
+
+  async getProjectTasksByClientId(clientId: number): Promise<ProjectTask[]> {
+    const rows = await this.client<ProjectTask[]>`
+      SELECT
+        t.id, t.project_id AS "projectId", t.title, t.description,
+        t.completed_at AS "completedAt", t.completed_by AS "completedBy",
+        t."order", t.created_by AS "createdBy",
+        t.created_at AS "createdAt", t.updated_at AS "updatedAt"
+      FROM project_tasks t
+      JOIN projects p ON p.id = t.project_id
+      WHERE p.client_id = ${clientId}
+      ORDER BY
+        (t.completed_at IS NOT NULL) ASC,
+        t."order" ASC,
+        t.id ASC
+    `;
+    return rows;
+  }
+
+  async createProjectTask(task: InsertProjectTask): Promise<ProjectTask> {
+    const [created] = await this.db.insert(projectTasks).values(task).returning();
+    return created;
+  }
+
+  async updateProjectTask(id: number, taskUpdate: Partial<ProjectTask>): Promise<ProjectTask | undefined> {
+    const [updated] = await this.db
+      .update(projectTasks)
+      .set({ ...taskUpdate, updatedAt: new Date() })
+      .where(eq(projectTasks.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteProjectTask(id: number): Promise<boolean> {
+    const deleted = await this.db.delete(projectTasks).where(eq(projectTasks.id, id)).returning({ id: projectTasks.id });
+    return deleted.length > 0;
   }
 
   async upsertSiteStrings(entries: { key: string; value: string }[]): Promise<void> {
