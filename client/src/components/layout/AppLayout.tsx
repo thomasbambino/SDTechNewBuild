@@ -46,7 +46,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   };
   
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-background text-foreground">
+    <div className="app-layout-root h-screen flex flex-col overflow-hidden bg-background text-foreground">
       {/* Only show header and sidebar for authenticated pages */}
       {user && (
         <>
@@ -80,7 +80,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
       )}
 
       <main className={cn(
-        "flex-1 overflow-y-auto",
+        "app-layout-main flex-1 overflow-y-auto",
         user ? (user.isImpersonating ? "pt-[6.5rem]" : "pt-16") : "",
         shouldShowSidebar() ? "lg:pl-64" : ""
       )}>

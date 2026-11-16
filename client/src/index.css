@@ -237,3 +237,44 @@
   /* Secondary text color fix */
   .dark .text-secondary-500  { color: hsl(var(--muted-foreground)); }
 }
+
+/*
+  Print rules. The app layout wraps everything in h-screen + overflow-hidden
+  containers (so the UI feels like an app, not a scrolling document). That
+  containment is poison for print — the browser only renders what's inside
+  the viewport of a scroll container. For pages the user is expected to
+  print, add `data-printable` on the top-level route element and we release
+  the containment + strip the chrome.
+*/
+@media print {
+  @page { margin: 0.5in; }
+
+  html, body, #root {
+    height: auto !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+    color: #000 !important;
+  }
+
+  /* Opt-in: pages mark themselves printable so we don't break app pages that
+     deliberately use scroll containers (e.g. messages). */
+  body:has([data-printable]) .app-layout-root,
+  body:has([data-printable]) .app-layout-main {
+    height: auto !important;
+    overflow: visible !important;
+    padding-top: 0 !important;
+    padding-left: 0 !important;
+  }
+
+  /* Hide chrome on printable pages. */
+  body:has([data-printable]) header,
+  body:has([data-printable]) aside,
+  body:has([data-printable]) .no-print,
+  [data-printable] .no-print {
+    display: none !important;
+  }
+
+  [data-printable] * {
+    box-shadow: none !important;
+  }
+}

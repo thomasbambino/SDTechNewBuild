@@ -60,19 +60,23 @@ export default function ClientReportPage() {
 
   return (
     <AppLayout>
-      {/* Screen-only toolbar */}
-      <div className="print:hidden sticky top-0 z-20 bg-background border-b border-border">
-        <div className="mx-auto max-w-[900px] px-4 py-3 flex items-center justify-between">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/client")}>
-            <ArrowLeft className="h-4 w-4 mr-2" /> Back to dashboard
-          </Button>
-          <Button onClick={() => window.print()}>
-            <Printer className="h-4 w-4 mr-2" /> Print / Save as PDF
-          </Button>
+      {/* data-printable: AppLayout containers (h-screen, overflow-hidden) are
+          released only for pages that mark themselves; otherwise app pages
+          wouldn't scroll on-screen. See @media print block in index.css. */}
+      <div data-printable>
+        {/* Screen-only toolbar */}
+        <div className="no-print sticky top-0 z-20 bg-background border-b border-border">
+          <div className="mx-auto max-w-[900px] px-4 py-3 flex items-center justify-between">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/client")}>
+              <ArrowLeft className="h-4 w-4 mr-2" /> Back to dashboard
+            </Button>
+            <Button onClick={() => window.print()}>
+              <Printer className="h-4 w-4 mr-2" /> Print / Save as PDF
+            </Button>
+          </div>
         </div>
-      </div>
 
-      <div className="mx-auto max-w-[900px] px-4 py-8 print:max-w-none print:px-10 print:py-6 report">
+        <div className="mx-auto max-w-[900px] px-4 py-8 print:max-w-none print:px-10 print:py-6 report">
         {/* Header */}
         <header className="flex items-start justify-between gap-6 border-b border-border pb-6 mb-6">
           <div>
@@ -197,20 +201,8 @@ export default function ClientReportPage() {
         <footer className="mt-10 pt-6 border-t border-border text-xs text-muted-foreground text-center">
           Generated {today} · {companyName}
         </footer>
+        </div>
       </div>
-
-      {/* Print styles. Scoped via the .report class to avoid stepping on other pages. */}
-      <style>{`
-        @media print {
-          @page { margin: 0.5in; }
-          html, body { background: #ffffff !important; }
-          .report { color: #000 !important; }
-          .report * { box-shadow: none !important; }
-          /* Hide any AppLayout chrome that slips through */
-          nav, aside, [role="banner"], header.sticky, .print\\:hidden { display: none !important; }
-          a { color: inherit; text-decoration: none; }
-        }
-      `}</style>
     </AppLayout>
   );
 }

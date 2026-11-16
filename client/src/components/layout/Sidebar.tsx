@@ -291,159 +291,10 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen, offsetTop }: Side
             </>
           )}
 
-          {/* Client Navigation */}
+          {/* Client Navigation. Grouped so the sidebar stops reading as one
+              long list — mirrors the admin section structure. */}
           {user?.role === "client" && (
-            <nav className="space-y-1">
-              <Link href="/client">
-                <a
-                  className={cn(
-                    "flex items-center px-3 py-2 text-sm font-medium rounded-md",
-                    isActive("/client")
-                      ? "bg-primary/10 text-primary"
-                      : "text-foreground hover:bg-muted"
-                  )}
-                  onClick={handleLinkClick}
-                >
-                  <LayoutDashboard className="h-5 w-5 mr-3" />
-                  <span>Dashboard</span>
-                </a>
-              </Link>
-
-              <Link href="/client/projects">
-                <a
-                  className={cn(
-                    "flex items-center px-3 py-2 text-sm font-medium rounded-md",
-                    isActive("/client/projects")
-                      ? "bg-primary/10 text-primary"
-                      : "text-foreground hover:bg-muted"
-                  )}
-                  onClick={handleLinkClick}
-                >
-                  <Briefcase className="h-5 w-5 mr-3" />
-                  <span>My Projects</span>
-                </a>
-              </Link>
-
-              <Link href="/client/invoices">
-                <a
-                  className={cn(
-                    "flex items-center px-3 py-2 text-sm font-medium rounded-md",
-                    isActive("/client/invoices")
-                      ? "bg-primary/10 text-primary"
-                      : "text-foreground hover:bg-muted"
-                  )}
-                  onClick={handleLinkClick}
-                >
-                  <FileText className="h-5 w-5 mr-3" />
-                  <span>Invoices</span>
-                </a>
-              </Link>
-
-              <Link href="/client/tickets">
-                <a
-                  className={cn(
-                    "flex items-center px-3 py-2 text-sm font-medium rounded-md",
-                    isActive("/client/tickets")
-                      ? "bg-primary/10 text-primary"
-                      : "text-foreground hover:bg-muted"
-                  )}
-                  onClick={handleLinkClick}
-                >
-                  <LifeBuoy className="h-5 w-5 mr-3" />
-                  <span>Service requests</span>
-                </a>
-              </Link>
-
-              <Link href="/client/appointments">
-                <a
-                  className={cn(
-                    "flex items-center px-3 py-2 text-sm font-medium rounded-md",
-                    isActive("/client/appointments")
-                      ? "bg-primary/10 text-primary"
-                      : "text-foreground hover:bg-muted"
-                  )}
-                  onClick={handleLinkClick}
-                >
-                  <CalendarIcon className="h-5 w-5 mr-3" />
-                  <span>Site visits</span>
-                </a>
-              </Link>
-
-              <Link href="/client/equipment">
-                <a
-                  className={cn(
-                    "flex items-center px-3 py-2 text-sm font-medium rounded-md",
-                    isActive("/client/equipment")
-                      ? "bg-primary/10 text-primary"
-                      : "text-foreground hover:bg-muted"
-                  )}
-                  onClick={handleLinkClick}
-                >
-                  <HardDrive className="h-5 w-5 mr-3" />
-                  <span>Equipment</span>
-                </a>
-              </Link>
-
-              <Link href="/client/plan">
-                <a
-                  className={cn(
-                    "flex items-center px-3 py-2 text-sm font-medium rounded-md",
-                    isActive("/client/plan")
-                      ? "bg-primary/10 text-primary"
-                      : "text-foreground hover:bg-muted"
-                  )}
-                  onClick={handleLinkClick}
-                >
-                  <Package className="h-5 w-5 mr-3" />
-                  <span>My plan</span>
-                </a>
-              </Link>
-
-              <Link href="/client/notes">
-                <a
-                  className={cn(
-                    "flex items-center px-3 py-2 text-sm font-medium rounded-md",
-                    isActive("/client/notes")
-                      ? "bg-primary/10 text-primary"
-                      : "text-foreground hover:bg-muted"
-                  )}
-                  onClick={handleLinkClick}
-                >
-                  <StickyNote className="h-5 w-5 mr-3" />
-                  <span>Notes & Details</span>
-                </a>
-              </Link>
-
-              <Link href="/client/messages">
-                <a
-                  className={cn(
-                    "flex items-center px-3 py-2 text-sm font-medium rounded-md",
-                    isActive("/client/messages")
-                      ? "bg-primary/10 text-primary"
-                      : "text-foreground hover:bg-muted"
-                  )}
-                  onClick={handleLinkClick}
-                >
-                  <MessageSquare className="h-5 w-5 mr-3" />
-                  <span>Messages</span>
-                </a>
-              </Link>
-
-              <Link href="/client/profile">
-                <a
-                  className={cn(
-                    "flex items-center px-3 py-2 text-sm font-medium rounded-md",
-                    isActive("/client/profile")
-                      ? "bg-primary/10 text-primary"
-                      : "text-foreground hover:bg-muted"
-                  )}
-                  onClick={handleLinkClick}
-                >
-                  <Users className="h-5 w-5 mr-3" />
-                  <span>Profile</span>
-                </a>
-              </Link>
-            </nav>
+            <ClientNav isActive={isActive} onLinkClick={handleLinkClick} />
           )}
         </ScrollArea>
       </aside>
@@ -455,6 +306,84 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen, offsetTop }: Side
           onClick={() => setSidebarOpen(false)}
         />
       )}
+    </>
+  );
+}
+
+// ─── Client navigation ────────────────────────────────────────────────────
+// Split into labelled sections so the eye can scan "Dashboard / Projects /
+// Service / Billing / Account" instead of a flat list of 10 rows.
+
+type IconComponent = typeof LayoutDashboard;
+
+interface NavSection {
+  label: string | null;
+  items: { href: string; icon: IconComponent; label: string }[];
+}
+
+const CLIENT_NAV: NavSection[] = [
+  { label: null, items: [{ href: "/client", icon: LayoutDashboard, label: "Dashboard" }] },
+  {
+    label: "Projects",
+    items: [
+      { href: "/client/projects", icon: Briefcase, label: "My projects" },
+      { href: "/client/notes", icon: StickyNote, label: "Notes & details" },
+    ],
+  },
+  {
+    label: "Service",
+    items: [
+      { href: "/client/tickets", icon: LifeBuoy, label: "Service requests" },
+      { href: "/client/appointments", icon: CalendarIcon, label: "Site visits" },
+      { href: "/client/equipment", icon: HardDrive, label: "Equipment" },
+    ],
+  },
+  {
+    label: "Billing",
+    items: [
+      { href: "/client/invoices", icon: FileText, label: "Invoices" },
+      { href: "/client/plan", icon: Package, label: "My plan" },
+    ],
+  },
+  {
+    label: "Account",
+    items: [
+      { href: "/client/messages", icon: MessageSquare, label: "Messages" },
+      { href: "/client/profile", icon: Users, label: "Profile" },
+    ],
+  },
+];
+
+function ClientNav({ isActive, onLinkClick }: { isActive: (path: string) => boolean; onLinkClick: () => void }) {
+  return (
+    <>
+      {CLIENT_NAV.map((section, idx) => (
+        <div key={section.label ?? "primary"} className={idx > 0 ? "mt-6" : ""}>
+          {section.label && (
+            <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">{section.label}</p>
+          )}
+          <nav className={cn("space-y-1", section.label && "mt-3")}>
+            {section.items.map(item => {
+              const Icon = item.icon;
+              const active = isActive(item.href);
+              return (
+                <Link key={item.href} href={item.href}>
+                  <a
+                    className={cn(
+                      "flex items-center px-3 py-2 text-sm font-medium rounded-md",
+                      active ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted"
+                    )}
+                    onClick={onLinkClick}
+                  >
+                    <Icon className="h-5 w-5 mr-3" />
+                    <span>{item.label}</span>
+                  </a>
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+      ))}
     </>
   );
 }
