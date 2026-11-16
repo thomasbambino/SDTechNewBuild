@@ -616,46 +616,32 @@ export default function ContentEditorPage() {
                         </div>
                       )}
 
-                      {/* Image upload with crop (non-service types only) */}
-                      {editingContent.type !== 'service' && <div className="space-y-2">
-                        <Label>{editingContent.type === 'job' ? 'After photo' : 'Image'}</Label>
-                        <div className="flex items-start gap-4">
-                          {imagePreview ? (
-                            <div className="relative w-28 h-20 rounded-md overflow-hidden border bg-gray-100 flex-shrink-0">
-                              <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
-                            </div>
-                          ) : (
-                            <div className="w-28 h-20 rounded-md border bg-gray-100 flex items-center justify-center text-xs text-gray-400 flex-shrink-0">
-                              No image
-                            </div>
-                          )}
-                          <div className="space-y-2">
-                            <Label htmlFor="image-upload" className="cursor-pointer inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4">
-                              <Upload className="mr-2 h-4 w-4" />
-                              Upload &amp; Crop
-                            </Label>
-                            <Input id="image-upload" type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
-                            {imagePreview && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="flex items-center"
-                                onClick={() => {
-                                  if (cropSrc) {
-                                    setCrop({ x: 0, y: 0 });
-                                    setZoom(1);
-                                    setCropModalOpen(true);
-                                  }
-                                }}
-                                disabled={!cropSrc}
-                              >
-                                <Crop className="mr-2 h-3 w-3" />
-                                Adjust Crop
-                              </Button>
-                            )}
-                          </div>
+                      {/* Image upload with crop (non-service types only).
+                          About/testimonial/custom get a free-form feel; job
+                          uses 4:3 to match the public card; hero uses 16:9. */}
+                      {editingContent.type !== 'service' && (
+                        <div className="space-y-2">
+                          <Label>
+                            {editingContent.type === 'job' ? 'After photo' :
+                              editingContent.type === 'hero' ? 'Hero image' :
+                              editingContent.type === 'about' ? 'About image' :
+                              editingContent.type === 'testimonial' ? 'Photo' : 'Image'}
+                          </Label>
+                          <ImageUploadField
+                            value={editingContent.imagePath ?? ""}
+                            onChange={(url) => {
+                              setEditingContent({ ...editingContent, imagePath: url || null });
+                              setImagePreview(url || null);
+                            }}
+                            aspect={
+                              editingContent.type === 'hero' ? 16 / 9 :
+                              editingContent.type === 'job' ? 4 / 3 :
+                              editingContent.type === 'about' ? 4 / 5 :
+                              editingContent.type === 'testimonial' ? 1 : undefined
+                            }
+                          />
                         </div>
-                      </div>}
+                      )}
 
                       <div className="flex items-center gap-2">
                         <Switch id="active" checked={!!editingContent.isActive} onCheckedChange={handleActiveToggle} />
