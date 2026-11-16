@@ -4,7 +4,7 @@ import AppLayout from "@/components/layout/AppLayout";
 import { Activity } from "@/components/dashboard/ActivityFeed";
 import { describeActivity } from "@/lib/describeActivity";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatDistanceToNow } from "date-fns";
+import { longRelativeTime } from "@/lib/describeActivity";
 import { 
   RefreshCw, 
   UserPlus, 
@@ -61,12 +61,7 @@ export default function ActivitiesPage() {
     return { iconColor, icon };
   };
   
-  // Format time (e.g. "2 hours ago")
-  const formatTime = (dateString: string) => {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    return formatDistanceToNow(date, { addSuffix: true });
-  };
+  const formatTime = (dateString: string) => longRelativeTime(dateString);
 
   // Filter activities based on search query
   const filteredActivities = activities.filter(activity => 

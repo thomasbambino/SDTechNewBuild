@@ -1,4 +1,34 @@
+import { formatDistanceToNowStrict, differenceInSeconds } from "date-fns";
 import { Activity } from "@/components/dashboard/ActivityFeed";
+
+/**
+ * Short, human-readable relative time: "now", "3m", "2h", "5d", "3w".
+ * Used by the activity feed to keep lines tight.
+ */
+export function shortRelativeTime(dateString: string | null | undefined): string {
+  if (!dateString) return "";
+  const date = new Date(dateString);
+  const secs = differenceInSeconds(new Date(), date);
+  if (secs < 45) return "just now";
+  // Strict mode drops the "about" / "less than" and rounds to one unit.
+  return formatDistanceToNowStrict(date, { addSuffix: false })
+    .replace(" seconds", "s").replace(" second", "s")
+    .replace(" minutes", "m").replace(" minute", "m")
+    .replace(" hours", "h").replace(" hour", "h")
+    .replace(" days", "d").replace(" day", "d")
+    .replace(" months", "mo").replace(" month", "mo")
+    .replace(" years", "y").replace(" year", "y")
+    .replace(" weeks", "w").replace(" week", "w");
+}
+
+/** Longer version for the full /admin/activities page. */
+export function longRelativeTime(dateString: string | null | undefined): string {
+  if (!dateString) return "";
+  const date = new Date(dateString);
+  const secs = differenceInSeconds(new Date(), date);
+  if (secs < 45) return "just now";
+  return formatDistanceToNowStrict(date, { addSuffix: true });
+}
 
 /**
  * Turn an activity row into a readable sentence. Returns parts so the

@@ -950,13 +950,27 @@ export class DatabaseStorage implements IStorage {
   }
   
   async getRecentActivities(limit: number): Promise<Activity[]> {
-    return await this.db
-      .select()
-      .from(activities)
-      .orderBy(desc(activities.createdAt))
-      .limit(limit);
+    // Join users so the client can show "tommyshorez signed in" instead of
+    // "Someone signed in". Users may be deleted; LEFT JOIN keeps the row.
+    const rows = await this.client<(Activity & { userName: string | null; userRole: string | null })[]>`
+      SELECT
+        a.id,
+        a.user_id   AS "userId",
+        a.action,
+        a.details,
+        a.entity_type AS "entityType",
+        a.entity_id AS "entityId",
+        a.created_at AS "createdAt",
+        u.username  AS "userName",
+        u.role      AS "userRole"
+      FROM activities a
+      LEFT JOIN users u ON u.id = a.user_id
+      ORDER BY a.created_at DESC
+      LIMIT ${limit}
+    `;
+    return rows as unknown as Activity[];
   }
-  
+
   // API Connection operations
   async getApiConnection(provider: string): Promise<ApiConnection | undefined> {
     const [apiConnection] = await this.db

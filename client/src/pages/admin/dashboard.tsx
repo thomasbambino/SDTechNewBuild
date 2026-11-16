@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Inbox, FileText, MessageSquare, ChevronRight, Camera, RefreshCw } from "lucide-react";
-import { describeActivity } from "@/lib/describeActivity";
+import { describeActivity, shortRelativeTime } from "@/lib/describeActivity";
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -213,8 +213,8 @@ export function AdminHomeView({ data, unreadMessages, onRefresh, refreshing = fa
                   const described = describeActivity(a);
                   return (
                     <li key={a.id} className="flex gap-3 px-4 py-3 text-[13.5px]">
-                      <span className="w-[72px] shrink-0 pt-px text-[12.5px] text-muted-foreground">
-                        {formatDistanceToNow(new Date(a.createdAt), { addSuffix: false }).replace("about ", "").replace("less than a minute", "now")}
+                      <span className="w-[56px] shrink-0 pt-px text-[12.5px] text-muted-foreground">
+                        {shortRelativeTime(a.createdAt)}
                       </span>
                       <span className="min-w-0 text-foreground/85">
                         {described.actor && <span className="font-semibold text-foreground">{described.actor}</span>}
