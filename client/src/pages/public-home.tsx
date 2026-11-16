@@ -568,7 +568,11 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
 /** A static mock of what a client sees in the portal: a photo update and a pinned note. */
 function PortalPreview() {
   const txt = useSiteStrings();
-  const photoLabels = [txt("portal_photo_label_1"), txt("portal_photo_label_2"), txt("portal_photo_label_3")];
+  const photos = [
+    { src: txt("portal_photo_1"), alt: txt("portal_photo_label_1") },
+    { src: txt("portal_photo_2"), alt: txt("portal_photo_label_2") },
+    { src: txt("portal_photo_3"), alt: txt("portal_photo_label_3") },
+  ];
   return (
     <div className="flex flex-col gap-3.5 rounded-xl border border-border bg-card p-4 shadow-lg" aria-label="Example of a client portal update">
       <div className="flex items-center gap-2.5">
@@ -581,9 +585,9 @@ function PortalPreview() {
       </div>
       <p className="text-[17px] font-semibold leading-snug">{txt("portal_title")}</p>
       <div className="grid grid-cols-3 gap-1.5">
-        {photoLabels.map((label) => (
-          <div key={label} className="aspect-square overflow-hidden rounded-lg">
-            <PhotoSlot src={null} alt="" fallback="" className="!p-2 text-[11px]" />
+        {photos.map((p, i) => (
+          <div key={i} className="aspect-square overflow-hidden rounded-lg">
+            <PhotoSlot src={p.src || null} alt={p.alt} fallback="" className="!p-2 text-[11px]" />
           </div>
         ))}
       </div>

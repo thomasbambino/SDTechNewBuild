@@ -11,6 +11,8 @@ export interface SiteStringEntry {
   help?: string;      // Optional caption under the input
   group: string;      // Section heading in the admin editor
   multiline?: boolean;
+  /** When "image", the admin editor renders an upload widget instead of a text input. */
+  kind?: "text" | "image";
 }
 
 export const SITE_STRING_REGISTRY: Record<string, SiteStringEntry> = {
@@ -77,6 +79,9 @@ export const SITE_STRING_REGISTRY: Record<string, SiteStringEntry> = {
   portal_pinned_note: { default: "Important note · pinned", label: "Portal preview: pinned note label", group: "Portal preview" },
   portal_password_label: { default: "Staff Wi-Fi password", label: "Portal preview: password label", group: "Portal preview" },
   portal_reveal_button: { default: "Reveal", label: "Portal preview: reveal button", group: "Portal preview" },
+  portal_photo_1: { default: "", label: "Portal preview: photo 1", help: "Upload a real photo to replace the hatched placeholder.", group: "Portal preview", kind: "image" },
+  portal_photo_2: { default: "", label: "Portal preview: photo 2", group: "Portal preview", kind: "image" },
+  portal_photo_3: { default: "", label: "Portal preview: photo 3", group: "Portal preview", kind: "image" },
   portal_photo_label_1: { default: "Hallway run", label: "Portal preview: photo caption 1", group: "Portal preview" },
   portal_photo_label_2: { default: "Dome, lobby", label: "Portal preview: photo caption 2", group: "Portal preview" },
   portal_photo_label_3: { default: "NVR view", label: "Portal preview: photo caption 3", group: "Portal preview" },

@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Save, RotateCcw } from "lucide-react";
+import { Save, RotateCcw, Upload, X, Loader2 } from "lucide-react";
+import heic2any from "heic2any";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { SITE_STRING_REGISTRY, type SiteStringKey } from "@/lib/siteStrings";
@@ -119,12 +120,19 @@ export default function SiteTextPage() {
                             </button>
                           )}
                         </div>
-                        <InputCmp
-                          value={current}
-                          onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setDraft(d => ({ ...d, [key]: e.target.value }))}
-                          rows={entry.multiline ? 3 : undefined}
-                          className={entry.multiline ? "resize-none" : ""}
-                        />
+                        {entry.kind === "image" ? (
+                          <ImageField
+                            value={current}
+                            onChange={(url) => setDraft(d => ({ ...d, [key]: url }))}
+                          />
+                        ) : (
+                          <InputCmp
+                            value={current}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setDraft(d => ({ ...d, [key]: e.target.value }))}
+                            rows={entry.multiline ? 3 : undefined}
+                            className={entry.multiline ? "resize-none" : ""}
+                          />
+                        )}
                         {entry.help && (
                           <p className="text-xs text-gray-500">{entry.help}</p>
                         )}
@@ -154,5 +162,89 @@ export default function SiteTextPage() {
         </div>
       </div>
     </AppLayout>
+  );
+}
+
+function ImageField({ value, onChange }: { value: string; onChange: (url: string) => void }) {
+  const { toast } = useToast();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const upload = async (file: File) => {
+    setUploading(true);
+    try {
+      // Convert HEIC in the browser so the server's magic-byte check accepts it.
+      let prepped: File = file;
+      const isHeic = file.type === "image/heic" || file.type === "image/heif" || /\.(heic|heif)$/i.test(file.name);
+      if (isHeic) {
+        try {
+          const converted = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.92 });
+          const blob = Array.isArray(converted) ? converted[0] : converted;
+          prepped = new File([blob], file.name.replace(/\.(heic|heif)$/i, ".jpg"), { type: "image/jpeg" });
+        } catch {
+          // Let the server's heic-convert fallback handle it.
+          prepped = new File([file], file.name, { type: file.type || "image/heic" });
+        }
+      }
+      const fd = new FormData();
+      fd.append("image", prepped);
+      const res = await fetch("/api/content/image", { method: "POST", credentials: "include", body: fd });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        let message = text;
+        try { const j = JSON.parse(text); if (j.message) message = j.message; } catch { /* keep */ }
+        throw new Error(message || "Upload failed");
+      }
+      const data = await res.json();
+      if (data.url) onChange(data.url);
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      {value ? (
+        <div className="relative inline-block">
+          <img src={value} alt="" className="h-32 w-32 object-cover rounded-md border" />
+          <button
+            type="button"
+            onClick={() => onChange("")}
+            className="absolute -top-2 -right-2 bg-destructive text-white rounded-full p-1 shadow"
+            aria-label="Remove image"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      ) : (
+        <div
+          className="border-2 border-dashed border-muted rounded-md p-4 text-center cursor-pointer hover:bg-muted/30 h-32 flex flex-col items-center justify-center gap-1"
+          onClick={() => !uploading && fileRef.current?.click()}
+          onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+          onDrop={(e) => {
+            e.preventDefault(); e.stopPropagation();
+            if (!uploading && e.dataTransfer.files?.[0]) upload(e.dataTransfer.files[0]);
+          }}
+        >
+          {uploading ? (
+            <Loader2 className="h-5 w-5 text-primary animate-spin" />
+          ) : (
+            <>
+              <Upload className="h-5 w-5 text-muted-foreground" />
+              <p className="text-xs text-muted-foreground">Click or drop an image</p>
+            </>
+          )}
+        </div>
+      )}
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*,.heic,.heif"
+        className="hidden"
+        onChange={(e) => { if (e.target.files?.[0]) upload(e.target.files[0]); e.target.value = ""; }}
+      />
+    </div>
   );
 }
