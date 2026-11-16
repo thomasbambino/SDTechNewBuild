@@ -4,7 +4,6 @@ import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -55,7 +54,6 @@ export default function Header({ sidebarOpen, setSidebarOpen, themeMode, setThem
   const [_, navigate] = useLocation();
   const { toast } = useToast();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [logoImgLoaded, setLogoImgLoaded] = useState(false);
   // Seed from the localStorage cache so the first paint already has the
   // real logo + company name. isLoading only reports true when there's no
   // cached value at all, so the skeleton shows on the very first visit
@@ -118,21 +116,21 @@ export default function Header({ sidebarOpen, setSidebarOpen, themeMode, setThem
               <Menu className="h-6 w-6" />
             </Button>
 
-            {/* Logo */}
+            {/* Logo — no loader gate. The settings query is pre-seeded from
+                localStorage so publicSettings is available on first render;
+                after the image loads once, the browser HTTP cache serves it
+                instantly on every subsequent SPA navigation. The old
+                logoImgLoaded skeleton reset to false on every AppLayout
+                remount and caused a visible flash between pages. */}
             <Link href={redirectPath} className="flex items-center">
-              {settingsLoading ? (
+              {publicSettings?.logoPath ? (
+                <img
+                  src={publicSettings.logoPath}
+                  alt={publicSettings.companyName || "Logo"}
+                  className="h-8 max-w-[160px] object-contain mr-2 dark:brightness-0 dark:invert"
+                />
+              ) : settingsLoading ? (
                 <Skeleton className="h-8 w-28 mr-2" />
-              ) : publicSettings?.logoPath ? (
-                <div className="relative mr-2 h-8 flex items-center">
-                  {!logoImgLoaded && <Skeleton className="absolute inset-0 h-8 w-28 rounded-md" />}
-                  <img
-                    src={publicSettings.logoPath}
-                    alt={publicSettings.companyName || "Logo"}
-                    className={cn("h-8 max-w-[160px] object-contain dark:brightness-0 dark:invert", !logoImgLoaded && "opacity-0")}
-                    onLoad={() => setLogoImgLoaded(true)}
-                    onError={() => setLogoImgLoaded(true)}
-                  />
-                </div>
               ) : (
                 <>
                   <span className="mr-2.5 flex h-9 w-9 items-center justify-center rounded-lg bg-foreground font-display text-lg font-bold text-background">SD</span>
