@@ -10,7 +10,7 @@ import NoteCard, { NoteData } from "@/components/dashboard/NoteCard";
 import TaskList, { TaskRow } from "@/components/dashboard/TaskList";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Camera, Check, Clock, MessageSquare, ArrowRight } from "lucide-react";
+import { Camera, Check, Clock, MessageSquare, ArrowRight, Printer } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 /* ------------------------------------------------------------------ */
@@ -140,16 +140,24 @@ export function ClientDashboardView({ data, timeline, notes, tasks, companyName 
           </p>
           <h1 className="text-3xl sm:text-4xl lg:text-[2.75rem] lg:leading-none">{headline}</h1>
         </div>
-        {dueNow ? (
-          <Button onClick={() => navigate("/client/invoices")}>
-            Pay invoice #{dueNow.invoiceNumber.replace(/^#/, "")} · {formatCurrency(dueNow.amount)}
-          </Button>
-        ) : (
-          <Button variant="outline" onClick={() => navigate("/client/messages")}>
-            <MessageSquare className="h-4 w-4" />
-            Message {companyName}
-          </Button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {(timeline.length > 0 || tasks.length > 0) && (
+            <Button variant="ghost" size="sm" onClick={() => navigate("/client/report")}>
+              <Printer className="h-4 w-4" />
+              Print report
+            </Button>
+          )}
+          {dueNow ? (
+            <Button onClick={() => navigate("/client/invoices")}>
+              Pay invoice #{dueNow.invoiceNumber.replace(/^#/, "")} · {formatCurrency(dueNow.amount)}
+            </Button>
+          ) : (
+            <Button variant="outline" onClick={() => navigate("/client/messages")}>
+              <MessageSquare className="h-4 w-4" />
+              Message {companyName}
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-wrap items-start gap-7">

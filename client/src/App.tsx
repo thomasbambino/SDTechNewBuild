@@ -44,6 +44,7 @@ import ClientDocuments from "@/pages/client/documents";
 import ClientProfile from "@/pages/client/profile";
 import ClientMessages from "@/pages/client/messages";
 import ClientNotes from "@/pages/client/notes";
+import ClientReport from "@/pages/client/report";
 import CustomPageView from "@/pages/custom-page";
 
 function Router() {
@@ -74,6 +75,7 @@ function Router() {
       <ProtectedRoute path="/admin/messages" role="admin" component={AdminMessages} />
       
       {/* Client routes */}
+      <ProtectedRoute path="/client/report" role="client" component={ClientReport} />
       <ProtectedRoute path="/client" role="client" component={ClientDashboard} />
       <ProtectedRoute path="/client/projects" role="client" component={ClientProjects} />
       <ProtectedRoute path="/client/invoices" role="client" component={ClientInvoices} />
