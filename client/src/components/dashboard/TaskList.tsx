@@ -125,6 +125,15 @@ export default function TaskList({
               value={editDraft.title}
               onChange={e => setEditDraft(d => ({ ...d, title: e.target.value }))}
               placeholder="Task title"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey && editDraft.title.trim()) {
+                  e.preventDefault();
+                  saveEdit();
+                } else if (e.key === "Escape") {
+                  setEditingId(null);
+                }
+              }}
             />
             <Textarea
               value={editDraft.description}
@@ -139,10 +148,14 @@ export default function TaskList({
             </div>
           </div>
         ) : (
-          <div className="flex-1 min-w-0">
-            <div className="flex items-start gap-2">
-              <p className={cn("text-sm", complete && "line-through text-muted-foreground")}>{task.title}</p>
-            </div>
+          <button
+            type="button"
+            className="flex-1 min-w-0 text-left cursor-text disabled:cursor-default"
+            onClick={() => canEdit && startEdit(task)}
+            disabled={!canEdit}
+            aria-label={canEdit ? `Edit task: ${task.title}` : task.title}
+          >
+            <p className={cn("text-sm", complete && "line-through text-muted-foreground")}>{task.title}</p>
             {task.description && (
               <p className={cn("text-xs mt-0.5 whitespace-pre-wrap", complete ? "text-muted-foreground/70" : "text-muted-foreground")}>
                 {task.description}
@@ -153,23 +166,25 @@ export default function TaskList({
                 Done {formatDistanceToNow(new Date(task.completedAt), { addSuffix: true })}
               </p>
             )}
-          </div>
+          </button>
         )}
         {canEdit && !isEditing && (
-          <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+          <div className="flex gap-0.5 flex-shrink-0">
             <button
               type="button"
               onClick={() => startEdit(task)}
-              className="h-7 w-7 rounded hover:bg-muted flex items-center justify-center text-muted-foreground"
-              aria-label="Edit"
+              className="h-8 w-8 rounded hover:bg-muted flex items-center justify-center text-muted-foreground"
+              aria-label="Edit task"
+              title="Edit"
             >
               <Pencil className="h-3.5 w-3.5" />
             </button>
             <button
               type="button"
               onClick={() => { if (confirm(`Delete task "${task.title}"?`)) deleteMutation.mutate(task.id); }}
-              className="h-7 w-7 rounded hover:bg-destructive/10 hover:text-destructive flex items-center justify-center text-muted-foreground"
-              aria-label="Delete"
+              className="h-8 w-8 rounded hover:bg-destructive/10 hover:text-destructive flex items-center justify-center text-muted-foreground"
+              aria-label="Delete task"
+              title="Delete"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
