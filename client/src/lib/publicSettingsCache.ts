@@ -42,11 +42,18 @@ function writeCachedPublicSettings(value: CachedPublicSettings | undefined): voi
 }
 
 /**
- * Subscribes the query cache so every successful response for
- * /api/settings/public gets mirrored to localStorage. Called once at app
- * startup; unsubscribes aren't necessary because it lives for the page.
+ * At startup: seed the query cache from localStorage so every useQuery
+ * for /api/settings/public (public home, Header, theme-provider, etc.)
+ * starts with the cached value instead of a loading state. Then subscribe
+ * to mirror every subsequent server response back into localStorage.
+ *
+ * Called once from App.tsx *before* the React tree renders.
  */
 export function syncPublicSettingsCache(queryClient: QueryClient): void {
+  const cached = readCachedPublicSettings();
+  if (cached) {
+    queryClient.setQueryData([PUBLIC_SETTINGS_QUERY_KEY], cached);
+  }
   queryClient.getQueryCache().subscribe((event) => {
     if (event.type !== "updated") return;
     const key = event.query.queryKey?.[0];

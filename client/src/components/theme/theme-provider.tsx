@@ -174,12 +174,9 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       }
     };
     
-    // Apply the theme
-    if (state.theme === "dark") {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
+    // AppLayout owns the <html class="dark"> toggle now — writing it here
+    // too caused competing effects on mount and produced the white flash.
+    // Intentionally left as a no-op; see client/src/components/layout/AppLayout.tsx.
     
     // Apply the primary color only when the admin picked a custom one;
     // otherwise clear any inline override so the CSS tokens (light + dark) apply.

@@ -19,8 +19,12 @@
     <script>
       (function () {
         try {
+          // User-toggled theme lives under 'themeMode' (AppLayout writes it).
+          // Fall back to the server's choice stored inside the cached settings
+          // blob so a brand-new browser that's never been to the app still
+          // paints in the right theme if the admin configured dark.
           var cached = JSON.parse(localStorage.getItem("publicSettings") || "null");
-          var theme = (cached && cached.theme) || localStorage.getItem("theme");
+          var theme = localStorage.getItem("themeMode") || (cached && cached.theme);
           if (theme === "dark") document.documentElement.classList.add("dark");
           if (cached) {
             if (cached.siteTitle) document.title = cached.siteTitle;

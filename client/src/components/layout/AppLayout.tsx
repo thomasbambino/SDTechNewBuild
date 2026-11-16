@@ -10,28 +10,31 @@ interface AppLayoutProps {
   children: React.ReactNode;
 }
 
+// Lazy initializer: read the theme synchronously *before* the first render,
+// so we never start at "light" and flash the dark class off on mount.
+function readInitialTheme(): string {
+  if (typeof window === "undefined") return "light";
+  try {
+    return localStorage.getItem("themeMode") || "light";
+  } catch {
+    return "light";
+  }
+}
+
 export default function AppLayout({ children }: AppLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [themeMode, setThemeMode] = useState("light");
+  const [themeMode, setThemeMode] = useState<string>(readInitialTheme);
   const { user, stopImpersonatingMutation } = useAuth();
   const [location] = useLocation();
-  
-  // Initialize theme from localStorage on component mount
-  useEffect(() => {
-    const savedTheme = localStorage.getItem('themeMode');
-    if (savedTheme) {
-      setThemeMode(savedTheme);
-    }
-  }, []);
-  
-  // Apply theme changes to document
+
+  // Apply theme changes to document whenever the user toggles — and persist.
+  // The first pass runs with the correct value already (lazy initializer),
+  // so there's no mount-time flash to light theme.
   useEffect(() => {
     const root = document.documentElement;
-    if (themeMode === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
+    if (themeMode === 'dark') root.classList.add('dark');
+    else root.classList.remove('dark');
+    try { localStorage.setItem('themeMode', themeMode); } catch { /* ignore */ }
   }, [themeMode]);
   
   // Define which pages should show the sidebar
