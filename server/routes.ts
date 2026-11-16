@@ -449,7 +449,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
         recentActivities,
         pendingInquiries,
-        recentProjects: projects.slice(0, 5),
+        // Attach clientName so the "Active jobs" widget can show which client
+        // each project belongs to. Uses the same clientNameById map built for
+        // the recentPhotos annotation above.
+        recentProjects: projects.map(p => ({ ...p, clientName: clientNameById.get(p.clientId) ?? null })).slice(0, 5),
         recentPhotos,
       });
     } catch (error) {

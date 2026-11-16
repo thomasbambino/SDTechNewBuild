@@ -27,7 +27,7 @@ export interface AdminDashboardData {
   };
   recentActivities: Activity[];
   pendingInquiries: Inquiry[];
-  recentProjects: Project[];
+  recentProjects: (Project & { clientName: string | null })[];
   recentPhotos: RecentPhoto[];
 }
 

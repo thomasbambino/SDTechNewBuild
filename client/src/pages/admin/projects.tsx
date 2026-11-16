@@ -735,12 +735,12 @@ export default function ProjectsPage() {
                   onClick={() => setLocation(`/admin/projects/${project.id}`)}
                 >
                   <CardHeader className="pb-2">
-                    <div className="flex justify-between items-start">
-                      <div className="flex items-center">
-                        <div className="h-10 w-10 bg-primary-100 rounded-md flex items-center justify-center mr-2">
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="flex items-start min-w-0">
+                        <div className="h-10 w-10 flex-shrink-0 bg-primary-100 rounded-md flex items-center justify-center mr-2">
                           {getProjectIcon(project)}
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <CardTitle className="text-lg">{project.name}</CardTitle>
                           <CardDescription>
                             Client: {getClientName(project.clientId)}
