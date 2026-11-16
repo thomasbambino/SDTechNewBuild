@@ -397,11 +397,6 @@ export default function AdminUsers() {
     });
   };
   
-  const handleToggleRole = (user: User) => {
-    const newRole = user.role === 'admin' ? 'client' : 'admin';
-    updateRoleMutation.mutate({ userId: user.id, role: newRole });
-  };
-  
   const handleToggleStatus = (user: User) => {
     // The status field doesn't exist in the schema yet, but this prepares
     // for a future feature to disable/enable accounts
@@ -677,19 +672,27 @@ export default function AdminUsers() {
                                           </Button>
                                         )}
                                         {isFullAdmin && (
-                                          <Button
-                                            variant={user.role === 'admin' ? 'outline' : 'default'}
-                                            className="justify-start"
-                                            onClick={() => handleToggleRole(user)}
-                                            disabled={updateRoleMutation.isPending}
-                                          >
-                                            {updateRoleMutation.isPending ? (
-                                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                            ) : (
-                                              <ShieldCheck className="mr-2 h-4 w-4" />
-                                            )}
-                                            {user.role === 'admin' ? 'Remove Admin Rights' : 'Make Administrator'}
-                                          </Button>
+                                          <div className="flex flex-col gap-1.5">
+                                            <Label className="text-xs text-muted-foreground">Role</Label>
+                                            <Select
+                                              value={user.role}
+                                              onValueChange={(newRole) => {
+                                                if (newRole !== user.role) {
+                                                  updateRoleMutation.mutate({ userId: user.id, role: newRole });
+                                                }
+                                              }}
+                                              disabled={updateRoleMutation.isPending}
+                                            >
+                                              <SelectTrigger>
+                                                <SelectValue />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="client">Client</SelectItem>
+                                                <SelectItem value="internal">Internal (back-office)</SelectItem>
+                                                <SelectItem value="admin">Administrator</SelectItem>
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
                                         )}
                                         <Button 
                                           variant={user.status === 'disabled' ? 'default' : 'destructive'}
