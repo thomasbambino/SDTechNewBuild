@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Inbox, FileText, MessageSquare, ChevronRight, Camera, RefreshCw } from "lucide-react";
+import { describeActivity } from "@/lib/describeActivity";
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -208,18 +209,25 @@ export function AdminHomeView({ data, unreadMessages, onRefresh, refreshing = fa
               <p className="px-4 py-6 text-[14.5px] text-foreground/75">No recent activity.</p>
             ) : (
               <ul className="divide-y divide-border">
-                {data.recentActivities.map(a => (
-                  <li key={a.id} className="flex gap-3 px-4 py-3 text-[13.5px]">
-                    <span className="w-[72px] shrink-0 pt-px text-[12.5px] text-muted-foreground">
-                      {formatDistanceToNow(new Date(a.createdAt), { addSuffix: false }).replace("about ", "").replace("less than a minute", "now")}
-                    </span>
-                    <span className="min-w-0 text-foreground/85">
-                      {a.userName && <span className="font-semibold text-foreground">{a.userName} </span>}
-                      <span>{humanizeAction(a.action)}</span>
-                      {a.details && <span className="text-muted-foreground"> · {a.details}</span>}
-                    </span>
-                  </li>
-                ))}
+                {data.recentActivities.map(a => {
+                  const described = describeActivity(a);
+                  return (
+                    <li key={a.id} className="flex gap-3 px-4 py-3 text-[13.5px]">
+                      <span className="w-[72px] shrink-0 pt-px text-[12.5px] text-muted-foreground">
+                        {formatDistanceToNow(new Date(a.createdAt), { addSuffix: false }).replace("about ", "").replace("less than a minute", "now")}
+                      </span>
+                      <span className="min-w-0 text-foreground/85">
+                        {described.actor && <span className="font-semibold text-foreground">{described.actor}</span>}
+                        {described.actor && " "}
+                        <span>{described.verb}</span>
+                        {described.object && (
+                          <> <span className="font-medium text-foreground">{described.object}</span></>
+                        )}
+                        {described.suffix && <span> {described.suffix}</span>}
+                      </span>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>
@@ -252,9 +260,6 @@ function Stat({ label, value, onClick }: { label: string; value: string; onClick
   );
 }
 
-function humanizeAction(action: string): string {
-  return action.replace(/[_-]+/g, " ").replace(/^\w/, c => c.toLowerCase());
-}
 
 function AdminHomeSkeleton() {
   return (

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import { Activity } from "@/components/dashboard/ActivityFeed";
+import { describeActivity } from "@/lib/describeActivity";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDistanceToNow } from "date-fns";
 import { 
@@ -139,21 +140,20 @@ export default function ActivitiesPage() {
                               </div>
                             </div>
                             <div className="min-w-0 flex-1">
-                              <div>
-                                <div className="text-sm">
-                                  <span className="font-medium text-gray-900">
-                                    {activity.userName || "System"}
-                                  </span>
-                                  <span className="ml-2 font-medium text-gray-500">
-                                    {activity.action}
-                                  </span>
-                                </div>
-                                <p className="mt-0.5 text-sm text-gray-500">
-                                  {activity.details}
-                                </p>
-                              </div>
-                              <div className="mt-2 text-sm text-gray-500">
-                                <p>{formatTime(activity.createdAt)}</p>
+                              {(() => {
+                                const d = describeActivity(activity);
+                                return (
+                                  <div className="text-sm text-gray-700">
+                                    {d.actor && <span className="font-semibold text-gray-900">{d.actor}</span>}
+                                    {d.actor && " "}
+                                    <span>{d.verb}</span>
+                                    {d.object && <> <span className="font-medium text-gray-900">{d.object}</span></>}
+                                    {d.suffix && <span className="text-gray-500"> {d.suffix}</span>}
+                                  </div>
+                                );
+                              })()}
+                              <div className="mt-1 text-xs text-gray-500">
+                                {formatTime(activity.createdAt)}
                               </div>
                             </div>
                           </div>
