@@ -28,6 +28,7 @@ import {
   decryptFieldsArray,
   assertNoteCryptoReady,
 } from "./noteCrypto";
+import { sendNewAccountEmail, sendPasswordResetEmail } from "./email";
 
 
 
@@ -373,28 +374,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const invoices = await storage.getAllInvoices();
       const pendingInquiries = await storage.getPendingInquiries();
       const recentActivities = await storage.getRecentActivities(5);
-      
+
+      const clientNameById = new Map(clients.map(c => [c.id, c.name]));
+      const projectInfoById = new Map(projects.map(p => [p.id, { name: p.name, clientName: clientNameById.get(p.clientId) ?? null }]));
+
+      // Open-task total and recent-photo strip via small raw queries — keeps the
+      // dashboard snappy without stuffing more helpers into IStorage.
+      const [{ count: openTasksCount }] = await (storage as any).client`
+        SELECT COUNT(*)::int AS count FROM project_tasks WHERE completed_at IS NULL
+      `;
+
+      const photoRows = await (storage as any).client<{ id: number; projectId: number; imagePaths: string | null; createdAt: string; title: string }[]>`
+        SELECT id, project_id AS "projectId", image_paths AS "imagePaths",
+               created_at AS "createdAt", title
+        FROM milestones
+        WHERE image_paths IS NOT NULL AND image_paths <> '[]' AND image_paths <> ''
+        ORDER BY created_at DESC
+        LIMIT 24
+      `;
+      const recentPhotos: { url: string; projectName: string | null; clientName: string | null; postTitle: string; createdAt: string; milestoneId: number; projectId: number }[] = [];
+      for (const row of photoRows) {
+        try {
+          const urls: string[] = JSON.parse(row.imagePaths || "[]");
+          const pinfo = projectInfoById.get(row.projectId);
+          for (const url of urls) {
+            if (recentPhotos.length >= 8) break;
+            recentPhotos.push({
+              url,
+              projectName: pinfo?.name ?? null,
+              clientName: pinfo?.clientName ?? null,
+              postTitle: row.title,
+              createdAt: row.createdAt,
+              milestoneId: row.id,
+              projectId: row.projectId,
+            });
+          }
+        } catch { /* skip malformed JSON */ }
+        if (recentPhotos.length >= 8) break;
+      }
+
       // Calculate stats
       const activeProjects = projects.filter(p => p.status === "in_progress").length;
       const totalClients = clients.length;
-      
+
       // Calculate outstanding invoices
       const outstandingInvoices = invoices
         .filter(i => i.status === "pending" || i.status === "overdue")
         .reduce((sum, invoice) => sum + (invoice.amount || 0), 0);
-      
+
       const newInquiriesCount = pendingInquiries.length;
-      
+
       res.json({
         stats: {
           activeProjects,
           totalClients,
           outstandingInvoices,
-          newInquiriesCount
+          newInquiriesCount,
+          openTasksCount,
         },
         recentActivities,
         pendingInquiries,
-        recentProjects: projects.slice(0, 5)
+        recentProjects: projects.slice(0, 5),
+        recentPhotos,
       });
     } catch (error) {
       next(error);
@@ -1569,6 +1610,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         entityId: user.id
       });
 
+      if (user.email) {
+        sendPasswordResetEmail({
+          to: user.email,
+          name: user.name,
+          temporaryPassword: newPassword,
+        }).catch(() => {});
+      }
+
       res.json({
         message: "Password has been reset",
         username: user.username,
@@ -2090,6 +2139,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         entityId: clientId,
       });
 
+      // Fire-and-forget welcome email. Failure does not block the response.
+      sendNewAccountEmail({ to: email, name, username, temporaryPassword: tempPassword }).catch(() => {});
+
       res.status(201).json({ username, tempPassword, userId: newUser.id });
     } catch (err) { next(err); }
   });
@@ -2160,6 +2212,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.updateClient(clientId, { userId: newUser.id });
       // Also link the user → client so sub-user logic keeps a consistent invariant.
       await storage.updateUser(newUser.id, { clientId });
+
+      sendNewAccountEmail({
+        to: client.email,
+        name: client.name,
+        username,
+        temporaryPassword: tempPassword,
+      }).catch(() => {});
 
       res.json({ username, tempPassword, userId: newUser.id });
     } catch (error) {

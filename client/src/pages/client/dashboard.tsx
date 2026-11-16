@@ -52,6 +52,8 @@ export default function ClientDashboard() {
   const { data: clientNotes = [] } = useQuery<ClientNote[]>({ queryKey: ["/api/client-notes"], enabled: !!data });
   const { data: timeline = [] } = useQuery<TimelinePost[]>({ queryKey: ["/api/timeline/client"], enabled: !!data });
   const { data: tasks = [] } = useQuery<TaskRow[]>({ queryKey: ["/api/tasks/client"], enabled: !!data });
+  const { data: publicSettings } = useQuery<{ companyName?: string }>({ queryKey: ["/api/settings/public"] });
+  const companyName = publicSettings?.companyName || "us";
 
   return (
     <AppLayout>
@@ -64,7 +66,7 @@ export default function ClientDashboard() {
           <Button onClick={() => refetch()}>Try again</Button>
         </div>
       ) : (
-        <ClientDashboardView data={data} timeline={timeline} notes={clientNotes} tasks={tasks} />
+        <ClientDashboardView data={data} timeline={timeline} notes={clientNotes} tasks={tasks} companyName={companyName} />
       )}
     </AppLayout>
   );
@@ -74,7 +76,7 @@ export default function ClientDashboard() {
 /* View: everything visual. Pure props, so it can be previewed.        */
 /* ------------------------------------------------------------------ */
 
-export function ClientDashboardView({ data, timeline, notes, tasks }: { data: ClientDashboardData; timeline: TimelinePost[]; notes: ClientNote[]; tasks: TaskRow[] }) {
+export function ClientDashboardView({ data, timeline, notes, tasks, companyName }: { data: ClientDashboardData; timeline: TimelinePost[]; notes: ClientNote[]; tasks: TaskRow[]; companyName: string }) {
   const [, navigate] = useLocation();
   const { toast } = useToast();
 
@@ -107,9 +109,8 @@ export function ClientDashboardView({ data, timeline, notes, tasks }: { data: Cl
     })),
   ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-  // Day one: no posts from the tech yet (project kickoff rows alone don't count).
+  // Day one: no posts yet (project kickoff rows alone don't count).
   const isEmpty = timeline.length === 0;
-  const techName = timeline.find(t => t.authorName)?.authorName ?? null;
   const activeProject = data.projects.find(p => p.status.toLowerCase().replace(/\s+/g, "_") === "in_progress") ?? data.projects[0] ?? null;
   const nextStart = data.projects
     .map(p => p.startDate)
@@ -135,7 +136,7 @@ export function ClientDashboardView({ data, timeline, notes, tasks }: { data: Cl
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1.5">
           <p className="font-display text-[13px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-            {data.client.name}{techName ? ` · Your tech: ${techName.split(" ")[0]}` : ""}
+            {data.client.name}
           </p>
           <h1 className="text-3xl sm:text-4xl lg:text-[2.75rem] lg:leading-none">{headline}</h1>
         </div>
@@ -146,7 +147,7 @@ export function ClientDashboardView({ data, timeline, notes, tasks }: { data: Cl
         ) : (
           <Button variant="outline" onClick={() => navigate("/client/messages")}>
             <MessageSquare className="h-4 w-4" />
-            Message {techName ? techName.split(" ")[0] : "your tech"}
+            Message {companyName}
           </Button>
         )}
       </div>

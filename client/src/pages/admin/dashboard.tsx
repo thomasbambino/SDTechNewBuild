@@ -23,10 +23,22 @@ export interface AdminDashboardData {
     totalClients: number;
     outstandingInvoices: number;
     newInquiriesCount: number;
+    openTasksCount: number;
   };
   recentActivities: Activity[];
   pendingInquiries: Inquiry[];
   recentProjects: Project[];
+  recentPhotos: RecentPhoto[];
+}
+
+export interface RecentPhoto {
+  url: string;
+  projectName: string | null;
+  clientName: string | null;
+  postTitle: string;
+  createdAt: string;
+  milestoneId: number;
+  projectId: number;
 }
 
 /* ------------------------------------------------------------------ */
@@ -118,6 +130,40 @@ export function AdminHomeView({ data, unreadMessages, onRefresh, refreshing = fa
           </Button>
         </div>
       </div>
+
+      {/* At-a-glance stats */}
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+        <Stat label="Active jobs"        value={String(data.stats.activeProjects)}                        onClick={() => navigate("/admin/projects")} />
+        <Stat label="Open tasks"         value={String(data.stats.openTasksCount)}                        onClick={() => navigate("/admin/projects")} />
+        <Stat label="Outstanding"        value={formatCurrency(data.stats.outstandingInvoices)}           onClick={() => navigate("/admin/invoices")} />
+        <Stat label="Clients"            value={String(data.stats.totalClients)}                          onClick={() => navigate("/admin/clients")} />
+      </div>
+
+      {/* Recent photos strip */}
+      {data.recentPhotos.length > 0 && (
+        <section className="flex flex-col gap-2.5" aria-label="Recent photos">
+          <div className="flex items-center justify-between">
+            <SectionLabel>From the field</SectionLabel>
+            <span className="text-[12.5px] text-muted-foreground">{data.recentPhotos.length} latest</span>
+          </div>
+          <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
+            {data.recentPhotos.map((p) => (
+              <button
+                key={`${p.milestoneId}-${p.url}`}
+                type="button"
+                onClick={() => navigate(`/admin/projects/${p.projectId}`)}
+                title={`${p.clientName ? p.clientName + " · " : ""}${p.postTitle}`}
+                className="group relative aspect-square overflow-hidden rounded-lg border border-border bg-muted"
+              >
+                <img src={p.url} alt="" className="h-full w-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
+                <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-1.5 py-1 text-left text-[10px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100 truncate">
+                  {p.clientName ?? p.projectName}
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div className="grid gap-7 lg:grid-cols-[1.1fr_1fr]">
         <div className="flex flex-col gap-7">
@@ -232,11 +278,6 @@ export function AdminHomeView({ data, unreadMessages, onRefresh, refreshing = fa
             )}
           </div>
 
-          {/* Totals, quietly */}
-          <div className="mt-2 grid grid-cols-2 gap-2.5">
-            <Stat label="Clients" value={String(data.stats.totalClients)} onClick={() => navigate("/admin/clients")} />
-            <Stat label="Open quote requests" value={String(data.stats.newInquiriesCount)} onClick={() => navigate("/admin/inquiries")} />
-          </div>
         </section>
       </div>
     </div>
